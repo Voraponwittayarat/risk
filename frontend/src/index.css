@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #1565C0;
+  --color-secondary: #00897B;
+  --color-success: #2E7D32;
+  --color-warning: #F9A825;
+  --color-danger: #D32F2F;
+  --color-info: #0288D1;
+  
+  --color-bg-light: #F6F8FB;
+  --color-bg-dark: #111827;
+  --color-card-light: #FFFFFF;
+  --color-card-dark: #1F2937;
+  --color-border-light: #E5E7EB;
+  --color-border-dark: #374151;
+
+  --color-risk-a: #43A047;
+  --color-risk-b: #7CB342;
+  --color-risk-c: #C0CA33;
+  --color-risk-d: #FDD835;
+  --color-risk-e: #FB8C00;
+  --color-risk-f: #F4511E;
+  --color-risk-g: #E53935;
+  --color-risk-h: #C62828;
+  --color-risk-i: #8E0000;
+
+  --font-sans: 'Sarabun', sans-serif;
+}
+
+:root {
+  font-family: 'Sarabun', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light dark;
+  color: #1F2937;
+  background-color: #F6F8FB;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #e2e8f0;
+    background-color: #111827;
+  }
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}

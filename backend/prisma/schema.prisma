@@ -1,0 +1,557 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model act {
+  id       Int    @id @default(autoincrement())
+  act_name String @db.VarChar(100)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model department {
+  id              Int       @id @default(autoincrement())
+  depart_name_eng String?   @db.VarChar(50)
+  depart_name     String    @db.VarChar(150)
+  depart_group_id Int?
+  create_date     DateTime? @db.DateTime(0)
+  modify_date     DateTime? @db.Timestamp(0)
+  created_by      Int?
+  updated_by      Int?
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model departmentgroup {
+  id                Int       @id @default(autoincrement())
+  depart_group_name String    @db.VarChar(255)
+  create_date       DateTime? @db.DateTime(0)
+  modify_date       DateTime? @db.Timestamp(0)
+  created_by        Int?
+  updated_by        Int?
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model duration {
+  id            Int       @id @default(autoincrement())
+  duration_name String    @db.VarChar(50)
+  create_date   DateTime? @db.DateTime(0)
+  modify_date   DateTime? @db.Timestamp(0)
+  created_by    Int?
+  updated_by    Int?
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model edit_log {
+  id                 Int       @id @default(autoincrement())
+  edit_by            String    @db.VarChar(255)
+  risk_id            Int
+  riskregister_id    Int
+  edit_table         String    @db.VarChar(255)
+  columnname         String?   @db.VarChar(255)
+  old                String?   @db.Text
+  new                String?   @db.Text
+  user_ir_type_old   String?   @db.VarChar(255)
+  user_ir_type_new   String?   @db.VarChar(255)
+  user_ir_depart_old String?   @db.VarChar(255)
+  user_ir_depart_new String?   @db.VarChar(255)
+  riskstore_old      String?   @db.VarChar(255)
+  riskstore_new      String?   @db.VarChar(255)
+  detail_old         String?   @db.Text
+  detail_new         String?   @db.Text
+  problem_basic_old  String?   @db.Text
+  problem_basic_new  String?   @db.Text
+  program_old        String?   @db.VarChar(255)
+  program_new        String?   @db.VarChar(255)
+  level_old          String?   @db.VarChar(255)
+  level_new          String?   @db.VarChar(255)
+  status_old         String?   @db.VarChar(255)
+  status_new         String?   @db.VarChar(255)
+  created_at         DateTime? @default(now()) @db.Timestamp(0)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model history {
+  id       Int       @id @default(autoincrement())
+  datetime DateTime? @db.DateTime(0)
+  change   String?   @db.VarChar(255)
+  detail   String    @db.VarChar(255)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model hospital {
+  id          Int       @id @default(autoincrement())
+  hoscode     Int
+  hosname     String    @db.VarChar(150)
+  address     String    @db.VarChar(200)
+  tel         String    @db.VarChar(10)
+  phone       String?   @db.VarChar(11)
+  fax         String?   @db.VarChar(10)
+  email       String?   @db.VarChar(200)
+  website     String?   @db.Text
+  linetoken   String?   @db.Text
+  linenotify  String?   @db.VarChar(1)
+  sendmail    String?   @db.VarChar(1)
+  create_date DateTime? @db.DateTime(0)
+  modify_date DateTime? @db.Timestamp(0)
+  created_by  Int?
+  updated_by  Int?
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model inform {
+  id          Int       @id @default(autoincrement())
+  inform_name String    @db.VarChar(100)
+  act_id      Int?
+  create_date DateTime? @db.DateTime(0)
+  modify_date DateTime? @db.Timestamp(0)
+  created_by  Int?
+  updated_by  Int?
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model level {
+  level_id           Int       @id @default(autoincrement())
+  level_code         String    @db.VarChar(2)
+  level_name         String    @db.Text
+  level_warning_code String?   @db.VarChar(3)
+  url_pic            String?   @db.VarChar(100)
+  create_date        DateTime? @db.DateTime(0)
+  modify_date        DateTime? @db.Timestamp(0)
+  created_by         Int?
+  updated_by         Int?
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model levelwarning {
+  id           Int       @id @default(autoincrement())
+  warning_code String?   @db.VarChar(3)
+  warning_name String    @db.VarChar(150)
+  create_date  DateTime? @db.DateTime(0)
+  modify_date  DateTime? @db.Timestamp(0)
+  created_by   Int?
+  updated_by   Int?
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model location {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.VarChar(200)
+  lat         String?   @db.VarChar(200)
+  long        String?   @db.VarChar(200)
+  modify_date DateTime? @db.Timestamp(0)
+  created_by  Int?
+  updated_by  Int?
+  create_date DateTime? @db.DateTime(0)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model member {
+  id             Int       @id @default(autoincrement())
+  cid            String    @db.VarChar(13)
+  member_name    String    @db.VarChar(60)
+  department_id1 Int
+  department_id2 Int?      @default(0)
+  position_id    Int
+  priority       String?   @db.VarChar(1)
+  team_id        Int?
+  accessrules    String?   @db.Text
+  img            String?   @db.Text
+  status         String?   @db.VarChar(1)
+  create_date    DateTime? @db.DateTime(0)
+  modify_date    DateTime? @db.Timestamp(0)
+  created_by     Int?
+  updated_by     Int?
+  rm_status      String?   @db.VarChar(1)
+}
+
+model migration {
+  version    String @id @db.VarChar(180)
+  apply_time Int?
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model month {
+  id         Int    @id @default(autoincrement())
+  month_num  String @db.VarChar(2)
+  month_name String @db.VarChar(50)
+}
+
+model nine_standards {
+  id              Int     @id @default(autoincrement())
+  std_number      Int     @unique(map: "uk_std_number")
+  std_name        String  @db.VarChar(255)
+  risk_codes      String  @db.Text
+  safety_category String? @db.VarChar(255)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model position {
+  id            Int       @id @default(autoincrement())
+  position_name String    @db.VarChar(100)
+  create_date   DateTime? @db.DateTime(0)
+  modify_date   DateTime? @db.Timestamp(0)
+  created_by    Int?
+  updated_by    Int?
+}
+
+model profile {
+  user_id        Int     @id
+  name           String? @db.VarChar(255)
+  public_email   String? @db.VarChar(255)
+  gravatar_email String? @db.VarChar(255)
+  gravatar_id    String? @db.VarChar(32)
+  location       String? @db.VarChar(255)
+  website        String? @db.VarChar(255)
+  bio            String? @db.Text
+  timezone       String? @db.VarChar(40)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model program {
+  program_id   Int       @id @default(autoincrement())
+  program_name String    @db.VarChar(100)
+  type_id      Int?
+  create_date  DateTime? @db.DateTime(0)
+  modify_date  DateTime? @db.Timestamp(0)
+  created_by   Int?
+  updated_by   Int?
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model reviewresults {
+  id                 Int       @id @default(autoincrement())
+  reviewresults_name String    @db.VarChar(200)
+  create_date        DateTime? @db.DateTime(0)
+  modify_date        DateTime? @db.Timestamp(0)
+  created_by         Int?
+  updated_by         Int?
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model risk {
+  id            Int       @id @default(autoincrement())
+  date_report   DateTime  @db.Date
+  time_report   DateTime  @db.Time(0)
+  duration_id   Int?
+  location_id   Int?
+  user_ir_type  String    @db.VarChar(1)
+  user_ir       Int?
+  program_id    Int?
+  level_id      String    @db.VarChar(2)
+  riskstore_id  Int
+  detail        String?   @db.Text
+  detail_hosxp  String?   @db.Text
+  affected      String?   @db.VarChar(50)
+  edit          String?   @db.VarChar(10)
+  problem_basic String?   @db.Text
+  image         String?   @db.Text
+  inform_id     Int
+  status_risk   String?   @default("รายงาน") @db.VarChar(100)
+  created_by    Int?
+  department_id String?   @db.VarChar(3)
+  updated_by    Int?
+  create_date   DateTime? @db.DateTime(0)
+  modify_date   DateTime? @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model risk_copy {
+  id            Int       @id @default(autoincrement())
+  date_report   DateTime  @db.Date
+  time_report   DateTime  @db.Time(0)
+  duration_id   Int?
+  location_id   Int?
+  user_ir_type  String    @db.VarChar(1)
+  user_ir       Int?
+  program_id    Int?
+  level_id      String    @db.VarChar(2)
+  riskstore_id  Int
+  detail        String?   @db.Text
+  detail_hosxp  String?   @db.Text
+  affected      String?   @db.VarChar(50)
+  edit          String?   @db.VarChar(10)
+  problem_basic String?   @db.Text
+  image         String?   @db.Text
+  inform_id     Int
+  status_risk   String?   @default("รายงาน") @db.VarChar(100)
+  created_by    Int?
+  department_id String?   @db.VarChar(3)
+  updated_by    Int?
+  create_date   DateTime? @db.DateTime(0)
+  modify_date   DateTime? @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model riskgroup {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.VarChar(100)
+  create_date DateTime? @db.DateTime(0)
+  modify_date DateTime? @db.Timestamp(0)
+  created_by  Int?
+  updated_by  Int?
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model riskregister {
+  id                   Int       @default(autoincrement())
+  id_risk              Int       @default(0)
+  date_report          DateTime  @db.Date
+  time_report          DateTime  @db.Time(0)
+  duration_id          Int?
+  location_id          Int?
+  user_ir_type         String    @db.VarChar(50)
+  user_ir              Int?
+  program_id           Int?
+  level_id             String    @db.VarChar(2)
+  riskstore_id         Int
+  detail               String?   @db.Text
+  detail_hosxp         String?   @db.Text
+  affected             String?   @db.VarChar(50)
+  edit                 String?   @db.VarChar(10)
+  problem_basic        String?   @db.Text
+  image                String?   @db.Text
+  inform_id            Int
+  status_risk          String?   @db.VarChar(100)
+  created_by           Int?
+  department_id        String    @db.VarChar(3)
+  updated_by           Int?
+  create_date          DateTime? @db.DateTime(0)
+  modify_date          DateTime? @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  send_date            DateTime? @db.DateTime(0)
+  send_use             String?   @db.VarChar(150)
+  register_date        DateTime  @db.Date
+  note                 String?   @db.VarChar(255)
+  refer_type           String?   @db.VarChar(1)
+  sendto_team_id       Int?
+  sendto_department_id String?   @db.VarChar(3)
+  sendto_member_cid    String?   @db.VarChar(13)
+  repeat_code          String?   @db.VarChar(3)
+  link_key             String?   @db.VarChar(100)
+  url                  String?   @db.Text
+
+  @@id([id, id_risk])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model riskregister_copy {
+  id                   Int       @default(autoincrement())
+  id_risk              Int       @default(0)
+  date_report          DateTime  @db.Date
+  time_report          DateTime  @db.Time(0)
+  duration_id          Int?
+  location_id          Int?
+  user_ir_type         String    @db.VarChar(50)
+  user_ir              Int?
+  program_id           Int?
+  level_id             String    @db.VarChar(2)
+  riskstore_id         Int
+  detail               String?   @db.Text
+  detail_hosxp         String?   @db.Text
+  affected             String?   @db.VarChar(50)
+  edit                 String?   @db.VarChar(10)
+  problem_basic        String?   @db.Text
+  image                String?   @db.Text
+  inform_id            Int
+  status_risk          String?   @db.VarChar(100)
+  created_by           Int?
+  department_id        String    @db.VarChar(3)
+  updated_by           Int?
+  create_date          DateTime? @db.DateTime(0)
+  modify_date          DateTime? @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  send_date            DateTime? @db.DateTime(0)
+  send_use             String?   @db.VarChar(150)
+  register_date        DateTime  @db.Date
+  note                 String?   @db.VarChar(255)
+  refer_type           String?   @db.VarChar(1)
+  sendto_team_id       Int?
+  sendto_department_id String?   @db.VarChar(3)
+  sendto_member_cid    String?   @db.VarChar(13)
+  repeat_code          String?   @db.VarChar(3)
+  link_key             String?   @db.VarChar(100)
+  url                  String?   @db.Text
+
+  @@id([id, id_risk])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model riskreview {
+  id               Int       @default(autoincrement())
+  risk_id          Int?
+  riskregister_id  Int?
+  riskvisit        String    @db.VarChar(14)
+  review_date      DateTime  @db.Date
+  review_time      DateTime? @db.Time(0)
+  token_upload     String?   @db.VarChar(100)
+  files            String?   @db.Text
+  hits             Int?
+  cause_problem    String?   @db.VarChar(255)
+  notereview       String    @db.Text
+  reviewresults_id Int
+  review_cid       String?   @db.Text
+  repeat           String?   @db.VarChar(1)
+  discharge        String?   @db.VarChar(1)
+  status_risk      String?   @default("ทบทวน") @db.VarChar(100)
+  count            Int?
+  created_by       Int?
+  updated_by       Int?
+  create_date      DateTime? @db.DateTime(0)
+  modify_date      DateTime? @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+
+  @@id([id, riskvisit])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model riskreview_copy {
+  id               Int       @default(autoincrement())
+  risk_id          Int?
+  riskregister_id  Int?
+  riskvisit        String    @db.VarChar(14)
+  review_date      DateTime  @db.Date
+  review_time      DateTime? @db.Time(0)
+  token_upload     String?   @db.VarChar(100)
+  files            String?   @db.Text
+  hits             Int?
+  notereview       String    @db.Text
+  reviewresults_id Int
+  review_cid       String?   @db.Text
+  repeat           String?   @db.VarChar(1)
+  discharge        String?   @db.VarChar(1)
+  status_risk      String?   @default("ทบทวน") @db.VarChar(100)
+  count            Int?
+  created_by       Int?
+  updated_by       Int?
+  create_date      DateTime? @db.DateTime(0)
+  modify_date      DateTime? @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+
+  @@id([id, riskvisit])
+}
+
+model risks {
+  id            Int       @id @default(autoincrement())
+  no            Int?
+  RRID          Int?
+  RID           Int?
+  risk_date     DateTime? @db.Date
+  risk_time     String?   @db.VarChar(10)
+  send_date     DateTime? @db.DateTime(0)
+  user_ir_type  String?   @db.VarChar(50)
+  dept_from     String?   @db.VarChar(100)
+  dept_to       String?   @db.VarChar(100)
+  riskstore     String?   @db.Text
+  level         String?   @db.VarChar(5)
+  problem_basic String?   @db.Text
+  status        String?   @db.VarChar(50)
+  detail        String?   @db.Text
+  review        String?   @db.Text
+  created_at    DateTime  @default(now()) @db.Timestamp(0)
+
+  @@index([risk_date], map: "idx_risk_date")
+  @@index([RRID], map: "idx_rrid")
+}
+
+model riskstore {
+  riskstore_id   Int       @id @default(autoincrement())
+  riskstore_name String    @db.VarChar(200)
+  inform_id      Int?
+  type_id        Int?
+  program_id     Int?
+  level_id       Int?
+  group_id       Int?
+  team_id        Int?
+  member_cid     String?   @db.VarChar(13)
+  status         String?   @db.VarChar(1)
+  create_date    DateTime? @db.DateTime(0)
+  modify_date    DateTime? @db.Timestamp(0)
+  created_by     Int?
+  updated_by     Int?
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model NameList {
+id String? @db.VarChar(255)
+name String? @db.VarChar(255)
+lastname String? @db.VarChar(255)
+position String? @db.VarChar(255)
+cid String? @db.VarChar(255)
+F6 String? @db.VarChar(255)
+F7 String? @db.VarChar(255)
+F8 String? @db.VarChar(255)
+@@map("รายชื่อ")
+@@ignore
+}
+
+model user {
+  id                   Int       @id @default(autoincrement())
+  username             String    @unique @db.VarChar(255)
+  auth_key             String    @db.VarChar(32)
+  password_hash        String    @db.VarChar(255)
+  password_reset_token String?   @unique @db.VarChar(255)
+  email                String    @unique @db.VarChar(255)
+  status               Int       @default(10)
+  created_at           Int
+  updated_at           Int
+  cid                  String?   @db.VarChar(13)
+  role                 Int?      @default(10)
+}
+
+model riskanalysis {
+  id                      Int       @id @default(autoincrement())
+  risk_code               String    @db.VarChar(50)
+  risk_title              String    @db.VarChar(255)
+  risk_description        String?   @db.Text
+  source                  String?   @default("มาตรฐานสำคัญ 9 ด้าน") @db.VarChar(100)
+  scope_level             String    @default("department") @db.VarChar(20)
+  department_id           String    @db.VarChar(10)
+  program_id              Int?
+  category_name           String?   @db.VarChar(100)
+  safety_goal             String?   @db.VarChar(255)
+  essential_std           String?   @db.VarChar(255)
+  risk_owner_name         String?   @db.VarChar(255)
+  is_never_event          Int       @default(0) @db.TinyInt
+  initial_likelihood      Int       @default(1) @db.TinyInt
+  initial_consequence     Int       @default(1) @db.TinyInt
+  initial_risk_score      Int       @default(1)
+  initial_risk_level      String    @default("green") @db.VarChar(20)
+  risk_prevention         String?   @db.Text
+  risk_transfer           String?   @db.Text
+  risk_monitor            String?   @db.Text
+  risk_mitigation         String?   @db.Text
+  qi_plan                 String?   @db.Text
+  review_frequency_months Int       @default(3)
+  last_reviewed_date      DateTime? @db.Date
+  next_review_date        DateTime? @db.Date
+  residual_risk_level     String?   @db.VarChar(50)
+  status                  String    @default("open") @db.VarChar(20)
+  created_at              DateTime? @default(now()) @db.Timestamp(0)
+  updated_at              DateTime? @default(now()) @db.Timestamp(0)
+  created_by              Int?
+
+  reviews                 riskanalysis_review[]
+}
+
+model riskanalysis_review {
+  id                       Int          @id @default(autoincrement())
+  risk_analysis_id         Int
+  review_date              DateTime     @db.Date
+  review_cycle_no          Int          @default(1)
+  result_of_review         String       @db.Text
+  incident_count_in_period Int?         @default(0)
+  current_likelihood       Int          @default(1) @db.TinyInt
+  current_consequence      Int          @default(1) @db.TinyInt
+  current_risk_score       Int          @default(1)
+  current_risk_level       String       @default("green") @db.VarChar(20)
+  updated_prevention       String?      @db.Text
+  is_escalated             Int          @default(0) @db.TinyInt
+  escalation_target        String?      @db.VarChar(100)
+  reviewed_by              String?      @db.VarChar(255)
+  created_at               DateTime?    @default(now()) @db.Timestamp(0)
+
+  risk                     riskanalysis @relation(fields: [risk_analysis_id], references: [id], onDelete: Cascade)
+
+  @@index([risk_analysis_id], map: "idx_risk_analysis_id")
+}

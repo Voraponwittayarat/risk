@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <title>HSOPS Dashboard</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/js/all.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Sarabun", sans-serif;
+        background-color: #f8fafc;
+      }
+      .card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        padding: 24px;
+      }
+
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+      }
+
+      /* Tooltip Container */
+      .tooltip {
+        position: relative;
+        display: inline-block;
+        cursor: help;
+      }
+      .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 250px;
+        background-color: #1e293b;
+        color: #fff;
+        text-align: left;
+        border-radius: 8px;
+        padding: 10px;
+        position: absolute;
+        z-index: 10;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -125px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 0.75rem;
+        font-weight: normal;
+        line-height: 1.4;
+        pointer-events: none;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      }
+      .tooltip:hover .tooltiptext {
+        visibility: visible;
+        opacity: 1;
+      }
+
+      /* Expansion Animation */
+      .hidden-row {
+        display: none;
+      }
+      .animate-fade-in {
+        animation: fadeIn 0.5s ease-in-out;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      /* --- PRINT STYLES --- */
+      @media print {
+        body {
+          background-color: white;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .no-print {
+          display: none !important;
+        }
+        .card {
+          box-shadow: none;
+          border: 1px solid #e2e8f0;
+          break-inside: avoid;
+          margin-bottom: 20px;
+          page-break-inside: avoid;
+        }
+        .hidden-row {
+          display: table-row !important;
+        }
+        .toggle-icon {
+          display: none !important;
+        }
+        .grid {
+          display: block;
+        }
+        .md\:col-span-3,
+        .lg\:col-span-2,
+        .lg\:col-span-1 {
+          width: 100% !important;
+          margin-bottom: 20px;
+        }
+        canvas {
+          max-width: 100% !important;
+          max-height: 400px !important;
+        }
+        .custom-scrollbar {
+          max-height: none !important;
+          overflow: visible !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body class="bg-slate-100">
+    <div class="max-w-7xl mx-auto p-6">
+      <!-- Loading -->
+      <div id="loading" class="text-center py-20 no-print">
+        <i class="fa-solid fa-spinner fa-spin text-3xl text-indigo-500"></i>
+        <p class="mt-4 text-slate-500">กำลังโหลดข้อมูลจาก Google Sheet...</p>
+      </div>
+
+      <!-- Header -->
+      <div
+        id="dashboardHeader"
+        class="hidden mb-6 bg-white rounded-2xl shadow-sm p-6 border-l-8 border-indigo-600 flex flex-col md:flex-row justify-between items-center gap-4 no-print"
+      >
+        <div>
+          <h1 class="text-2xl font-bold text-indigo-900">
+            <i class="fa-solid fa-user-doctor mr-2"></i>HSOPS Dashboard
+          </h1>
+          <p class="text-slate-500 mt-1">
+            วิเคราะห์วัฒนธรรมความปลอดภัย พร้อมแนวทางพัฒนา (Action Guide)
+          </p>
+        </div>
+        <button
+          onclick="window.print()"
+          class="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700 transition flex items-center gap-2 shadow-lg"
+        >
+          <i class="fa-solid fa-print"></i> พิมพ์รายงานสรุป
+        </button>
+      </div>
+
+      <!-- Dashboard -->
+      <div id="dashboardContent" class="hidden animate-fade-in">
+        <!-- Print Header (Visible only in Print) -->
+        <div class="hidden print:block w-full mb-4">
+          <h1 class="text-2xl font-bold text-slate-900 border-b pb-2">
+            รายงานผลวัฒนธรรมความปลอดภัย (HSOPS Report)
+          </h1>
+          <p class="mt-2 text-slate-600">
+            หน่วยงาน:
+            <span id="printUnitName" class="font-bold">ทั้งหมด</span> | ผู้ตอบ:
+            <span id="printCount">0</span> คน
+          </p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+          <!-- Filter -->
+          <div
+            class="card md:col-span-1 bg-white border border-indigo-50 no-print"
+          >
+            <div class="flex items-center gap-2 mb-3 text-indigo-800">
+              <i class="fa-solid fa-filter"></i>
+              <h3 class="font-bold">ตัวกรอง (Filter)</h3>
+            </div>
+
+            <label class="block text-sm font-medium text-slate-600 mb-1"
+              >เลือกหน่วยงาน (Unit)</label
+            >
+            <select
+              id="unitSelect"
+              class="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50"
+            >
+              <option value="All">ทั้งหมด (All Units)</option>
+            </select>
+
+            <div class="mt-6 pt-4 border-t border-slate-100">
+              <div class="flex justify-between items-center">
+                <span class="text-sm text-slate-600">ผู้ตอบแบบสอบถาม:</span>
+                <span
+                  id="respondentCount"
+                  class="text-2xl font-bold text-indigo-600"
+                  >0</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- D3 -->
+          <div class="card md:col-span-3">
+            <div
+              class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4"
+            >
+              <div>
+                <h3 class="font-bold text-slate-800 text-lg">
+                  <i class="fa-solid fa-bullhorn mr-2 text-orange-500"></i
+                  >จำนวนการรายงานความเสี่ยง (ข้อ D3)
+                </h3>
+                <p class="text-xs text-slate-500">
+                  ความถี่ในการรายงานในช่วง 12 เดือนที่ผ่านมา
+                </p>
+              </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row h-64 items-center gap-6">
+              <div class="w-full md:w-1/3 h-full flex justify-center relative">
+                <canvas id="d3Chart"></canvas>
+              </div>
+
+              <div
+                class="w-full md:w-2/3 overflow-hidden h-full flex flex-col justify-center"
+              >
+                <div class="overflow-y-auto pr-2 custom-scrollbar max-h-60">
+                  <table class="w-full text-sm">
+                    <thead class="bg-slate-50 text-slate-500 sticky top-0">
+                      <tr>
+                        <th class="text-left py-2 px-3">ตัวเลือก</th>
+                        <th class="text-right py-2 px-3">จำนวน (คน)</th>
+                        <th class="text-right py-2 px-3">%</th>
+                      </tr>
+                    </thead>
+                    <tbody
+                      id="d3Legend"
+                      class="divide-y divide-slate-100"
+                    ></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div class="card lg:col-span-2">
+            <div class="flex justify-between items-center mb-6">
+              <h3 class="font-bold text-slate-800 text-lg">
+                คะแนนรายด้าน (% Positive)
+              </h3>
+              <span
+                class="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-medium"
+                >Composite Scores</span
+              >
+            </div>
+            <div class="h-96 w-full">
+              <canvas id="barChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card lg:col-span-1">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="font-bold text-slate-800 text-lg">
+                เปรียบเทียบ (Comparison)
+              </h3>
+            </div>
+            <div class="h-80 w-full flex justify-center relative">
+              <canvas id="radarChart"></canvas>
+            </div>
+            <div
+              class="text-center mt-2 flex justify-center gap-4 text-xs font-medium"
+            >
+              <div class="flex items-center gap-1">
+                <span class="w-3 h-3 rounded-full bg-indigo-500"></span
+                ><span id="radarUnitName">Selected</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="w-3 h-3 rounded-full bg-slate-300"></span>Overall
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detailed Table -->
+        <div class="card">
+          <div class="flex items-center gap-3 mb-4">
+            <h3 class="font-bold text-slate-800 text-lg">
+              ผลการวิเคราะห์เจาะลึก & แนวทางพัฒนา
+            </h3>
+            <span
+              class="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded no-print"
+              ><i class="fa-solid fa-hand-pointer mr-1"></i
+              >คลิกที่แถวเพื่อดูคำแนะนำ</span
+            >
+          </div>
+
+          <div class="overflow-x-auto rounded-lg border border-slate-200">
+            <table class="min-w-full text-sm text-left">
+              <thead
+                class="bg-slate-50 text-slate-700 font-semibold text-xs uppercase tracking-wider"
+              >
+                <tr>
+                  <th class="px-6 py-4">Composite Area (ด้าน)</th>
+                  <th class="px-6 py-4 text-center">Result</th>
+                  <th class="px-6 py-4 text-center">Grade</th>
+                  <th class="px-6 py-4 text-center w-10 no-print"></th>
+                </tr>
+              </thead>
+              <tbody
+                id="tableBody"
+                class="divide-y divide-slate-100 bg-white"
+              ></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      /* ================= CONFIG ================= */
+
+      const GAS_API_URL =
+        "https://script.google.com/macros/s/AKfycbzRFDCPBV1Ozr3cqwGK6QQ0AApi3jf6Pr-xTj7HfXgwmb-lq1csn547yqMaH7iw5pPK/exec";
+
+      const D3_STANDARD_OPTIONS = [
+        "ไม่มี",
+        "1–2 ครั้ง",
+        "3–5 ครั้ง",
+        "6–10 ครั้ง",
+        "มากกว่า 10 ครั้ง",
+      ];
+
+      const COMPOSITE_MAPPING = [
+        {
+          id: "A1",
+          composite: "1. Teamwork (การทำงานเป็นทีมในหน่วยงาน)",
+          isNegative: false,
+        },
+        {
+          id: "A2",
+          composite: "2. Staffing & Work Load (กำลังคนและภาระงาน)",
+          isNegative: false,
+        },
+        {
+          id: "A3",
+          composite: "2. Staffing & Work Load (กำลังคนและภาระงาน)",
+          isNegative: true,
+        },
+        {
+          id: "A4",
+          composite: "4. Organizational Learning (การเรียนรู้ขององค์กร)",
+          isNegative: false,
+        },
+        {
+          id: "A5",
+          composite: "2. Staffing & Work Load (กำลังคนและภาระงาน)",
+          isNegative: true,
+        },
+        {
+          id: "A6",
+          composite: "3. Response to Error (การตอบสนองต่อความผิดพลาด)",
+          isNegative: true,
+        },
+        {
+          id: "A7",
+          composite: "3. Response to Error (การตอบสนองต่อความผิดพลาด)",
+          isNegative: true,
+        },
+        {
+          id: "A8",
+          composite: "1. Teamwork (การทำงานเป็นทีมในหน่วยงาน)",
+          isNegative: false,
+        },
+        {
+          id: "A9",
+          composite: "1. Teamwork (การทำงานเป็นทีมในหน่วยงาน)",
+          isNegative: true,
+        },
+        {
+          id: "A10",
+          composite: "3. Response to Error (การตอบสนองต่อความผิดพลาด)",
+          isNegative: true,
+        },
+        {
+          id: "A11",
+          composite: "2. Staffing & Work Load (กำลังคนและภาระงาน)",
+          isNegative: true,
+        },
+        {
+          id: "A12",
+          composite: "4. Organizational Learning (การเรียนรู้ขององค์กร)",
+          isNegative: false,
+        },
+        {
+          id: "A13",
+          composite: "3. Response to Error (การตอบสนองต่อความผิดพลาด)",
+          isNegative: true,
+        },
+        {
+          id: "A14",
+          composite: "4. Organizational Learning (การเรียนรู้ขององค์กร)",
+          isNegative: true,
+        },
+        {
+          id: "B1",
+          composite: "5. Supervisor Support (การสนับสนุนจากหัวหน้างาน)",
+          isNegative: false,
+        },
+        {
+          id: "B2",
+          composite: "5. Supervisor Support (การสนับสนุนจากหัวหน้างาน)",
+          isNegative: true,
+        },
+        {
+          id: "B3",
+          composite: "5. Supervisor Support (การสนับสนุนจากหัวหน้างาน)",
+          isNegative: false,
+        },
+        {
+          id: "C1",
+          composite:
+            "6. Feedback & Communication About Error (การสื่อสารและการให้ข้อมูลย้อนกลับ)",
+          isNegative: false,
+        },
+        {
+          id: "C2",
+          composite:
+            "6. Feedback & Communication About Error (การสื่อสารและการให้ข้อมูลย้อนกลับ)",
+          isNegative: false,
+        },
+        {
+          id: "C3",
+          composite:
+            "6. Feedback & Communication About Error (การสื่อสารและการให้ข้อมูลย้อนกลับ)",
+          isNegative: false,
+        },
+        {
+          id: "C4",
+          composite:
+            "6. Feedback & Communication About Error (การสื่อสารเกี่ยวกับข้อผิดพลาด)",
+          isNegative: false,
+        },
+        {
+          id: "C5",
+          composite:
+            "6. Feedback & Communication About Error (การสื่อสารเกี่ยวกับข้อผิดพลาด)",
+          isNegative: false,
+        },
+        {
+          id: "C6",
+          composite:
+            "6. Feedback & Communication About Error (การสื่อสารเกี่ยวกับข้อผิดพลาด)",
+          isNegative: false,
+        },
+        {
+          id: "C7",
+          composite:
+            "6. Feedback & Communication About Error (การสื่อสารเกี่ยวกับข้อผิดพลาด)",
+          isNegative: false,
+        },
+        {
+          id: "D1",
+          composite:
+            "7. Reporting Patient Safety (ความถี่ในการรายงานความเสี่ยง)",
+          isNegative: false,
+        },
+        {
+          id: "D2",
+          composite:
+            "7. Reporting Patient Safety (ความถี่ในการรายงานความเสี่ยง)",
+          isNegative: false,
+        },
+        {
+          id: "E1",
+          composite: "8. Overall Perception (การรับรู้ภาพรวมด้านความปลอดภัย)",
+          isNegative: false,
+        },
+        {
+          id: "F1",
+          composite:
+            "9. Support for Safety (การสนับสนุนด้านความปลอดภัยจากองค์กร)",
+          isNegative: false,
+        },
+        {
+          id: "F2",
+          composite:
+            "9. Support for Safety (การสนับสนุนด้านความปลอดภัยจากองค์กร)",
+          isNegative: false,
+        },
+        {
+          id: "F3",
+          composite:
+            "9. Support for Safety (การสนับสนุนด้านความปลอดภัยจากองค์กร)",
+          isNegative: true,
+        },
+        {
+          id: "F4",
+          composite:
+            "9. Support for Safety (การสนับสนุนด้านความปลอดภัยจากองค์กร)",
+          isNegative: true,
+        },
+        {
+          id: "F5",
+          composite:
+            "9. Support for Safety (การสนับสนุนด้านความปลอดภัยจากองค์กร)",
+          isNegative: true,
+        },
+        {
+          id: "F6",
+          composite:
+            "9. Support for Safety (การสนับสนุนด้านความปลอดภัยจากองค์กร)",
+          isNegative: false,
+        },
+      ];
+
+      const COMPOSITE_INFO = {
+        "1. Teamwork (การทำงานเป็นทีมในหน่วยงาน)": {
+          meaning:
+            "สะท้อนระดับความร่วมมือ การช่วยเหลือกัน และการทำงานเป็นทีมในหน่วยงานเดียวกัน",
+          question: "ทีมของเรามีการช่วยเหลือกันดีพอหรือไม่ในช่วงงานเร่งด่วน?",
+          high: "บุคลากรรู้สึกว่า 'ไม่ทำงานลำพัง' และช่วยกันแก้ปัญหาได้",
+          low: "อาจมีการทำงานแยกส่วน ภาระงานตกอยู่กับบางคน",
+          action:
+            "ส่งเสริมการสื่อสารในทีม และทบทวนการกระจายงานในช่วงงานเร่งด่วน (Peak Time)",
+        },
+        "2. Staffing & Work Load (กำลังคนและภาระงาน)": {
+          meaning:
+            "สะท้อนความเพียงพอของบุคลากร ความเหมาะสมของภาระงาน และความเหนื่อยล้า",
+          question:
+            "จำนวนคนสอดคล้องกับภาระงานหรือไม่ และเราทำงานหนักจนล้าเกินไปหรือไม่?",
+          high: "ภาระงานสอดคล้องกับกำลังคน มีเวลาพักเพียงพอ",
+          low: "เสี่ยงต่อความผิดพลาดทางการแพทย์ที่เกิดจากความเหนื่อยล้า (Fatigue)",
+          action:
+            "ใช้ข้อมูลนี้สนับสนุนการบริหารอัตรากำลัง และปรับตารางเวรให้เหมาะสมกับช่วงเวลาที่มีผู้ป่วยมาก",
+        },
+        "3. Response to Error (การตอบสนองต่อความผิดพลาด)": {
+          meaning:
+            "สะท้อนว่าหน่วยงานตอบสนองต่อความผิดพลาดแบบ 'เรียนรู้' หรือ 'ตำหนิ/ลงโทษ'",
+          question:
+            "เมื่อเกิดความผิดพลาด เมื่อมุ่งหา 'คนผิด' หรือ 'จุดบกพร่องของระบบ'?",
+          high: "บุคลากรรู้สึกปลอดภัยที่จะรายงาน เพราะรู้ว่าจะนำไปสู่การแก้ไขระบบ",
+          low: "บุคลากรกลัวผลกระทบ ทำให้เกิดการปกปิดข้อมูล (Under-reporting)",
+          action:
+            "สื่อสารหลักการ Just Culture ให้ชัดเจน และใช้เหตุการณ์เป็นบทเรียน (Learning Opportunity) แทนการหาคนผิด",
+        },
+        "4. Organizational Learning (การเรียนรู้ขององค์กร)": {
+          meaning:
+            "สะท้อนความสามารถขององค์กรในการเรียนรู้จากข้อผิดพลาดและการเปลี่ยนแปลง",
+          question:
+            "เรามีการถอดบทเรียนและปรับปรุงกระบวนการหลังจากเกิดเหตุการณ์หรือไม่?",
+          high: "มีการนำบทเรียนมาปรับปรุงระบบงานอย่างต่อเนื่อง",
+          low: "แก้ไขปัญหาเฉพาะหน้า (Fire fighting) แต่ไม่เกิดการเปลี่ยนแปลงเชิงระบบ",
+          action:
+            "ส่งเสริมกิจกรรมถอดบทเรียน (AAR) และแชร์บทเรียนข้ามหน่วยงานเพื่อป้องกันเหตุซ้ำ",
+        },
+        "5. Supervisor Support (การสนับสนุนจากหัวหน้างาน)": {
+          meaning:
+            "สะท้อนบทบาทหัวหน้างานในการส่งเสริมความปลอดภัยและรับฟังปัญหา",
+          question:
+            "หัวหน้างานเปิดโอกาสให้ลูกน้องพูดถึงความกังวลด้านความปลอดภัยหรือไม่?",
+          high: "หัวหน้าเป็นแบบอย่าง (Role Model) และให้ความสำคัญกับความปลอดภัย",
+          low: "บุคลากรอาจไม่กล้าแสดงความคิดเห็น หรือรู้สึกว่าหัวหน้าไม่สนใจ",
+          action:
+            "พัฒนาทักษะผู้นำ (Leadership) ในการเปิดพื้นที่ปลอดภัย (Psychological Safety) ให้ลูกทีมกล้าพูดคุย",
+        },
+        "6. Feedback & Communication About Error (การสื่อสารและการให้ข้อมูลย้อนกลับ)":
+          {
+            meaning:
+              "สะท้อนว่าผู้รายงานได้รับข้อมูลกลับหรือไม่ และเข้าใจว่ามีการปรับปรุงอะไรเกิดขึ้น",
+            question:
+              "เมื่อรายงานความเสี่ยงไปแล้ว ผู้รายงานได้รับรู้ผลการแก้ไขหรือไม่?",
+            high: "การรายงานนำไปสู่การเปลี่ยนแปลงจริง และผู้รายงานรับรู้",
+            low: "บุคลากรรู้สึกว่า 'รายงานไปก็เงียบ' ทำให้หมดกำลังใจในการเขียนรายงาน",
+            action:
+              "ต้องสื่อสารผลการแก้ไข (Feedback Loop) อย่างสม่ำเสมอ เช่น ผ่าน RM Newsletter หรือการประชุมทีม",
+          },
+        "7. Reporting Patient Safety (ความถี่ในการรายงานความเสี่ยง)": {
+          meaning:
+            "สะท้อนความกล้าและความคุ้นเคยในการรายงานเหตุการณ์ความผิดพลาด (รวมถึง Near Miss)",
+          question:
+            "เรารายงานความเสี่ยงเฉพาะเหตุการณ์รุนแรง หรือรายงาน Near Miss ด้วย?",
+          high: "วัฒนธรรมเปิดเผย มีการรายงาน Near Miss จำนวนมาก",
+          low: "อาจยังมี Under-reporting โดยเฉพาะเหตุการณ์เล็กน้อย",
+          action:
+            "ทำให้ระบบการรายงานง่าย สะดวก และเน้นย้ำความสำคัญของการรายงาน Near Miss เพื่อป้องกันเหตุก่อนเกิดจริง",
+        },
+        "8. Overall Perception (การรับรู้ภาพรวมด้านความปลอดภัย)": {
+          meaning: "ภาพรวมความเชื่อมั่นของบุคลากรต่อระบบความปลอดภัยของหน่วยงาน",
+          question:
+            "โดยรวมแล้ว ท่านรู้สึกว่าระบบงานของเรามีความปลอดภัยเพียงใด?",
+          high: "ระบบสร้างความมั่นใจให้ผู้ปฏิบัติงาน",
+          low: "ควรทบทวนหลายมิติร่วมกัน เพราะบุคลากรขาดความเชื่อมั่น",
+          action:
+            "ใช้คะแนนจาก Composite อื่นๆ เป็นตัวชี้นำจุดที่ต้องปรับปรุงเร่งด่วน เพื่อเรียกความเชื่อมั่นคืนมา",
+        },
+        "9. Support for Safety (การสนับสนุนด้านความปลอดภัยจากองค์กร)": {
+          meaning: "การสนับสนุนด้านความปลอดภัยจากผู้บริหารระดับสูงและองค์กร",
+          question:
+            "ผู้บริหารให้ความสำคัญและจัดสรรทรัพยากรเพื่อความปลอดภัยเพียงพอหรือไม่?",
+          high: "ผู้บริหารแสดงออกชัดเจนว่าความปลอดภัยมาก่อนผลงานด้านอื่น",
+          low: "บุคลากรรู้สึกว่านโยบายความปลอดภัยเป็นเพียงคำพูด แต่ขาดการสนับสนุนจริง",
+          action:
+            "ผู้บริหารควรลงเยี่ยมหน้างาน (Executive Walkrounds) เพื่อรับฟังปัญหาและจัดสรรทรัพยากรให้ตรงจุด",
+        },
+      };
+
+      let rawData = [];
+      let charts = { bar: null, radar: null, d3: null };
+
+      /* ================= LOAD ================= */
+
+      fetch(GAS_API_URL)
+        .then((r) => r.json())
+        .then((data) => {
+          rawData = data;
+          initDashboard();
+        });
+
+      /* ================= INIT ================= */
+
+      function initDashboard() {
+        document.getElementById("loading").classList.add("hidden");
+        document.getElementById("dashboardHeader")?.classList.remove("hidden");
+        document.getElementById("dashboardContent").classList.remove("hidden");
+
+        const units = [
+          ...new Set(
+            rawData.map((r) => (r.Unit ? String(r.Unit).trim() : "Unknown"))
+          ),
+        ]
+          .filter((u) => u !== "Unknown" && u !== "")
+          .sort();
+        const select = document.getElementById("unitSelect");
+        select.innerHTML = '<option value="All">ทั้งหมด (All Units)</option>';
+        units.forEach((u) => select.add(new Option(u, u)));
+
+        select.onchange = updateAll;
+        updateAll();
+      }
+
+      /* ================= CALC ================= */
+
+      function calculateStats(targetUnit) {
+        const filteredRaw =
+          targetUnit === "All"
+            ? rawData
+            : rawData.filter(
+                (r) => r.Unit && String(r.Unit).trim() === targetUnit
+              );
+
+        const processedRows = filteredRaw.map((row) => {
+          const scores = {};
+          COMPOSITE_MAPPING.forEach((mapItem) => {
+            let val = row[mapItem.id];
+            if (typeof val === "string") val = val.trim();
+            const rawScore = parseInt(val);
+            if (isNaN(rawScore)) {
+              scores[mapItem.id] = null;
+            } else {
+              scores[mapItem.id] = mapItem.isNegative
+                ? rawScore <= 2
+                  ? 1
+                  : 0
+                : rawScore >= 4
+                ? 1
+                : 0;
+            }
+          });
+          return { ...row, scores };
+        });
+
+        const composites = {};
+        const uniqueComposites = [
+          ...new Set(COMPOSITE_MAPPING.map((m) => m.composite)),
+        ];
+        uniqueComposites.forEach((c) => (composites[c] = { sum: 0, count: 0 }));
+
+        processedRows.forEach((row) => {
+          COMPOSITE_MAPPING.forEach((mapItem) => {
+            const s = row.scores[mapItem.id];
+            if (s !== null) {
+              composites[mapItem.composite].sum += s;
+              composites[mapItem.composite].count += 1;
+            }
+          });
+        });
+
+        const compositeResults = uniqueComposites.map((c) => {
+          const total = composites[c].count;
+          return {
+            name: c,
+            score:
+              total > 0 ? Math.round((composites[c].sum / total) * 100) : 0,
+          };
+        });
+
+        const d3Counts = {};
+        D3_STANDARD_OPTIONS.forEach((opt) => (d3Counts[opt] = 0));
+        let d3Respondents = 0;
+
+        const d3Mapping = {
+          1: "ไม่มี",
+          2: "1–2 ครั้ง",
+          3: "3–5 ครั้ง",
+          4: "6–10 ครั้ง",
+          5: "มากกว่า 10 ครั้ง",
+        };
+
+        filteredRaw.forEach((row) => {
+          let d3Val = row["AN3"] || row["D3"]; // AN3 or D3 from GAS
+          if (d3Val !== undefined && d3Val !== null) {
+            let valStr = String(d3Val).trim();
+
+            // Map numbers to strings if needed
+            if (d3Mapping[valStr]) valStr = d3Mapping[valStr];
+
+            if (d3Counts.hasOwnProperty(valStr)) {
+              d3Counts[valStr]++;
+              d3Respondents++;
+            }
+          }
+        });
+
+        return {
+          respondents: filteredRaw.length,
+          d3Respondents: d3Respondents,
+          results: compositeResults,
+          d3Data: d3Counts,
+        };
+      }
+
+      /* ================= RENDER ================= */
+
+      function updateAll() {
+        const selectedUnit = document.getElementById("unitSelect").value;
+        const unitStats = calculateStats(selectedUnit);
+        const overallStats = calculateStats("All");
+
+        document.getElementById("respondentCount").innerText =
+          unitStats.respondents;
+        const printCount = document.getElementById("printCount");
+        if (printCount) printCount.innerText = unitStats.respondents;
+
+        const displayUnit = selectedUnit === "All" ? "Overall" : selectedUnit;
+        const radarUnitName = document.getElementById("radarUnitName");
+        if (radarUnitName) radarUnitName.innerText = displayUnit;
+        const printUnitName = document.getElementById("printUnitName");
+        if (printUnitName)
+          printUnitName.innerText =
+            selectedUnit === "All" ? "ภาพรวมทั้งโรงพยาบาล" : selectedUnit;
+
+        renderBarChart(unitStats.results);
+        renderRadarChart(unitStats.results, overallStats.results, displayUnit);
+        renderD3Chart(unitStats.d3Data, unitStats.d3Respondents);
+        renderTableWithActions(unitStats.results);
+      }
+
+      function renderBarChart(data) {
+        const canvas = document.getElementById("barChart");
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        if (charts.bar) charts.bar.destroy();
+        charts.bar = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: data.map((r) => r.name),
+            datasets: [
+              {
+                label: "% Positive",
+                data: data.map((r) => r.score),
+                backgroundColor: data.map((r) =>
+                  r.score >= 75
+                    ? "#4ade80"
+                    : r.score >= 50
+                    ? "#facc15"
+                    : "#f87171"
+                ),
+                borderRadius: 4,
+                barPercentage: 0.6,
+              },
+            ],
+          },
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { x: { min: 0, max: 100 } },
+            plugins: { legend: { display: false } },
+          },
+        });
+      }
+
+      function renderRadarChart(unitData, overallData, unitName) {
+        const canvas = document.getElementById("radarChart");
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        if (charts.radar) charts.radar.destroy();
+
+        const radarLabels = unitData.map((r) => r.name.split(" (")[0]);
+
+        charts.radar = new Chart(ctx, {
+          type: "radar",
+          data: {
+            labels: radarLabels,
+            datasets: [
+              {
+                label: unitName,
+                data: unitData.map((r) => r.score),
+                borderColor: "#4f46e5",
+                backgroundColor: "rgba(79, 70, 229, 0.2)",
+                pointBackgroundColor: "#4f46e5",
+              },
+              {
+                label: "Overall",
+                data: overallData.map((r) => r.score),
+                borderColor: "#94a3b8",
+                backgroundColor: "rgba(148, 163, 184, 0.2)",
+                pointBackgroundColor: "#94a3b8",
+                borderDash: [5, 5],
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              r: {
+                min: 0,
+                max: 100,
+                ticks: { display: false },
+                pointLabels: { font: { size: 10 } },
+              },
+            },
+          },
+        });
+      }
+
+      function renderD3Chart(d3Counts, totalRespondents) {
+        const canvas = document.getElementById("d3Chart");
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        const legendContainer = document.getElementById("d3Legend");
+        if (charts.d3) charts.d3.destroy();
+
+        const labels = D3_STANDARD_OPTIONS;
+        const data = labels.map((l) => d3Counts[l]);
+        const colors = ["#94a3b8", "#4ade80", "#facc15", "#fb923c", "#f87171"];
+
+        charts.d3 = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                data: data,
+                backgroundColor: colors,
+                borderWidth: 2,
+                borderColor: "#ffffff",
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            cutout: "65%",
+          },
+        });
+
+        if (legendContainer) {
+          legendContainer.innerHTML = "";
+          labels.forEach((label, idx) => {
+            const count = d3Counts[label];
+            const pct =
+              totalRespondents > 0
+                ? Math.round((count / totalRespondents) * 100)
+                : 0;
+            const tr = document.createElement("tr");
+            tr.className = count === 0 ? "opacity-50" : "";
+            tr.innerHTML = `
+              <td class="py-2 px-3 flex items-center"><span class="w-3 h-3 rounded-full mr-2" style="background-color: ${colors[idx]}"></span><span class="text-slate-700">${label}</span></td>
+              <td class="py-2 px-3 text-right font-medium text-slate-600">${count}</td>
+              <td class="py-2 px-3 text-right text-slate-400 text-xs">${pct}%</td>
+            `;
+            legendContainer.appendChild(tr);
+          });
+        }
+      }
+
+      function renderTableWithActions(data) {
+        const tableBody = document.getElementById("tableBody");
+        if (!tableBody) return;
+        tableBody.innerHTML = "";
+
+        data.forEach((item, index) => {
+          let badgeClass = "bg-red-100 text-red-700";
+          let grade = "Needs Improvement";
+          if (item.score >= 75) {
+            badgeClass = "bg-green-100 text-green-700";
+            grade = "Strength";
+          } else if (item.score >= 50) {
+            badgeClass = "bg-yellow-100 text-yellow-700";
+            grade = "Neutral";
+          }
+
+          const info = COMPOSITE_INFO[item.name] || {
+            meaning: "N/A",
+            question: "",
+            high: "",
+            low: "",
+            action: "",
+          };
+
+          const mainRow = `
+            <tr class="hover:bg-slate-50 transition border-b border-slate-100 cursor-pointer" onclick="toggleRow('row-${index}')">
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium text-slate-700">${item.name}</span>
+                  <div class="tooltip no-print">
+                    <i class="fa-solid fa-circle-info text-indigo-400 hover:text-indigo-600"></i>
+                    <span class="tooltiptext">${info.meaning}</span>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4 text-center">
+                <span class="text-lg font-bold ${
+                  item.score >= 75
+                    ? "text-green-600"
+                    : item.score < 50
+                    ? "text-red-500"
+                    : "text-yellow-600"
+                }">${item.score}%</span>
+              </td>
+              <td class="px-6 py-4 text-center">
+                <span class="px-3 py-1 rounded-full text-xs font-bold ${badgeClass}">${grade}</span>
+              </td>
+              <td class="px-6 py-4 text-center text-slate-400 no-print">
+                 <i class="fa-solid fa-chevron-down transition-transform toggle-icon" id="icon-row-${index}"></i>
+              </td>
+            </tr>
+          `;
+
+          const detailsRow = `
+            <tr id="row-${index}" class="hidden-row bg-slate-50">
+              <td colspan="4" class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div class="md:col-span-2 bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-2 flex items-start gap-3">
+                    <i class="fa-solid fa-lightbulb text-yellow-500 mt-1 text-xl"></i>
+                    <div>
+                      <h4 class="font-bold text-yellow-800 text-sm mb-1">คำถามชวนคิด (Reflective Question)</h4>
+                      <p class="text-sm text-yellow-900 italic">"${info.question}"</p>
+                    </div>
+                  </div>
+                  <div class="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+                    <h4 class="font-bold text-slate-700 text-xs uppercase mb-2 border-b pb-1">การแปลผล (Interpretation)</h4>
+                    <div class="space-y-2 text-sm">
+                      <p><span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-1"></span><span class="font-semibold text-slate-600">คะแนนสูง:</span> ${info.high}</p>
+                      <p><span class="inline-block w-2 h-2 bg-red-500 rounded-full mr-1"></span><span class="font-semibold text-slate-600">คะแนนต่ำ:</span> ${info.low}</p>
+                    </div>
+                  </div>
+                  <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-4 shadow-sm">
+                    <h4 class="font-bold text-indigo-800 text-xs uppercase mb-2 border-b border-indigo-200 pb-1">แนวทางพัฒนา (Action Guide)</h4>
+                    <div class="flex items-start gap-2">
+                      <i class="fa-solid fa-person-digging text-indigo-500 mt-1"></i>
+                      <p class="text-sm text-indigo-900">${info.action}</p>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          `;
+          tableBody.insertAdjacentHTML("beforeend", mainRow + detailsRow);
+        });
+      }
+
+      window.toggleRow = function (rowId) {
+        const row = document.getElementById(rowId);
+        const icon = document.getElementById("icon-" + rowId);
+        if (row && icon) {
+          if (row.classList.contains("hidden-row")) {
+            row.classList.remove("hidden-row");
+            row.classList.add("animate-fade-in");
+            icon.style.transform = "rotate(180deg)";
+          } else {
+            row.classList.add("hidden-row");
+            icon.style.transform = "rotate(0deg)";
+          }
+        }
+      };
+    </script>
+  </body>
+</html>

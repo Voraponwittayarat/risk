@@ -1,0 +1,476 @@
+a:12:{s:6:"config";s:11523:"a:5:{s:10:"phpVersion";s:6:"7.0.33";s:10:"yiiVersion";s:8:"2.0.15.1";s:11:"application";a:8:{s:3:"yii";s:8:"2.0.15.1";s:4:"name";s:146:"โปรแกรมบริหารความเสี่ยงสำหรับโรงพยาบาล Hospital Risk Management System";s:7:"version";s:3:"1.0";s:8:"language";s:5:"th_TH";s:14:"sourceLanguage";s:5:"en-US";s:7:"charset";s:5:"UTF-8";s:3:"env";s:3:"dev";s:5:"debug";b:1;}s:3:"php";a:5:{s:7:"version";s:6:"7.0.33";s:6:"xdebug";b:1;s:3:"apc";b:0;s:8:"memcache";b:0;s:9:"memcached";b:1;}s:10:"extensions";a:50:{s:24:"yiisoft/yii2-swiftmailer";a:3:{s:4:"name";s:24:"yiisoft/yii2-swiftmailer";s:7:"version";s:7:"2.0.7.0";s:5:"alias";a:1:{s:16:"@yii/swiftmailer";s:50:"/var/www/html/risk/vendor/yiisoft/yii2-swiftmailer";}}s:18:"yiisoft/yii2-debug";a:3:{s:4:"name";s:18:"yiisoft/yii2-debug";s:7:"version";s:8:"2.0.13.0";s:5:"alias";a:1:{s:10:"@yii/debug";s:44:"/var/www/html/risk/vendor/yiisoft/yii2-debug";}}s:24:"yii2mod/yii2-sweet-alert";a:3:{s:4:"name";s:24:"yii2mod/yii2-sweet-alert";s:7:"version";s:7:"1.3.0.0";s:5:"alias";a:1:{s:14:"@yii2mod/alert";s:50:"/var/www/html/risk/vendor/yii2mod/yii2-sweet-alert";}}s:31:"kartik-v/yii2-widget-timepicker";a:3:{s:4:"name";s:31:"kartik-v/yii2-widget-timepicker";s:7:"version";s:7:"1.0.3.0";s:5:"alias";a:1:{s:12:"@kartik/time";s:57:"/var/www/html/risk/vendor/kartik-v/yii2-widget-timepicker";}}s:32:"kartik-v/yii2-widget-switchinput";a:3:{s:4:"name";s:32:"kartik-v/yii2-widget-switchinput";s:7:"version";s:7:"1.3.1.0";s:5:"alias";a:1:{s:19:"@kartik/switchinput";s:58:"/var/www/html/risk/vendor/kartik-v/yii2-widget-switchinput";}}s:28:"kartik-v/yii2-widget-spinner";a:3:{s:4:"name";s:28:"kartik-v/yii2-widget-spinner";s:7:"version";s:7:"1.0.0.0";s:5:"alias";a:1:{s:15:"@kartik/spinner";s:54:"/var/www/html/risk/vendor/kartik-v/yii2-widget-spinner";}}s:28:"kartik-v/yii2-widget-sidenav";a:3:{s:4:"name";s:28:"kartik-v/yii2-widget-sidenav";s:7:"version";s:7:"1.0.0.0";s:5:"alias";a:1:{s:15:"@kartik/sidenav";s:54:"/var/www/html/risk/vendor/kartik-v/yii2-widget-sidenav";}}s:26:"kartik-v/yii2-widget-growl";a:3:{s:4:"name";s:26:"kartik-v/yii2-widget-growl";s:7:"version";s:7:"1.1.1.0";s:5:"alias";a:1:{s:13:"@kartik/growl";s:52:"/var/www/html/risk/vendor/kartik-v/yii2-widget-growl";}}s:28:"kartik-v/yii2-widget-depdrop";a:3:{s:4:"name";s:28:"kartik-v/yii2-widget-depdrop";s:7:"version";s:7:"1.0.4.0";s:5:"alias";a:1:{s:15:"@kartik/depdrop";s:54:"/var/www/html/risk/vendor/kartik-v/yii2-widget-depdrop";}}s:26:"kartik-v/yii2-widget-alert";a:3:{s:4:"name";s:26:"kartik-v/yii2-widget-alert";s:7:"version";s:7:"1.1.1.0";s:5:"alias";a:1:{s:13:"@kartik/alert";s:52:"/var/www/html/risk/vendor/kartik-v/yii2-widget-alert";}}s:26:"kartik-v/yii2-widget-affix";a:3:{s:4:"name";s:26:"kartik-v/yii2-widget-affix";s:7:"version";s:7:"1.0.0.0";s:5:"alias";a:1:{s:13:"@kartik/affix";s:52:"/var/www/html/risk/vendor/kartik-v/yii2-widget-affix";}}s:21:"kartik-v/yii2-widgets";a:3:{s:4:"name";s:21:"kartik-v/yii2-widgets";s:7:"version";s:7:"3.4.0.0";s:5:"alias";a:1:{s:15:"@kartik/widgets";s:47:"/var/www/html/risk/vendor/kartik-v/yii2-widgets";}}s:23:"bluezed/yii2-scroll-top";a:3:{s:4:"name";s:23:"bluezed/yii2-scroll-top";s:7:"version";s:7:"1.0.4.0";s:5:"alias";a:1:{s:18:"@bluezed/scrollTop";s:49:"/var/www/html/risk/vendor/bluezed/yii2-scroll-top";}}s:34:"miloschuman/yii2-highcharts-widget";a:3:{s:4:"name";s:34:"miloschuman/yii2-highcharts-widget";s:7:"version";s:7:"6.0.0.0";s:5:"alias";a:1:{s:23:"@miloschuman/highcharts";s:64:"/var/www/html/risk/vendor/miloschuman/yii2-highcharts-widget/src";}}s:21:"yii2assets/yii2-pdfjs";a:3:{s:4:"name";s:21:"yii2assets/yii2-pdfjs";s:7:"version";s:7:"1.0.2.0";s:5:"alias";a:1:{s:17:"@yii2assets/pdfjs";s:47:"/var/www/html/risk/vendor/yii2assets/yii2-pdfjs";}}s:32:"ramosisw/yii2-material-dashboard";a:3:{s:4:"name";s:32:"ramosisw/yii2-material-dashboard";s:7:"version";s:11:"9999999-dev";s:5:"alias";a:1:{s:20:"@ramosisw/CImaterial";s:58:"/var/www/html/risk/vendor/ramosisw/yii2-material-dashboard";}}s:22:"yiisoft/yii2-bootstrap";a:3:{s:4:"name";s:22:"yiisoft/yii2-bootstrap";s:7:"version";s:7:"2.0.8.0";s:5:"alias";a:1:{s:14:"@yii/bootstrap";s:52:"/var/www/html/risk/vendor/yiisoft/yii2-bootstrap/src";}}s:18:"yiisoft/yii2-faker";a:3:{s:4:"name";s:18:"yiisoft/yii2-faker";s:7:"version";s:7:"2.0.4.0";s:5:"alias";a:1:{s:10:"@yii/faker";s:44:"/var/www/html/risk/vendor/yiisoft/yii2-faker";}}s:23:"yiisoft/yii2-httpclient";a:3:{s:4:"name";s:23:"yiisoft/yii2-httpclient";s:7:"version";s:7:"2.0.6.0";s:5:"alias";a:1:{s:15:"@yii/httpclient";s:53:"/var/www/html/risk/vendor/yiisoft/yii2-httpclient/src";}}s:32:"fedemotta/yii2-widget-datatables";a:3:{s:4:"name";s:32:"fedemotta/yii2-widget-datatables";s:7:"version";s:7:"1.3.0.0";s:5:"alias";a:1:{s:21:"@fedemotta/datatables";s:58:"/var/www/html/risk/vendor/fedemotta/yii2-widget-datatables";}}s:16:"yiisoft/yii2-jui";a:3:{s:4:"name";s:16:"yiisoft/yii2-jui";s:7:"version";s:7:"2.0.7.0";s:5:"alias";a:1:{s:8:"@yii/jui";s:42:"/var/www/html/risk/vendor/yiisoft/yii2-jui";}}s:24:"rmrevin/yii2-fontawesome";a:3:{s:4:"name";s:24:"rmrevin/yii2-fontawesome";s:7:"version";s:8:"2.17.1.0";s:5:"alias";a:1:{s:24:"@rmrevin/yii/fontawesome";s:50:"/var/www/html/risk/vendor/rmrevin/yii2-fontawesome";}}s:20:"kartik-v/yii2-tabs-x";a:3:{s:4:"name";s:20:"kartik-v/yii2-tabs-x";s:7:"version";s:7:"1.2.6.0";s:5:"alias";a:1:{s:12:"@kartik/tabs";s:50:"/var/www/html/risk/vendor/kartik-v/yii2-tabs-x/src";}}s:16:"yiisoft/yii2-gii";a:3:{s:4:"name";s:16:"yiisoft/yii2-gii";s:7:"version";s:7:"2.0.7.0";s:5:"alias";a:1:{s:8:"@yii/gii";s:46:"/var/www/html/risk/vendor/yiisoft/yii2-gii/src";}}s:23:"yiisoft/yii2-authclient";a:3:{s:4:"name";s:23:"yiisoft/yii2-authclient";s:7:"version";s:7:"2.1.6.0";s:5:"alias";a:1:{s:15:"@yii/authclient";s:53:"/var/www/html/risk/vendor/yiisoft/yii2-authclient/src";}}s:28:"kartik-v/yii2-widget-select2";a:3:{s:4:"name";s:28:"kartik-v/yii2-widget-select2";s:7:"version";s:7:"2.1.3.0";s:5:"alias";a:1:{s:15:"@kartik/select2";s:58:"/var/www/html/risk/vendor/kartik-v/yii2-widget-select2/src";}}s:31:"kartik-v/yii2-widget-activeform";a:3:{s:4:"name";s:31:"kartik-v/yii2-widget-activeform";s:7:"version";s:7:"1.5.2.0";s:5:"alias";a:1:{s:12:"@kartik/form";s:61:"/var/www/html/risk/vendor/kartik-v/yii2-widget-activeform/src";}}s:22:"kartik-v/yii2-sortable";a:3:{s:4:"name";s:22:"kartik-v/yii2-sortable";s:7:"version";s:7:"1.2.1.0";s:5:"alias";a:1:{s:16:"@kartik/sortable";s:52:"/var/www/html/risk/vendor/kartik-v/yii2-sortable/src";}}s:20:"kartik-v/yii2-dialog";a:3:{s:4:"name";s:20:"kartik-v/yii2-dialog";s:7:"version";s:7:"1.0.4.0";s:5:"alias";a:1:{s:14:"@kartik/dialog";s:50:"/var/www/html/risk/vendor/kartik-v/yii2-dialog/src";}}s:22:"kartik-v/yii2-dynagrid";a:3:{s:4:"name";s:22:"kartik-v/yii2-dynagrid";s:7:"version";s:7:"1.5.0.0";s:5:"alias";a:1:{s:16:"@kartik/dynagrid";s:52:"/var/www/html/risk/vendor/kartik-v/yii2-dynagrid/src";}}s:31:"kartik-v/yii2-widget-colorinput";a:3:{s:4:"name";s:31:"kartik-v/yii2-widget-colorinput";s:7:"version";s:7:"1.0.5.0";s:5:"alias";a:1:{s:13:"@kartik/color";s:61:"/var/www/html/risk/vendor/kartik-v/yii2-widget-colorinput/src";}}s:31:"kartik-v/yii2-widget-datepicker";a:3:{s:4:"name";s:31:"kartik-v/yii2-widget-datepicker";s:7:"version";s:7:"1.4.6.0";s:5:"alias";a:1:{s:12:"@kartik/date";s:61:"/var/www/html/risk/vendor/kartik-v/yii2-widget-datepicker/src";}}s:35:"kartik-v/yii2-widget-datetimepicker";a:3:{s:4:"name";s:35:"kartik-v/yii2-widget-datetimepicker";s:7:"version";s:7:"1.4.7.0";s:5:"alias";a:1:{s:16:"@kartik/datetime";s:65:"/var/www/html/risk/vendor/kartik-v/yii2-widget-datetimepicker/src";}}s:30:"kartik-v/yii2-widget-fileinput";a:3:{s:4:"name";s:30:"kartik-v/yii2-widget-fileinput";s:7:"version";s:7:"1.0.7.0";s:5:"alias";a:1:{s:12:"@kartik/file";s:60:"/var/www/html/risk/vendor/kartik-v/yii2-widget-fileinput/src";}}s:31:"kartik-v/yii2-widget-rangeinput";a:3:{s:4:"name";s:31:"kartik-v/yii2-widget-rangeinput";s:7:"version";s:7:"1.0.2.0";s:5:"alias";a:1:{s:13:"@kartik/range";s:61:"/var/www/html/risk/vendor/kartik-v/yii2-widget-rangeinput/src";}}s:30:"kartik-v/yii2-widget-touchspin";a:3:{s:4:"name";s:30:"kartik-v/yii2-widget-touchspin";s:7:"version";s:7:"1.2.3.0";s:5:"alias";a:1:{s:17:"@kartik/touchspin";s:60:"/var/www/html/risk/vendor/kartik-v/yii2-widget-touchspin/src";}}s:30:"kartik-v/yii2-widget-typeahead";a:3:{s:4:"name";s:30:"kartik-v/yii2-widget-typeahead";s:7:"version";s:7:"1.0.2.0";s:5:"alias";a:1:{s:17:"@kartik/typeahead";s:60:"/var/www/html/risk/vendor/kartik-v/yii2-widget-typeahead/src";}}s:25:"kartik-v/yii2-detail-view";a:3:{s:4:"name";s:25:"kartik-v/yii2-detail-view";s:7:"version";s:11:"9999999-dev";s:5:"alias";a:1:{s:14:"@kartik/detail";s:55:"/var/www/html/risk/vendor/kartik-v/yii2-detail-view/src";}}s:18:"dektrium/yii2-user";a:4:{s:4:"name";s:18:"dektrium/yii2-user";s:7:"version";s:11:"9999999-dev";s:5:"alias";a:1:{s:14:"@dektrium/user";s:44:"/var/www/html/risk/vendor/dektrium/yii2-user";}s:9:"bootstrap";s:23:"dektrium\user\Bootstrap";}s:20:"kartik-v/yii2-export";a:3:{s:4:"name";s:20:"kartik-v/yii2-export";s:7:"version";s:11:"9999999-dev";s:5:"alias";a:1:{s:14:"@kartik/export";s:50:"/var/www/html/risk/vendor/kartik-v/yii2-export/src";}}s:18:"kartik-v/yii2-grid";a:3:{s:4:"name";s:18:"kartik-v/yii2-grid";s:7:"version";s:11:"9999999-dev";s:5:"alias";a:1:{s:12:"@kartik/grid";s:48:"/var/www/html/risk/vendor/kartik-v/yii2-grid/src";}}s:25:"kartik-v/yii2-krajee-base";a:3:{s:4:"name";s:25:"kartik-v/yii2-krajee-base";s:7:"version";s:11:"9999999-dev";s:5:"alias";a:1:{s:12:"@kartik/base";s:55:"/var/www/html/risk/vendor/kartik-v/yii2-krajee-base/src";}}s:27:"kartik-v/yii2-widget-rating";a:3:{s:4:"name";s:27:"kartik-v/yii2-widget-rating";s:7:"version";s:7:"1.0.4.0";s:5:"alias";a:1:{s:14:"@kartik/rating";s:57:"/var/www/html/risk/vendor/kartik-v/yii2-widget-rating/src";}}s:24:"kartik-v/yii2-dropdown-x";a:3:{s:4:"name";s:24:"kartik-v/yii2-dropdown-x";s:7:"version";s:7:"1.2.0.0";s:5:"alias";a:1:{s:16:"@kartik/dropdown";s:50:"/var/www/html/risk/vendor/kartik-v/yii2-dropdown-x";}}s:19:"kartik-v/yii2-nav-x";a:3:{s:4:"name";s:19:"kartik-v/yii2-nav-x";s:7:"version";s:7:"1.2.1.0";s:5:"alias";a:1:{s:11:"@kartik/nav";s:45:"/var/www/html/risk/vendor/kartik-v/yii2-nav-x";}}s:26:"wbraganca/yii2-dynamicform";a:3:{s:4:"name";s:26:"wbraganca/yii2-dynamicform";s:7:"version";s:7:"2.0.2.0";s:5:"alias";a:1:{s:22:"@wbraganca/dynamicform";s:52:"/var/www/html/risk/vendor/wbraganca/yii2-dynamicform";}}s:24:"kartik-v/yii2-checkbox-x";a:3:{s:4:"name";s:24:"kartik-v/yii2-checkbox-x";s:7:"version";s:7:"1.0.3.0";s:5:"alias";a:1:{s:16:"@kartik/checkbox";s:50:"/var/www/html/risk/vendor/kartik-v/yii2-checkbox-x";}}s:27:"unclead/yii2-multiple-input";a:3:{s:4:"name";s:27:"unclead/yii2-multiple-input";s:7:"version";s:8:"2.15.0.0";s:5:"alias";a:3:{s:31:"@unclead/multipleinput/examples";s:62:"/var/www/html/risk/vendor/unclead/yii2-multiple-input/examples";s:22:"@unclead/multipleinput";s:57:"/var/www/html/risk/vendor/unclead/yii2-multiple-input/src";s:28:"@unclead/multipleinput/tests";s:59:"/var/www/html/risk/vendor/unclead/yii2-multiple-input/tests";}}s:18:"kartik-v/yii2-mpdf";a:3:{s:4:"name";s:18:"kartik-v/yii2-mpdf";s:7:"version";s:11:"9999999-dev";s:5:"alias";a:1:{s:12:"@kartik/mpdf";s:44:"/var/www/html/risk/vendor/kartik-v/yii2-mpdf";}}s:26:"dixonstarter/yii2-pdfprint";a:3:{s:4:"name";s:26:"dixonstarter/yii2-pdfprint";s:7:"version";s:7:"1.3.0.0";s:5:"alias";a:1:{s:22:"@dixonstarter/pdfprint";s:52:"/var/www/html/risk/vendor/dixonstarter/yii2-pdfprint";}}}}";s:7:"request";s:4438:"a:15:{s:7:"flashes";a:0:{}s:10:"statusCode";i:302;s:14:"requestHeaders";a:13:{s:4:"host";s:14:"172.20.250.202";s:10:"connection";s:10:"keep-alive";s:6:"accept";s:22:"text/html, */*; q=0.01";s:12:"x-csrf-token";s:88:"1hUHE29qoRxHjkSxOs7vgGqzaZbgrofIfoXmHRBrAAWcWXd6Py73aXDRF4ZvnZbZWeog7M3H3bsS6rZUWRpLaA==";s:16:"x-requested-with";s:14:"XMLHttpRequest";s:6:"x-pjax";s:4:"true";s:16:"x-pjax-container";s:8:"#w0-pjax";s:10:"user-agent";s:111:"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";s:12:"content-type";s:48:"application/x-www-form-urlencoded; charset=UTF-8";s:7:"referer";s:66:"http://172.20.250.202/risk/frontend/web/index.php?r=risk%2Fapprove";s:15:"accept-encoding";s:13:"gzip, deflate";s:15:"accept-language";s:14:"th-TH,th;q=0.9";s:6:"cookie";s:229:"PHPSESSID=sq5e5jum69dmd1f78g8hncd4j7; _csrf-frontend=798a28f8393c6b91353bf9c83330cb552985d052dd0abb4b4a48a6198e9911aba%3A2%3A%7Bi%3A0%3Bs%3A14%3A%22_csrf-frontend%22%3Bi%3A1%3Bs%3A32%3A%22JLpiPDVu7_S7USyY3YIz-iZsloPIIqKm%22%3B%7D";}s:15:"responseHeaders";a:6:{s:12:"X-Powered-By";s:10:"PHP/7.0.33";s:7:"Expires";s:29:"Thu, 19 Nov 1981 08:52:00 GMT";s:13:"Cache-Control";s:35:"no-store, no-cache, must-revalidate";s:6:"Pragma";s:8:"no-cache";s:10:"X-Pjax-Url";s:66:"http://172.20.250.202/risk/frontend/web/index.php?r=risk%2Fapprove";s:12:"Content-Type";s:24:"text/html; charset=UTF-8";}s:5:"route";s:9:"risk/send";s:6:"action";s:49:"frontend\controllers\RiskController::actionSend()";s:12:"actionParams";a:1:{i:0;s:5:"10317";}s:7:"general";a:5:{s:6:"method";s:3:"GET";s:6:"isAjax";b:1;s:6:"isPjax";b:1;s:7:"isFlash";b:0;s:18:"isSecureConnection";b:0;}s:11:"requestBody";a:0:{}s:6:"SERVER";a:37:{s:9:"UNIQUE_ID";s:27:"ZYRMOduXBUgVBOVdun0t3gAAAAk";s:9:"HTTP_HOST";s:14:"172.20.250.202";s:15:"HTTP_CONNECTION";s:10:"keep-alive";s:11:"HTTP_ACCEPT";s:22:"text/html, */*; q=0.01";s:17:"HTTP_X_CSRF_TOKEN";s:88:"1hUHE29qoRxHjkSxOs7vgGqzaZbgrofIfoXmHRBrAAWcWXd6Py73aXDRF4ZvnZbZWeog7M3H3bsS6rZUWRpLaA==";s:21:"HTTP_X_REQUESTED_WITH";s:14:"XMLHttpRequest";s:11:"HTTP_X_PJAX";s:4:"true";s:21:"HTTP_X_PJAX_CONTAINER";s:8:"#w0-pjax";s:15:"HTTP_USER_AGENT";s:111:"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";s:12:"CONTENT_TYPE";s:48:"application/x-www-form-urlencoded; charset=UTF-8";s:12:"HTTP_REFERER";s:66:"http://172.20.250.202/risk/frontend/web/index.php?r=risk%2Fapprove";s:20:"HTTP_ACCEPT_ENCODING";s:13:"gzip, deflate";s:20:"HTTP_ACCEPT_LANGUAGE";s:14:"th-TH,th;q=0.9";s:11:"HTTP_COOKIE";s:229:"PHPSESSID=sq5e5jum69dmd1f78g8hncd4j7; _csrf-frontend=798a28f8393c6b91353bf9c83330cb552985d052dd0abb4b4a48a6198e9911aba%3A2%3A%7Bi%3A0%3Bs%3A14%3A%22_csrf-frontend%22%3Bi%3A1%3Bs%3A32%3A%22JLpiPDVu7_S7USyY3YIz-iZsloPIIqKm%22%3B%7D";s:4:"PATH";s:49:"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin";s:16:"SERVER_SIGNATURE";s:0:"";s:15:"SERVER_SOFTWARE";s:32:"Apache/2.4.6 (CentOS) PHP/7.0.33";s:11:"SERVER_NAME";s:14:"172.20.250.202";s:11:"SERVER_ADDR";s:14:"172.20.250.202";s:11:"SERVER_PORT";s:2:"80";s:11:"REMOTE_ADDR";s:10:"10.0.0.201";s:13:"DOCUMENT_ROOT";s:13:"/var/www/html";s:14:"REQUEST_SCHEME";s:4:"http";s:14:"CONTEXT_PREFIX";s:0:"";s:21:"CONTEXT_DOCUMENT_ROOT";s:13:"/var/www/html";s:12:"SERVER_ADMIN";s:14:"root@localhost";s:15:"SCRIPT_FILENAME";s:41:"/var/www/html/risk/frontend/web/index.php";s:11:"REMOTE_PORT";s:4:"7738";s:17:"GATEWAY_INTERFACE";s:7:"CGI/1.1";s:15:"SERVER_PROTOCOL";s:8:"HTTP/1.1";s:14:"REQUEST_METHOD";s:3:"GET";s:12:"QUERY_STRING";s:39:"r=risk%2Fsend&id=10317&_pjax=%23w0-pjax";s:11:"REQUEST_URI";s:68:"/risk/frontend/web/index.php?r=risk%2Fsend&id=10317&_pjax=%23w0-pjax";s:11:"SCRIPT_NAME";s:28:"/risk/frontend/web/index.php";s:8:"PHP_SELF";s:28:"/risk/frontend/web/index.php";s:18:"REQUEST_TIME_FLOAT";d:1703169081.0320001;s:12:"REQUEST_TIME";i:1703169081;}s:3:"GET";a:3:{s:1:"r";s:9:"risk/send";s:2:"id";s:5:"10317";s:5:"_pjax";s:8:"#w0-pjax";}s:4:"POST";a:0:{}s:6:"COOKIE";a:2:{s:9:"PHPSESSID";s:26:"sq5e5jum69dmd1f78g8hncd4j7";s:14:"_csrf-frontend";s:140:"798a28f8393c6b91353bf9c83330cb552985d052dd0abb4b4a48a6198e9911aba:2:{i:0;s:14:"_csrf-frontend";i:1;s:32:"JLpiPDVu7_S7USyY3YIz-iZsloPIIqKm";}";}s:5:"FILES";a:0:{}s:7:"SESSION";a:3:{s:7:"__flash";a:1:{s:7:"success";i:-1;}s:4:"__id";i:253;s:7:"success";s:96:"ลงทะเบียนความเสี่ยงเรียบร้อยแล้ว";}}";s:3:"log";s:10983:"a:1:{s:8:"messages";a:27:{i:0;a:6:{i:0;s:51:"Bootstrap with dektrium\user\Bootstrap::bootstrap()";i:1;i:8;i:2;s:31:"yii\base\Application::bootstrap";i:3;d:1703169081.035609;i:4;a:0:{}i:5;i:911008;}i:1;a:6:{i:0;s:20:"Loading module: user";i:1;i:8;i:2;s:26:"yii\base\Module::getModule";i:3;d:1703169081.035629;i:4;a:0:{}i:5;i:911808;}i:2;a:6:{i:0;s:33:"Bootstrap with yii\log\Dispatcher";i:1;i:8;i:2;s:31:"yii\base\Application::bootstrap";i:3;d:1703169081.037611;i:4;a:0:{}i:5;i:1314016;}i:3;a:6:{i:0;s:21:"Loading module: debug";i:1;i:8;i:2;s:26:"yii\base\Module::getModule";i:3;d:1703169081.037637;i:4;a:0:{}i:5;i:1315016;}i:4;a:6:{i:0;s:73:"Opening DB connection: mysql:host=127.0.0.1;port=3306;dbname=riskhospital";i:1;i:4;i:2;s:23:"yii\db\Connection::open";i:3;d:1703169081.0394599;i:4;a:0:{}i:5;i:1666920;}i:7;a:6:{i:0;s:106:"SELECT `data` FROM `session_frontend_user` WHERE `expire`>1703169081 AND `id`='sq5e5jum69dmd1f78g8hncd4j7'";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0405309;i:4;a:0:{}i:5;i:1675664;}i:10;a:6:{i:0;s:15:"Session started";i:1;i:4;i:2;s:21:"yii\web\Session::open";i:3;d:1703169081.041095;i:4;a:0:{}i:5;i:1669424;}i:11;a:6:{i:0;s:29:"SHOW FULL COLUMNS FROM `user`";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0412741;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1681048;}i:14;a:6:{i:0;s:595:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'user' AND kcu.table_name = 'user'";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.042613;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1703984;}i:17;a:6:{i:0;s:35:"SELECT * FROM `user` WHERE `id`=253";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0433879;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1709440;}i:20;a:6:{i:0;s:44:"Bootstrap with yii\debug\Module::bootstrap()";i:1;i:8;i:2;s:31:"yii\base\Application::bootstrap";i:3;d:1703169081.0445731;i:4;a:0:{}i:5;i:1821472;}i:21;a:6:{i:0;s:19:"Loading module: gii";i:1;i:8;i:2;s:26:"yii\base\Module::getModule";i:3;d:1703169081.0447299;i:4;a:0:{}i:5;i:1828288;}i:22;a:6:{i:0;s:42:"Bootstrap with yii\gii\Module::bootstrap()";i:1;i:8;i:2;s:31:"yii\base\Application::bootstrap";i:3;d:1703169081.0448239;i:4;a:0:{}i:5;i:1833776;}i:24;a:6:{i:0;s:28:"Route requested: 'risk/send'";i:1;i:8;i:2;s:34:"yii\web\Application::handleRequest";i:3;d:1703169081.04498;i:4;a:0:{}i:5;i:1842160;}i:25;a:6:{i:0;s:23:"Route to run: risk/send";i:1;i:8;i:2;s:30:"yii\base\Controller::runAction";i:3;d:1703169081.045191;i:4;a:0:{}i:5;i:1861976;}i:26;a:6:{i:0;s:65:"Running action: frontend\controllers\RiskController::actionSend()";i:1;i:8;i:2;s:36:"yii\base\InlineAction::runWithParams";i:3;d:1703169081.045476;i:4;a:0:{}i:5;i:1877168;}i:27;a:6:{i:0;s:39:"SELECT * FROM `risk` WHERE `id`='10317'";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0457261;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:1966664;}i:30;a:6:{i:0;s:29:"SHOW FULL COLUMNS FROM `risk`";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0463121;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:1992608;}i:33;a:6:{i:0;s:595:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'risk' AND kcu.table_name = 'risk'";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0476091;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:2016040;}i:36;a:6:{i:0;s:731:"INSERT INTO riskregister 
+                      SELECT NULL AS id,id AS id_risk,date_report,time_report,
+                      duration_id,location_id,user_ir_type,user_ir,program_id,level_id,
+                      riskstore_id,detail,detail_hosxp,affected,edit,problem_basic,image,
+                      inform_id,status_risk,created_by,department_id,updated_by,create_date,
+                      modify_date,NOW() AS send_date, 'Khwanruan' AS send_use,NOW() AS register_date,
+                      NULL AS note,NULL AS refer_type,NULL AS sendto_team_id,NULL AS sendto_department_id,
+                      NULL AS sendto_member_cid,NULL AS repeat_code,NULL AS link_key,NULL AS url
+                      FROM risk WHERE id='10317' ";i:1;i:4;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.048161;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:376;s:8:"function";s:7:"execute";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:2011208;}i:39;a:6:{i:0;s:70:"UPDATE risk SET status_risk = 'ตรวจสอบ' WHERE id='10317'";i:1;i:4;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.048552;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:378;s:8:"function";s:7:"execute";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:2015328;}i:42;a:6:{i:0;s:99:"Access to debugger is denied due to IP address restriction. The requesting IP address is 10.0.0.201";i:1;i:2;i:2;s:29:"yii\debug\Module::checkAccess";i:3;d:1703169081.049212;i:4;a:0:{}i:5;i:2030656;}i:43;a:6:{i:0;s:46:"SHOW FULL COLUMNS FROM `session_frontend_user`";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0494859;i:4;a:0:{}i:5;i:1775384;}i:46;a:6:{i:0;s:629:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'session_frontend_user' AND kcu.table_name = 'session_frontend_user'";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0502241;i:4;a:0:{}i:5;i:1785296;}i:49;a:6:{i:0;s:2009:"SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    CASE
+        WHEN NULL IS NULL AND `kcu`.`REFERENCED_TABLE_SCHEMA` = DATABASE() THEN NULL
+        ELSE `kcu`.`REFERENCED_TABLE_SCHEMA`
+    END AS `foreign_table_schema`,
+    `kcu`.`REFERENCED_TABLE_NAME` AS `foreign_table_name`,
+    `kcu`.`REFERENCED_COLUMN_NAME` AS `foreign_column_name`,
+    `rc`.`UPDATE_RULE` AS `on_update`,
+    `rc`.`DELETE_RULE` AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`REFERENTIAL_CONSTRAINTS` AS `rc`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `rc`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `rc`.`TABLE_NAME` = 'session_frontend_user' AND `rc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME`
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` = 'FOREIGN KEY'
+UNION
+SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    NULL AS `foreign_table_schema`,
+    NULL AS `foreign_table_name`,
+    NULL AS `foreign_column_name`,
+    NULL AS `on_update`,
+    NULL AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` IN ('PRIMARY KEY', 'UNIQUE')
+ORDER BY `position` ASC";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0507441;i:4;a:0:{}i:5;i:1791544;}i:52;a:6:{i:0;s:403:"SELECT
+    `s`.`INDEX_NAME` AS `name`,
+    `s`.`COLUMN_NAME` AS `column_name`,
+    `s`.`NON_UNIQUE` ^ 1 AS `index_is_unique`,
+    `s`.`INDEX_NAME` = 'PRIMARY' AS `index_is_primary`
+FROM `information_schema`.`STATISTICS` AS `s`
+WHERE `s`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `s`.`INDEX_SCHEMA` = `s`.`TABLE_SCHEMA` AND `s`.`TABLE_NAME` = 'session_frontend_user'
+ORDER BY `s`.`SEQ_IN_INDEX` ASC";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.052079;i:4;a:0:{}i:5;i:1798792;}i:55;a:6:{i:0;s:431:"INSERT INTO `session_frontend_user` (`data`, `user_id`, `ip`, `id`, `expire`) VALUES ('__flash|a:1:{s:7:\"success\";i:-1;}__id|i:253;success|s:96:\"ลงทะเบียนความเสี่ยงเรียบร้อยแล้ว\";', 253, '10.0.0.201', 'sq5e5jum69dmd1f78g8hncd4j7', 1703170521) ON DUPLICATE KEY UPDATE `data`=VALUES(`data`), `user_id`=VALUES(`user_id`), `ip`=VALUES(`ip`), `expire`=VALUES(`expire`)";i:1;i:4;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.0526791;i:4;a:0:{}i:5;i:1801448;}}}";s:9:"profiling";s:18220:"a:3:{s:6:"memory";i:2041344;s:4:"time";d:0.023411989212036133;s:8:"messages";a:30:{i:5;a:6:{i:0;s:73:"Opening DB connection: mysql:host=127.0.0.1;port=3306;dbname=riskhospital";i:1;i:80;i:2;s:23:"yii\db\Connection::open";i:3;d:1703169081.0395229;i:4;a:0:{}i:5;i:1667296;}i:6;a:6:{i:0;s:73:"Opening DB connection: mysql:host=127.0.0.1;port=3306;dbname=riskhospital";i:1;i:96;i:2;s:23:"yii\db\Connection::open";i:3;d:1703169081.040473;i:4;a:0:{}i:5;i:1678864;}i:8;a:6:{i:0;s:106:"SELECT `data` FROM `session_frontend_user` WHERE `expire`>1703169081 AND `id`='sq5e5jum69dmd1f78g8hncd4j7'";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.040596;i:4;a:0:{}i:5;i:1676160;}i:9;a:6:{i:0;s:106:"SELECT `data` FROM `session_frontend_user` WHERE `expire`>1703169081 AND `id`='sq5e5jum69dmd1f78g8hncd4j7'";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0409551;i:4;a:0:{}i:5;i:1676984;}i:12;a:6:{i:0;s:29:"SHOW FULL COLUMNS FROM `user`";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0413361;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1682464;}i:13;a:6:{i:0;s:29:"SHOW FULL COLUMNS FROM `user`";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.042007;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1700008;}i:15;a:6:{i:0;s:595:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'user' AND kcu.table_name = 'user'";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0426891;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1706464;}i:16;a:6:{i:0;s:595:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'user' AND kcu.table_name = 'user'";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.043057;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1708184;}i:18;a:6:{i:0;s:35:"SELECT * FROM `user` WHERE `id`=253";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0434461;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1709648;}i:19;a:6:{i:0;s:35:"SELECT * FROM `user` WHERE `id`=253";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0436709;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1713720;}i:28;a:6:{i:0;s:39:"SELECT * FROM `risk` WHERE `id`='10317'";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0457649;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:1968184;}i:29;a:6:{i:0;s:39:"SELECT * FROM `risk` WHERE `id`='10317'";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.046061;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:1975112;}i:31;a:6:{i:0;s:29:"SHOW FULL COLUMNS FROM `risk`";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.046356;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:1994024;}i:32;a:6:{i:0;s:29:"SHOW FULL COLUMNS FROM `risk`";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.046911;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:2020808;}i:34;a:6:{i:0;s:595:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'risk' AND kcu.table_name = 'risk'";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0476551;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:2018456;}i:35;a:6:{i:0;s:595:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'risk' AND kcu.table_name = 'risk'";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.04795;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:2020176;}i:37;a:6:{i:0;s:731:"INSERT INTO riskregister 
+                      SELECT NULL AS id,id AS id_risk,date_report,time_report,
+                      duration_id,location_id,user_ir_type,user_ir,program_id,level_id,
+                      riskstore_id,detail,detail_hosxp,affected,edit,problem_basic,image,
+                      inform_id,status_risk,created_by,department_id,updated_by,create_date,
+                      modify_date,NOW() AS send_date, 'Khwanruan' AS send_use,NOW() AS register_date,
+                      NULL AS note,NULL AS refer_type,NULL AS sendto_team_id,NULL AS sendto_department_id,
+                      NULL AS sendto_member_cid,NULL AS repeat_code,NULL AS link_key,NULL AS url
+                      FROM risk WHERE id='10317' ";i:1;i:80;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.0481901;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:376;s:8:"function";s:7:"execute";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:2014072;}i:38;a:6:{i:0;s:731:"INSERT INTO riskregister 
+                      SELECT NULL AS id,id AS id_risk,date_report,time_report,
+                      duration_id,location_id,user_ir_type,user_ir,program_id,level_id,
+                      riskstore_id,detail,detail_hosxp,affected,edit,problem_basic,image,
+                      inform_id,status_risk,created_by,department_id,updated_by,create_date,
+                      modify_date,NOW() AS send_date, 'Khwanruan' AS send_use,NOW() AS register_date,
+                      NULL AS note,NULL AS refer_type,NULL AS sendto_team_id,NULL AS sendto_department_id,
+                      NULL AS sendto_member_cid,NULL AS repeat_code,NULL AS link_key,NULL AS url
+                      FROM risk WHERE id='10317' ";i:1;i:96;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.0484941;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:376;s:8:"function";s:7:"execute";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:2015448;}i:40;a:6:{i:0;s:70:"UPDATE risk SET status_risk = 'ตรวจสอบ' WHERE id='10317'";i:1;i:80;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.048578;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:378;s:8:"function";s:7:"execute";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:2016832;}i:41;a:6:{i:0;s:70:"UPDATE risk SET status_risk = 'ตรวจสอบ' WHERE id='10317'";i:1;i:96;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.0488319;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:378;s:8:"function";s:7:"execute";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:2018176;}i:44;a:6:{i:0;s:46:"SHOW FULL COLUMNS FROM `session_frontend_user`";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0495241;i:4;a:0:{}i:5;i:1775624;}i:45;a:6:{i:0;s:46:"SHOW FULL COLUMNS FROM `session_frontend_user`";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0499799;i:4;a:0:{}i:5;i:1781840;}i:47;a:6:{i:0;s:629:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'session_frontend_user' AND kcu.table_name = 'session_frontend_user'";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0502651;i:4;a:0:{}i:5;i:1786120;}i:48;a:6:{i:0;s:629:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'session_frontend_user' AND kcu.table_name = 'session_frontend_user'";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.050539;i:4;a:0:{}i:5;i:1786888;}i:50;a:6:{i:0;s:2009:"SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    CASE
+        WHEN NULL IS NULL AND `kcu`.`REFERENCED_TABLE_SCHEMA` = DATABASE() THEN NULL
+        ELSE `kcu`.`REFERENCED_TABLE_SCHEMA`
+    END AS `foreign_table_schema`,
+    `kcu`.`REFERENCED_TABLE_NAME` AS `foreign_table_name`,
+    `kcu`.`REFERENCED_COLUMN_NAME` AS `foreign_column_name`,
+    `rc`.`UPDATE_RULE` AS `on_update`,
+    `rc`.`DELETE_RULE` AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`REFERENTIAL_CONSTRAINTS` AS `rc`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `rc`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `rc`.`TABLE_NAME` = 'session_frontend_user' AND `rc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME`
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` = 'FOREIGN KEY'
+UNION
+SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    NULL AS `foreign_table_schema`,
+    NULL AS `foreign_table_name`,
+    NULL AS `foreign_column_name`,
+    NULL AS `on_update`,
+    NULL AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` IN ('PRIMARY KEY', 'UNIQUE')
+ORDER BY `position` ASC";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0507841;i:4;a:0:{}i:5;i:1795824;}i:51;a:6:{i:0;s:2009:"SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    CASE
+        WHEN NULL IS NULL AND `kcu`.`REFERENCED_TABLE_SCHEMA` = DATABASE() THEN NULL
+        ELSE `kcu`.`REFERENCED_TABLE_SCHEMA`
+    END AS `foreign_table_schema`,
+    `kcu`.`REFERENCED_TABLE_NAME` AS `foreign_table_name`,
+    `kcu`.`REFERENCED_COLUMN_NAME` AS `foreign_column_name`,
+    `rc`.`UPDATE_RULE` AS `on_update`,
+    `rc`.`DELETE_RULE` AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`REFERENTIAL_CONSTRAINTS` AS `rc`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `rc`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `rc`.`TABLE_NAME` = 'session_frontend_user' AND `rc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME`
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` = 'FOREIGN KEY'
+UNION
+SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    NULL AS `foreign_table_schema`,
+    NULL AS `foreign_table_name`,
+    NULL AS `foreign_column_name`,
+    NULL AS `on_update`,
+    NULL AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` IN ('PRIMARY KEY', 'UNIQUE')
+ORDER BY `position` ASC";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0518849;i:4;a:0:{}i:5;i:1798160;}i:53;a:6:{i:0;s:403:"SELECT
+    `s`.`INDEX_NAME` AS `name`,
+    `s`.`COLUMN_NAME` AS `column_name`,
+    `s`.`NON_UNIQUE` ^ 1 AS `index_is_unique`,
+    `s`.`INDEX_NAME` = 'PRIMARY' AS `index_is_primary`
+FROM `information_schema`.`STATISTICS` AS `s`
+WHERE `s`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `s`.`INDEX_SCHEMA` = `s`.`TABLE_SCHEMA` AND `s`.`TABLE_NAME` = 'session_frontend_user'
+ORDER BY `s`.`SEQ_IN_INDEX` ASC";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0521181;i:4;a:0:{}i:5;i:1799872;}i:54;a:6:{i:0;s:403:"SELECT
+    `s`.`INDEX_NAME` AS `name`,
+    `s`.`COLUMN_NAME` AS `column_name`,
+    `s`.`NON_UNIQUE` ^ 1 AS `index_is_unique`,
+    `s`.`INDEX_NAME` = 'PRIMARY' AS `index_is_primary`
+FROM `information_schema`.`STATISTICS` AS `s`
+WHERE `s`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `s`.`INDEX_SCHEMA` = `s`.`TABLE_SCHEMA` AND `s`.`TABLE_NAME` = 'session_frontend_user'
+ORDER BY `s`.`SEQ_IN_INDEX` ASC";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.05235;i:4;a:0:{}i:5;i:1801952;}i:56;a:6:{i:0;s:431:"INSERT INTO `session_frontend_user` (`data`, `user_id`, `ip`, `id`, `expire`) VALUES ('__flash|a:1:{s:7:\"success\";i:-1;}__id|i:253;success|s:96:\"ลงทะเบียนความเสี่ยงเรียบร้อยแล้ว\";', 253, '10.0.0.201', 'sq5e5jum69dmd1f78g8hncd4j7', 1703170521) ON DUPLICATE KEY UPDATE `data`=VALUES(`data`), `user_id`=VALUES(`user_id`), `ip`=VALUES(`ip`), `expire`=VALUES(`expire`)";i:1;i:80;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.0527079;i:4;a:0:{}i:5;i:1801688;}i:57;a:6:{i:0;s:431:"INSERT INTO `session_frontend_user` (`data`, `user_id`, `ip`, `id`, `expire`) VALUES ('__flash|a:1:{s:7:\"success\";i:-1;}__id|i:253;success|s:96:\"ลงทะเบียนความเสี่ยงเรียบร้อยแล้ว\";', 253, '10.0.0.201', 'sq5e5jum69dmd1f78g8hncd4j7', 1703170521) ON DUPLICATE KEY UPDATE `data`=VALUES(`data`), `user_id`=VALUES(`user_id`), `ip`=VALUES(`ip`), `expire`=VALUES(`expire`)";i:1;i:96;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.0564921;i:4;a:0:{}i:5;i:1802072;}}}";s:2:"db";s:17788:"a:1:{s:8:"messages";a:28:{i:8;a:6:{i:0;s:106:"SELECT `data` FROM `session_frontend_user` WHERE `expire`>1703169081 AND `id`='sq5e5jum69dmd1f78g8hncd4j7'";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.040596;i:4;a:0:{}i:5;i:1676160;}i:9;a:6:{i:0;s:106:"SELECT `data` FROM `session_frontend_user` WHERE `expire`>1703169081 AND `id`='sq5e5jum69dmd1f78g8hncd4j7'";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0409551;i:4;a:0:{}i:5;i:1676984;}i:12;a:6:{i:0;s:29:"SHOW FULL COLUMNS FROM `user`";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0413361;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1682464;}i:13;a:6:{i:0;s:29:"SHOW FULL COLUMNS FROM `user`";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.042007;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1700008;}i:15;a:6:{i:0;s:595:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'user' AND kcu.table_name = 'user'";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0426891;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1706464;}i:16;a:6:{i:0;s:595:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'user' AND kcu.table_name = 'user'";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.043057;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1708184;}i:18;a:6:{i:0;s:35:"SELECT * FROM `user` WHERE `id`=253";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0434461;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1709648;}i:19;a:6:{i:0;s:35:"SELECT * FROM `user` WHERE `id`=253";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0436709;i:4;a:1:{i:0;a:5:{s:4:"file";s:60:"/var/www/html/risk/vendor/dektrium/yii2-user/models/User.php";s:4:"line";i:582;s:8:"function";s:7:"findOne";s:5:"class";s:23:"yii\db\BaseActiveRecord";s:4:"type";s:2:"::";}}i:5;i:1713720;}i:28;a:6:{i:0;s:39:"SELECT * FROM `risk` WHERE `id`='10317'";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0457649;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:1968184;}i:29;a:6:{i:0;s:39:"SELECT * FROM `risk` WHERE `id`='10317'";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.046061;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:1975112;}i:31;a:6:{i:0;s:29:"SHOW FULL COLUMNS FROM `risk`";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.046356;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:1994024;}i:32;a:6:{i:0;s:29:"SHOW FULL COLUMNS FROM `risk`";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.046911;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:2020808;}i:34;a:6:{i:0;s:595:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'risk' AND kcu.table_name = 'risk'";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0476551;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:2018456;}i:35;a:6:{i:0;s:595:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'risk' AND kcu.table_name = 'risk'";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.04795;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:362;s:8:"function";s:3:"one";s:5:"class";s:18:"yii\db\ActiveQuery";s:4:"type";s:2:"->";}}i:5;i:2020176;}i:37;a:6:{i:0;s:731:"INSERT INTO riskregister 
+                      SELECT NULL AS id,id AS id_risk,date_report,time_report,
+                      duration_id,location_id,user_ir_type,user_ir,program_id,level_id,
+                      riskstore_id,detail,detail_hosxp,affected,edit,problem_basic,image,
+                      inform_id,status_risk,created_by,department_id,updated_by,create_date,
+                      modify_date,NOW() AS send_date, 'Khwanruan' AS send_use,NOW() AS register_date,
+                      NULL AS note,NULL AS refer_type,NULL AS sendto_team_id,NULL AS sendto_department_id,
+                      NULL AS sendto_member_cid,NULL AS repeat_code,NULL AS link_key,NULL AS url
+                      FROM risk WHERE id='10317' ";i:1;i:80;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.0481901;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:376;s:8:"function";s:7:"execute";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:2014072;}i:38;a:6:{i:0;s:731:"INSERT INTO riskregister 
+                      SELECT NULL AS id,id AS id_risk,date_report,time_report,
+                      duration_id,location_id,user_ir_type,user_ir,program_id,level_id,
+                      riskstore_id,detail,detail_hosxp,affected,edit,problem_basic,image,
+                      inform_id,status_risk,created_by,department_id,updated_by,create_date,
+                      modify_date,NOW() AS send_date, 'Khwanruan' AS send_use,NOW() AS register_date,
+                      NULL AS note,NULL AS refer_type,NULL AS sendto_team_id,NULL AS sendto_department_id,
+                      NULL AS sendto_member_cid,NULL AS repeat_code,NULL AS link_key,NULL AS url
+                      FROM risk WHERE id='10317' ";i:1;i:96;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.0484941;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:376;s:8:"function";s:7:"execute";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:2015448;}i:40;a:6:{i:0;s:70:"UPDATE risk SET status_risk = 'ตรวจสอบ' WHERE id='10317'";i:1;i:80;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.048578;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:378;s:8:"function";s:7:"execute";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:2016832;}i:41;a:6:{i:0;s:70:"UPDATE risk SET status_risk = 'ตรวจสอบ' WHERE id='10317'";i:1;i:96;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.0488319;i:4;a:1:{i:0;a:5:{s:4:"file";s:58:"/var/www/html/risk/frontend/controllers/RiskController.php";s:4:"line";i:378;s:8:"function";s:7:"execute";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:2018176;}i:44;a:6:{i:0;s:46:"SHOW FULL COLUMNS FROM `session_frontend_user`";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0495241;i:4;a:0:{}i:5;i:1775624;}i:45;a:6:{i:0;s:46:"SHOW FULL COLUMNS FROM `session_frontend_user`";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0499799;i:4;a:0:{}i:5;i:1781840;}i:47;a:6:{i:0;s:629:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'session_frontend_user' AND kcu.table_name = 'session_frontend_user'";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0502651;i:4;a:0:{}i:5;i:1786120;}i:48;a:6:{i:0;s:629:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'session_frontend_user' AND kcu.table_name = 'session_frontend_user'";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.050539;i:4;a:0:{}i:5;i:1786888;}i:50;a:6:{i:0;s:2009:"SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    CASE
+        WHEN NULL IS NULL AND `kcu`.`REFERENCED_TABLE_SCHEMA` = DATABASE() THEN NULL
+        ELSE `kcu`.`REFERENCED_TABLE_SCHEMA`
+    END AS `foreign_table_schema`,
+    `kcu`.`REFERENCED_TABLE_NAME` AS `foreign_table_name`,
+    `kcu`.`REFERENCED_COLUMN_NAME` AS `foreign_column_name`,
+    `rc`.`UPDATE_RULE` AS `on_update`,
+    `rc`.`DELETE_RULE` AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`REFERENTIAL_CONSTRAINTS` AS `rc`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `rc`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `rc`.`TABLE_NAME` = 'session_frontend_user' AND `rc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME`
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` = 'FOREIGN KEY'
+UNION
+SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    NULL AS `foreign_table_schema`,
+    NULL AS `foreign_table_name`,
+    NULL AS `foreign_column_name`,
+    NULL AS `on_update`,
+    NULL AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` IN ('PRIMARY KEY', 'UNIQUE')
+ORDER BY `position` ASC";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0507841;i:4;a:0:{}i:5;i:1795824;}i:51;a:6:{i:0;s:2009:"SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    CASE
+        WHEN NULL IS NULL AND `kcu`.`REFERENCED_TABLE_SCHEMA` = DATABASE() THEN NULL
+        ELSE `kcu`.`REFERENCED_TABLE_SCHEMA`
+    END AS `foreign_table_schema`,
+    `kcu`.`REFERENCED_TABLE_NAME` AS `foreign_table_name`,
+    `kcu`.`REFERENCED_COLUMN_NAME` AS `foreign_column_name`,
+    `rc`.`UPDATE_RULE` AS `on_update`,
+    `rc`.`DELETE_RULE` AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`REFERENTIAL_CONSTRAINTS` AS `rc`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `rc`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `rc`.`TABLE_NAME` = 'session_frontend_user' AND `rc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME`
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` = 'FOREIGN KEY'
+UNION
+SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    NULL AS `foreign_table_schema`,
+    NULL AS `foreign_table_name`,
+    NULL AS `foreign_column_name`,
+    NULL AS `on_update`,
+    NULL AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` IN ('PRIMARY KEY', 'UNIQUE')
+ORDER BY `position` ASC";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0518849;i:4;a:0:{}i:5;i:1798160;}i:53;a:6:{i:0;s:403:"SELECT
+    `s`.`INDEX_NAME` AS `name`,
+    `s`.`COLUMN_NAME` AS `column_name`,
+    `s`.`NON_UNIQUE` ^ 1 AS `index_is_unique`,
+    `s`.`INDEX_NAME` = 'PRIMARY' AS `index_is_primary`
+FROM `information_schema`.`STATISTICS` AS `s`
+WHERE `s`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `s`.`INDEX_SCHEMA` = `s`.`TABLE_SCHEMA` AND `s`.`TABLE_NAME` = 'session_frontend_user'
+ORDER BY `s`.`SEQ_IN_INDEX` ASC";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.0521181;i:4;a:0:{}i:5;i:1799872;}i:54;a:6:{i:0;s:403:"SELECT
+    `s`.`INDEX_NAME` AS `name`,
+    `s`.`COLUMN_NAME` AS `column_name`,
+    `s`.`NON_UNIQUE` ^ 1 AS `index_is_unique`,
+    `s`.`INDEX_NAME` = 'PRIMARY' AS `index_is_primary`
+FROM `information_schema`.`STATISTICS` AS `s`
+WHERE `s`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `s`.`INDEX_SCHEMA` = `s`.`TABLE_SCHEMA` AND `s`.`TABLE_NAME` = 'session_frontend_user'
+ORDER BY `s`.`SEQ_IN_INDEX` ASC";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703169081.05235;i:4;a:0:{}i:5;i:1801952;}i:56;a:6:{i:0;s:431:"INSERT INTO `session_frontend_user` (`data`, `user_id`, `ip`, `id`, `expire`) VALUES ('__flash|a:1:{s:7:\"success\";i:-1;}__id|i:253;success|s:96:\"ลงทะเบียนความเสี่ยงเรียบร้อยแล้ว\";', 253, '10.0.0.201', 'sq5e5jum69dmd1f78g8hncd4j7', 1703170521) ON DUPLICATE KEY UPDATE `data`=VALUES(`data`), `user_id`=VALUES(`user_id`), `ip`=VALUES(`ip`), `expire`=VALUES(`expire`)";i:1;i:80;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.0527079;i:4;a:0:{}i:5;i:1801688;}i:57;a:6:{i:0;s:431:"INSERT INTO `session_frontend_user` (`data`, `user_id`, `ip`, `id`, `expire`) VALUES ('__flash|a:1:{s:7:\"success\";i:-1;}__id|i:253;success|s:96:\"ลงทะเบียนความเสี่ยงเรียบร้อยแล้ว\";', 253, '10.0.0.201', 'sq5e5jum69dmd1f78g8hncd4j7', 1703170521) ON DUPLICATE KEY UPDATE `data`=VALUES(`data`), `user_id`=VALUES(`user_id`), `ip`=VALUES(`ip`), `expire`=VALUES(`expire`)";i:1;i:96;i:2;s:23:"yii\db\Command::execute";i:3;d:1703169081.0564921;i:4;a:0:{}i:5;i:1802072;}}}";s:6:"assets";s:6:"a:0:{}";s:4:"mail";s:6:"a:0:{}";s:8:"timeline";s:92:"a:3:{s:5:"start";d:1703169081.034225;s:3:"end";d:1703169081.0577681;s:6:"memory";i:2041344;}";s:4:"user";s:1957:"a:5:{s:2:"id";i:253;s:8:"identity";a:15:{s:2:"id";s:3:"253";s:8:"username";s:11:"'Khwanruan'";s:13:"password_hash";s:62:"'$2y$12$FI/rbMIKP1oLFgZzac7iAOJqx3QmgWnDpLTxjvcPr3Of2VFBt6Gi.'";s:3:"cid";s:15:"'1640100115724'";s:5:"email";s:25:"'kongkwan724@hotmail.com'";s:8:"auth_key";s:34:"'WYr_xsd7B5hpMmE47k6TYuT6vtIByPkO'";s:12:"confirmed_at";s:10:"1588295985";s:17:"unconfirmed_email";s:4:"null";s:10:"blocked_at";s:4:"null";s:15:"registration_ip";s:14:"'172.20.2.102'";s:4:"role";s:1:"2";s:10:"created_at";s:10:"1588295985";s:10:"updated_at";s:10:"1588319191";s:5:"flags";s:1:"0";s:13:"last_login_at";s:10:"1703168642";}s:10:"attributes";a:15:{i:0;a:2:{s:9:"attribute";s:2:"id";s:5:"label";s:2:"Id";}i:1;a:2:{s:9:"attribute";s:8:"username";s:5:"label";s:30:"ชื่อผู้ใช้";}i:2;a:2:{s:9:"attribute";s:13:"password_hash";s:5:"label";s:13:"Password Hash";}i:3;a:2:{s:9:"attribute";s:3:"cid";s:5:"label";s:25:"เลข 13 หลัก";}i:4;a:2:{s:9:"attribute";s:5:"email";s:5:"label";s:15:"อีเมล";}i:5;a:2:{s:9:"attribute";s:8:"auth_key";s:5:"label";s:8:"Auth Key";}i:6;a:2:{s:9:"attribute";s:12:"confirmed_at";s:5:"label";s:39:"เวลาการยืนยัน";}i:7;a:2:{s:9:"attribute";s:17:"unconfirmed_email";s:5:"label";s:27:"อีเมลใหม่";}i:8;a:2:{s:9:"attribute";s:10:"blocked_at";s:5:"label";s:10:"Blocked At";}i:9;a:2:{s:9:"attribute";s:15:"registration_ip";s:5:"label";s:39:"IP ที่ลงทะเบียน";}i:10;a:2:{s:9:"attribute";s:4:"role";s:5:"label";s:42:"สิทธิผู้ใช้งาน";}i:11;a:2:{s:9:"attribute";s:10:"created_at";s:5:"label";s:45:"วันที่ลงทะเบียน";}i:12;a:2:{s:9:"attribute";s:10:"updated_at";s:5:"label";s:10:"Updated At";}i:13;a:2:{s:9:"attribute";s:5:"flags";s:5:"label";s:5:"Flags";}i:14;a:2:{s:9:"attribute";s:13:"last_login_at";s:5:"label";s:10:"Last login";}}s:13:"rolesProvider";N;s:19:"permissionsProvider";N;}";s:6:"router";s:206:"a:1:{s:8:"messages";a:1:{i:23;a:6:{i:0;s:56:"Pretty URL not enabled. Using default URL parsing logic.";i:1;i:8;i:2;s:32:"yii\web\UrlManager::parseRequest";i:3;d:1703169081.044956;i:4;a:0:{}i:5;i:1842504;}}}";s:7:"summary";a:9:{s:3:"tag";s:13:"65844c390ae99";s:3:"url";s:89:"http://172.20.250.202/risk/frontend/web/index.php?r=risk%2Fsend&id=10317&_pjax=%23w0-pjax";s:4:"ajax";i:1;s:6:"method";s:3:"GET";s:2:"ip";s:10:"10.0.0.201";s:4:"time";d:1703169081.0320001;s:10:"statusCode";i:302;s:8:"sqlCount";i:14;s:9:"mailCount";i:0;}s:10:"exceptions";a:0:{}}

@@ -1,0 +1,371 @@
+a:12:{s:6:"config";s:11523:"a:5:{s:10:"phpVersion";s:6:"7.0.33";s:10:"yiiVersion";s:8:"2.0.15.1";s:11:"application";a:8:{s:3:"yii";s:8:"2.0.15.1";s:4:"name";s:146:"โปรแกรมบริหารความเสี่ยงสำหรับโรงพยาบาล Hospital Risk Management System";s:7:"version";s:3:"1.0";s:8:"language";s:5:"th_TH";s:14:"sourceLanguage";s:5:"en-US";s:7:"charset";s:5:"UTF-8";s:3:"env";s:3:"dev";s:5:"debug";b:1;}s:3:"php";a:5:{s:7:"version";s:6:"7.0.33";s:6:"xdebug";b:1;s:3:"apc";b:0;s:8:"memcache";b:0;s:9:"memcached";b:1;}s:10:"extensions";a:50:{s:24:"yiisoft/yii2-swiftmailer";a:3:{s:4:"name";s:24:"yiisoft/yii2-swiftmailer";s:7:"version";s:7:"2.0.7.0";s:5:"alias";a:1:{s:16:"@yii/swiftmailer";s:50:"/var/www/html/risk/vendor/yiisoft/yii2-swiftmailer";}}s:18:"yiisoft/yii2-debug";a:3:{s:4:"name";s:18:"yiisoft/yii2-debug";s:7:"version";s:8:"2.0.13.0";s:5:"alias";a:1:{s:10:"@yii/debug";s:44:"/var/www/html/risk/vendor/yiisoft/yii2-debug";}}s:24:"yii2mod/yii2-sweet-alert";a:3:{s:4:"name";s:24:"yii2mod/yii2-sweet-alert";s:7:"version";s:7:"1.3.0.0";s:5:"alias";a:1:{s:14:"@yii2mod/alert";s:50:"/var/www/html/risk/vendor/yii2mod/yii2-sweet-alert";}}s:31:"kartik-v/yii2-widget-timepicker";a:3:{s:4:"name";s:31:"kartik-v/yii2-widget-timepicker";s:7:"version";s:7:"1.0.3.0";s:5:"alias";a:1:{s:12:"@kartik/time";s:57:"/var/www/html/risk/vendor/kartik-v/yii2-widget-timepicker";}}s:32:"kartik-v/yii2-widget-switchinput";a:3:{s:4:"name";s:32:"kartik-v/yii2-widget-switchinput";s:7:"version";s:7:"1.3.1.0";s:5:"alias";a:1:{s:19:"@kartik/switchinput";s:58:"/var/www/html/risk/vendor/kartik-v/yii2-widget-switchinput";}}s:28:"kartik-v/yii2-widget-spinner";a:3:{s:4:"name";s:28:"kartik-v/yii2-widget-spinner";s:7:"version";s:7:"1.0.0.0";s:5:"alias";a:1:{s:15:"@kartik/spinner";s:54:"/var/www/html/risk/vendor/kartik-v/yii2-widget-spinner";}}s:28:"kartik-v/yii2-widget-sidenav";a:3:{s:4:"name";s:28:"kartik-v/yii2-widget-sidenav";s:7:"version";s:7:"1.0.0.0";s:5:"alias";a:1:{s:15:"@kartik/sidenav";s:54:"/var/www/html/risk/vendor/kartik-v/yii2-widget-sidenav";}}s:26:"kartik-v/yii2-widget-growl";a:3:{s:4:"name";s:26:"kartik-v/yii2-widget-growl";s:7:"version";s:7:"1.1.1.0";s:5:"alias";a:1:{s:13:"@kartik/growl";s:52:"/var/www/html/risk/vendor/kartik-v/yii2-widget-growl";}}s:28:"kartik-v/yii2-widget-depdrop";a:3:{s:4:"name";s:28:"kartik-v/yii2-widget-depdrop";s:7:"version";s:7:"1.0.4.0";s:5:"alias";a:1:{s:15:"@kartik/depdrop";s:54:"/var/www/html/risk/vendor/kartik-v/yii2-widget-depdrop";}}s:26:"kartik-v/yii2-widget-alert";a:3:{s:4:"name";s:26:"kartik-v/yii2-widget-alert";s:7:"version";s:7:"1.1.1.0";s:5:"alias";a:1:{s:13:"@kartik/alert";s:52:"/var/www/html/risk/vendor/kartik-v/yii2-widget-alert";}}s:26:"kartik-v/yii2-widget-affix";a:3:{s:4:"name";s:26:"kartik-v/yii2-widget-affix";s:7:"version";s:7:"1.0.0.0";s:5:"alias";a:1:{s:13:"@kartik/affix";s:52:"/var/www/html/risk/vendor/kartik-v/yii2-widget-affix";}}s:21:"kartik-v/yii2-widgets";a:3:{s:4:"name";s:21:"kartik-v/yii2-widgets";s:7:"version";s:7:"3.4.0.0";s:5:"alias";a:1:{s:15:"@kartik/widgets";s:47:"/var/www/html/risk/vendor/kartik-v/yii2-widgets";}}s:23:"bluezed/yii2-scroll-top";a:3:{s:4:"name";s:23:"bluezed/yii2-scroll-top";s:7:"version";s:7:"1.0.4.0";s:5:"alias";a:1:{s:18:"@bluezed/scrollTop";s:49:"/var/www/html/risk/vendor/bluezed/yii2-scroll-top";}}s:34:"miloschuman/yii2-highcharts-widget";a:3:{s:4:"name";s:34:"miloschuman/yii2-highcharts-widget";s:7:"version";s:7:"6.0.0.0";s:5:"alias";a:1:{s:23:"@miloschuman/highcharts";s:64:"/var/www/html/risk/vendor/miloschuman/yii2-highcharts-widget/src";}}s:21:"yii2assets/yii2-pdfjs";a:3:{s:4:"name";s:21:"yii2assets/yii2-pdfjs";s:7:"version";s:7:"1.0.2.0";s:5:"alias";a:1:{s:17:"@yii2assets/pdfjs";s:47:"/var/www/html/risk/vendor/yii2assets/yii2-pdfjs";}}s:32:"ramosisw/yii2-material-dashboard";a:3:{s:4:"name";s:32:"ramosisw/yii2-material-dashboard";s:7:"version";s:11:"9999999-dev";s:5:"alias";a:1:{s:20:"@ramosisw/CImaterial";s:58:"/var/www/html/risk/vendor/ramosisw/yii2-material-dashboard";}}s:22:"yiisoft/yii2-bootstrap";a:3:{s:4:"name";s:22:"yiisoft/yii2-bootstrap";s:7:"version";s:7:"2.0.8.0";s:5:"alias";a:1:{s:14:"@yii/bootstrap";s:52:"/var/www/html/risk/vendor/yiisoft/yii2-bootstrap/src";}}s:18:"yiisoft/yii2-faker";a:3:{s:4:"name";s:18:"yiisoft/yii2-faker";s:7:"version";s:7:"2.0.4.0";s:5:"alias";a:1:{s:10:"@yii/faker";s:44:"/var/www/html/risk/vendor/yiisoft/yii2-faker";}}s:23:"yiisoft/yii2-httpclient";a:3:{s:4:"name";s:23:"yiisoft/yii2-httpclient";s:7:"version";s:7:"2.0.6.0";s:5:"alias";a:1:{s:15:"@yii/httpclient";s:53:"/var/www/html/risk/vendor/yiisoft/yii2-httpclient/src";}}s:32:"fedemotta/yii2-widget-datatables";a:3:{s:4:"name";s:32:"fedemotta/yii2-widget-datatables";s:7:"version";s:7:"1.3.0.0";s:5:"alias";a:1:{s:21:"@fedemotta/datatables";s:58:"/var/www/html/risk/vendor/fedemotta/yii2-widget-datatables";}}s:16:"yiisoft/yii2-jui";a:3:{s:4:"name";s:16:"yiisoft/yii2-jui";s:7:"version";s:7:"2.0.7.0";s:5:"alias";a:1:{s:8:"@yii/jui";s:42:"/var/www/html/risk/vendor/yiisoft/yii2-jui";}}s:24:"rmrevin/yii2-fontawesome";a:3:{s:4:"name";s:24:"rmrevin/yii2-fontawesome";s:7:"version";s:8:"2.17.1.0";s:5:"alias";a:1:{s:24:"@rmrevin/yii/fontawesome";s:50:"/var/www/html/risk/vendor/rmrevin/yii2-fontawesome";}}s:20:"kartik-v/yii2-tabs-x";a:3:{s:4:"name";s:20:"kartik-v/yii2-tabs-x";s:7:"version";s:7:"1.2.6.0";s:5:"alias";a:1:{s:12:"@kartik/tabs";s:50:"/var/www/html/risk/vendor/kartik-v/yii2-tabs-x/src";}}s:16:"yiisoft/yii2-gii";a:3:{s:4:"name";s:16:"yiisoft/yii2-gii";s:7:"version";s:7:"2.0.7.0";s:5:"alias";a:1:{s:8:"@yii/gii";s:46:"/var/www/html/risk/vendor/yiisoft/yii2-gii/src";}}s:23:"yiisoft/yii2-authclient";a:3:{s:4:"name";s:23:"yiisoft/yii2-authclient";s:7:"version";s:7:"2.1.6.0";s:5:"alias";a:1:{s:15:"@yii/authclient";s:53:"/var/www/html/risk/vendor/yiisoft/yii2-authclient/src";}}s:28:"kartik-v/yii2-widget-select2";a:3:{s:4:"name";s:28:"kartik-v/yii2-widget-select2";s:7:"version";s:7:"2.1.3.0";s:5:"alias";a:1:{s:15:"@kartik/select2";s:58:"/var/www/html/risk/vendor/kartik-v/yii2-widget-select2/src";}}s:31:"kartik-v/yii2-widget-activeform";a:3:{s:4:"name";s:31:"kartik-v/yii2-widget-activeform";s:7:"version";s:7:"1.5.2.0";s:5:"alias";a:1:{s:12:"@kartik/form";s:61:"/var/www/html/risk/vendor/kartik-v/yii2-widget-activeform/src";}}s:22:"kartik-v/yii2-sortable";a:3:{s:4:"name";s:22:"kartik-v/yii2-sortable";s:7:"version";s:7:"1.2.1.0";s:5:"alias";a:1:{s:16:"@kartik/sortable";s:52:"/var/www/html/risk/vendor/kartik-v/yii2-sortable/src";}}s:20:"kartik-v/yii2-dialog";a:3:{s:4:"name";s:20:"kartik-v/yii2-dialog";s:7:"version";s:7:"1.0.4.0";s:5:"alias";a:1:{s:14:"@kartik/dialog";s:50:"/var/www/html/risk/vendor/kartik-v/yii2-dialog/src";}}s:22:"kartik-v/yii2-dynagrid";a:3:{s:4:"name";s:22:"kartik-v/yii2-dynagrid";s:7:"version";s:7:"1.5.0.0";s:5:"alias";a:1:{s:16:"@kartik/dynagrid";s:52:"/var/www/html/risk/vendor/kartik-v/yii2-dynagrid/src";}}s:31:"kartik-v/yii2-widget-colorinput";a:3:{s:4:"name";s:31:"kartik-v/yii2-widget-colorinput";s:7:"version";s:7:"1.0.5.0";s:5:"alias";a:1:{s:13:"@kartik/color";s:61:"/var/www/html/risk/vendor/kartik-v/yii2-widget-colorinput/src";}}s:31:"kartik-v/yii2-widget-datepicker";a:3:{s:4:"name";s:31:"kartik-v/yii2-widget-datepicker";s:7:"version";s:7:"1.4.6.0";s:5:"alias";a:1:{s:12:"@kartik/date";s:61:"/var/www/html/risk/vendor/kartik-v/yii2-widget-datepicker/src";}}s:35:"kartik-v/yii2-widget-datetimepicker";a:3:{s:4:"name";s:35:"kartik-v/yii2-widget-datetimepicker";s:7:"version";s:7:"1.4.7.0";s:5:"alias";a:1:{s:16:"@kartik/datetime";s:65:"/var/www/html/risk/vendor/kartik-v/yii2-widget-datetimepicker/src";}}s:30:"kartik-v/yii2-widget-fileinput";a:3:{s:4:"name";s:30:"kartik-v/yii2-widget-fileinput";s:7:"version";s:7:"1.0.7.0";s:5:"alias";a:1:{s:12:"@kartik/file";s:60:"/var/www/html/risk/vendor/kartik-v/yii2-widget-fileinput/src";}}s:31:"kartik-v/yii2-widget-rangeinput";a:3:{s:4:"name";s:31:"kartik-v/yii2-widget-rangeinput";s:7:"version";s:7:"1.0.2.0";s:5:"alias";a:1:{s:13:"@kartik/range";s:61:"/var/www/html/risk/vendor/kartik-v/yii2-widget-rangeinput/src";}}s:30:"kartik-v/yii2-widget-touchspin";a:3:{s:4:"name";s:30:"kartik-v/yii2-widget-touchspin";s:7:"version";s:7:"1.2.3.0";s:5:"alias";a:1:{s:17:"@kartik/touchspin";s:60:"/var/www/html/risk/vendor/kartik-v/yii2-widget-touchspin/src";}}s:30:"kartik-v/yii2-widget-typeahead";a:3:{s:4:"name";s:30:"kartik-v/yii2-widget-typeahead";s:7:"version";s:7:"1.0.2.0";s:5:"alias";a:1:{s:17:"@kartik/typeahead";s:60:"/var/www/html/risk/vendor/kartik-v/yii2-widget-typeahead/src";}}s:25:"kartik-v/yii2-detail-view";a:3:{s:4:"name";s:25:"kartik-v/yii2-detail-view";s:7:"version";s:11:"9999999-dev";s:5:"alias";a:1:{s:14:"@kartik/detail";s:55:"/var/www/html/risk/vendor/kartik-v/yii2-detail-view/src";}}s:18:"dektrium/yii2-user";a:4:{s:4:"name";s:18:"dektrium/yii2-user";s:7:"version";s:11:"9999999-dev";s:5:"alias";a:1:{s:14:"@dektrium/user";s:44:"/var/www/html/risk/vendor/dektrium/yii2-user";}s:9:"bootstrap";s:23:"dektrium\user\Bootstrap";}s:20:"kartik-v/yii2-export";a:3:{s:4:"name";s:20:"kartik-v/yii2-export";s:7:"version";s:11:"9999999-dev";s:5:"alias";a:1:{s:14:"@kartik/export";s:50:"/var/www/html/risk/vendor/kartik-v/yii2-export/src";}}s:18:"kartik-v/yii2-grid";a:3:{s:4:"name";s:18:"kartik-v/yii2-grid";s:7:"version";s:11:"9999999-dev";s:5:"alias";a:1:{s:12:"@kartik/grid";s:48:"/var/www/html/risk/vendor/kartik-v/yii2-grid/src";}}s:25:"kartik-v/yii2-krajee-base";a:3:{s:4:"name";s:25:"kartik-v/yii2-krajee-base";s:7:"version";s:11:"9999999-dev";s:5:"alias";a:1:{s:12:"@kartik/base";s:55:"/var/www/html/risk/vendor/kartik-v/yii2-krajee-base/src";}}s:27:"kartik-v/yii2-widget-rating";a:3:{s:4:"name";s:27:"kartik-v/yii2-widget-rating";s:7:"version";s:7:"1.0.4.0";s:5:"alias";a:1:{s:14:"@kartik/rating";s:57:"/var/www/html/risk/vendor/kartik-v/yii2-widget-rating/src";}}s:24:"kartik-v/yii2-dropdown-x";a:3:{s:4:"name";s:24:"kartik-v/yii2-dropdown-x";s:7:"version";s:7:"1.2.0.0";s:5:"alias";a:1:{s:16:"@kartik/dropdown";s:50:"/var/www/html/risk/vendor/kartik-v/yii2-dropdown-x";}}s:19:"kartik-v/yii2-nav-x";a:3:{s:4:"name";s:19:"kartik-v/yii2-nav-x";s:7:"version";s:7:"1.2.1.0";s:5:"alias";a:1:{s:11:"@kartik/nav";s:45:"/var/www/html/risk/vendor/kartik-v/yii2-nav-x";}}s:26:"wbraganca/yii2-dynamicform";a:3:{s:4:"name";s:26:"wbraganca/yii2-dynamicform";s:7:"version";s:7:"2.0.2.0";s:5:"alias";a:1:{s:22:"@wbraganca/dynamicform";s:52:"/var/www/html/risk/vendor/wbraganca/yii2-dynamicform";}}s:24:"kartik-v/yii2-checkbox-x";a:3:{s:4:"name";s:24:"kartik-v/yii2-checkbox-x";s:7:"version";s:7:"1.0.3.0";s:5:"alias";a:1:{s:16:"@kartik/checkbox";s:50:"/var/www/html/risk/vendor/kartik-v/yii2-checkbox-x";}}s:27:"unclead/yii2-multiple-input";a:3:{s:4:"name";s:27:"unclead/yii2-multiple-input";s:7:"version";s:8:"2.15.0.0";s:5:"alias";a:3:{s:31:"@unclead/multipleinput/examples";s:62:"/var/www/html/risk/vendor/unclead/yii2-multiple-input/examples";s:22:"@unclead/multipleinput";s:57:"/var/www/html/risk/vendor/unclead/yii2-multiple-input/src";s:28:"@unclead/multipleinput/tests";s:59:"/var/www/html/risk/vendor/unclead/yii2-multiple-input/tests";}}s:18:"kartik-v/yii2-mpdf";a:3:{s:4:"name";s:18:"kartik-v/yii2-mpdf";s:7:"version";s:11:"9999999-dev";s:5:"alias";a:1:{s:12:"@kartik/mpdf";s:44:"/var/www/html/risk/vendor/kartik-v/yii2-mpdf";}}s:26:"dixonstarter/yii2-pdfprint";a:3:{s:4:"name";s:26:"dixonstarter/yii2-pdfprint";s:7:"version";s:7:"1.3.0.0";s:5:"alias";a:1:{s:22:"@dixonstarter/pdfprint";s:52:"/var/www/html/risk/vendor/dixonstarter/yii2-pdfprint";}}}}";s:7:"request";s:3818:"a:15:{s:7:"flashes";a:0:{}s:10:"statusCode";i:200;s:14:"requestHeaders";a:9:{s:4:"host";s:14:"172.20.250.202";s:10:"connection";s:10:"keep-alive";s:25:"upgrade-insecure-requests";s:1:"1";s:10:"user-agent";s:111:"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";s:6:"accept";s:135:"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7";s:7:"referer";s:65:"http://172.20.250.202/risk/frontend/web/index.php?r=risk%2Freport";s:15:"accept-encoding";s:13:"gzip, deflate";s:15:"accept-language";s:23:"th-TH,th;q=0.9,en;q=0.8";s:6:"cookie";s:229:"PHPSESSID=clmm3f7daoqkf2nncbsdfejrh5; _csrf-frontend=cca89d48f8b5318d05187a5ba315e3127966ef98630a0f6c827f73d265a20110a%3A2%3A%7Bi%3A0%3Bs%3A14%3A%22_csrf-frontend%22%3Bi%3A1%3Bs%3A32%3A%22uaVhxMf4JPOdFSFiyCD_qJhBAT7W_TXm%22%3B%7D";}s:15:"responseHeaders";a:5:{s:12:"X-Powered-By";s:10:"PHP/7.0.33";s:7:"Expires";s:29:"Thu, 19 Nov 1981 08:52:00 GMT";s:13:"Cache-Control";s:35:"no-store, no-cache, must-revalidate";s:6:"Pragma";s:8:"no-cache";s:12:"Content-Type";s:24:"text/html; charset=UTF-8";}s:5:"route";s:13:"report1/rep12";s:6:"action";s:53:"frontend\controllers\Report1Controller::actionRep12()";s:12:"actionParams";a:2:{i:0;N;i:1;N;}s:7:"general";a:5:{s:6:"method";s:3:"GET";s:6:"isAjax";b:0;s:6:"isPjax";b:0;s:7:"isFlash";b:0;s:18:"isSecureConnection";b:0;}s:11:"requestBody";a:0:{}s:6:"SERVER";a:33:{s:9:"UNIQUE_ID";s:27:"ZYQBylCi-995@J2s47HTjgAAAAQ";s:9:"HTTP_HOST";s:14:"172.20.250.202";s:15:"HTTP_CONNECTION";s:10:"keep-alive";s:30:"HTTP_UPGRADE_INSECURE_REQUESTS";s:1:"1";s:15:"HTTP_USER_AGENT";s:111:"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";s:11:"HTTP_ACCEPT";s:135:"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7";s:12:"HTTP_REFERER";s:65:"http://172.20.250.202/risk/frontend/web/index.php?r=risk%2Freport";s:20:"HTTP_ACCEPT_ENCODING";s:13:"gzip, deflate";s:20:"HTTP_ACCEPT_LANGUAGE";s:23:"th-TH,th;q=0.9,en;q=0.8";s:11:"HTTP_COOKIE";s:229:"PHPSESSID=clmm3f7daoqkf2nncbsdfejrh5; _csrf-frontend=cca89d48f8b5318d05187a5ba315e3127966ef98630a0f6c827f73d265a20110a%3A2%3A%7Bi%3A0%3Bs%3A14%3A%22_csrf-frontend%22%3Bi%3A1%3Bs%3A32%3A%22uaVhxMf4JPOdFSFiyCD_qJhBAT7W_TXm%22%3B%7D";s:4:"PATH";s:49:"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin";s:16:"SERVER_SIGNATURE";s:0:"";s:15:"SERVER_SOFTWARE";s:32:"Apache/2.4.6 (CentOS) PHP/7.0.33";s:11:"SERVER_NAME";s:14:"172.20.250.202";s:11:"SERVER_ADDR";s:14:"172.20.250.202";s:11:"SERVER_PORT";s:2:"80";s:11:"REMOTE_ADDR";s:14:"172.20.250.254";s:13:"DOCUMENT_ROOT";s:13:"/var/www/html";s:14:"REQUEST_SCHEME";s:4:"http";s:14:"CONTEXT_PREFIX";s:0:"";s:21:"CONTEXT_DOCUMENT_ROOT";s:13:"/var/www/html";s:12:"SERVER_ADMIN";s:14:"root@localhost";s:15:"SCRIPT_FILENAME";s:41:"/var/www/html/risk/frontend/web/index.php";s:11:"REMOTE_PORT";s:5:"47746";s:17:"GATEWAY_INTERFACE";s:7:"CGI/1.1";s:15:"SERVER_PROTOCOL";s:8:"HTTP/1.1";s:14:"REQUEST_METHOD";s:3:"GET";s:12:"QUERY_STRING";s:17:"r=report1%2Frep12";s:11:"REQUEST_URI";s:46:"/risk/frontend/web/index.php?r=report1%2Frep12";s:11:"SCRIPT_NAME";s:28:"/risk/frontend/web/index.php";s:8:"PHP_SELF";s:28:"/risk/frontend/web/index.php";s:18:"REQUEST_TIME_FLOAT";d:1703150026.358;s:12:"REQUEST_TIME";i:1703150026;}s:3:"GET";a:1:{s:1:"r";s:13:"report1/rep12";}s:4:"POST";a:0:{}s:6:"COOKIE";a:2:{s:9:"PHPSESSID";s:26:"clmm3f7daoqkf2nncbsdfejrh5";s:14:"_csrf-frontend";s:140:"cca89d48f8b5318d05187a5ba315e3127966ef98630a0f6c827f73d265a20110a:2:{i:0;s:14:"_csrf-frontend";i:1;s:32:"uaVhxMf4JPOdFSFiyCD_qJhBAT7W_TXm";}";}s:5:"FILES";a:0:{}s:7:"SESSION";a:1:{s:7:"__flash";a:0:{}}}";s:3:"log";s:11019:"a:1:{s:8:"messages";a:27:{i:0;a:6:{i:0;s:51:"Bootstrap with dektrium\user\Bootstrap::bootstrap()";i:1;i:8;i:2;s:31:"yii\base\Application::bootstrap";i:3;d:1703150026.362675;i:4;a:0:{}i:5;i:908720;}i:1;a:6:{i:0;s:20:"Loading module: user";i:1;i:8;i:2;s:26:"yii\base\Module::getModule";i:3;d:1703150026.362694;i:4;a:0:{}i:5;i:909520;}i:2;a:6:{i:0;s:33:"Bootstrap with yii\log\Dispatcher";i:1;i:8;i:2;s:31:"yii\base\Application::bootstrap";i:3;d:1703150026.3651409;i:4;a:0:{}i:5;i:1311728;}i:3;a:6:{i:0;s:21:"Loading module: debug";i:1;i:8;i:2;s:26:"yii\base\Module::getModule";i:3;d:1703150026.3651681;i:4;a:0:{}i:5;i:1312728;}i:4;a:6:{i:0;s:73:"Opening DB connection: mysql:host=127.0.0.1;port=3306;dbname=riskhospital";i:1;i:4;i:2;s:23:"yii\db\Connection::open";i:3;d:1703150026.3672881;i:4;a:0:{}i:5;i:1664632;}i:7;a:6:{i:0;s:106:"SELECT `data` FROM `session_frontend_user` WHERE `expire`>1703150026 AND `id`='clmm3f7daoqkf2nncbsdfejrh5'";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.3684311;i:4;a:0:{}i:5;i:1673376;}i:10;a:6:{i:0;s:15:"Session started";i:1;i:4;i:2;s:21:"yii\web\Session::open";i:3;d:1703150026.3693631;i:4;a:0:{}i:5;i:1666640;}i:11;a:6:{i:0;s:44:"Bootstrap with yii\debug\Module::bootstrap()";i:1;i:8;i:2;s:31:"yii\base\Application::bootstrap";i:3;d:1703150026.369838;i:4;a:0:{}i:5;i:1668448;}i:12;a:6:{i:0;s:19:"Loading module: gii";i:1;i:8;i:2;s:26:"yii\base\Module::getModule";i:3;d:1703150026.369998;i:4;a:0:{}i:5;i:1675264;}i:13;a:6:{i:0;s:42:"Bootstrap with yii\gii\Module::bootstrap()";i:1;i:8;i:2;s:31:"yii\base\Application::bootstrap";i:3;d:1703150026.3701251;i:4;a:0:{}i:5;i:1746288;}i:15;a:6:{i:0;s:32:"Route requested: 'report1/rep12'";i:1;i:8;i:2;s:34:"yii\web\Application::handleRequest";i:3;d:1703150026.370513;i:4;a:0:{}i:5;i:1754680;}i:16;a:6:{i:0;s:27:"Route to run: report1/rep12";i:1;i:8;i:2;s:30:"yii\base\Controller::runAction";i:3;d:1703150026.3707819;i:4;a:0:{}i:5;i:1778200;}i:17;a:6:{i:0;s:69:"Running action: frontend\controllers\Report1Controller::actionRep12()";i:1;i:8;i:2;s:36:"yii\base\InlineAction::runWithParams";i:3;d:1703150026.371305;i:4;a:0:{}i:5;i:1801992;}i:18;a:6:{i:0;s:29:"SELECT date FROM set_datetime";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.3713629;i:4;a:1:{i:0;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1000;s:8:"function";s:8:"queryOne";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:1807656;}i:21;a:6:{i:0;s:743:" SELECT 
+             r.id_risk as id
+            ,g.riskstore_name as rname
+            ,r.status_risk as rstatus
+            ,m.member_name as review
+            ,re.review_cid as cidreview
+            ,rs.reviewresults_name as result
+        FROM  riskregister r
+            LEFT JOIN riskstore g on g.riskstore_id = r.riskstore_id 
+            LEFT JOIN riskreview re on re.risk_id = r.id_risk
+            LEFT JOIN user u on  u.id = re.created_by
+            LEFT JOIN member m  on m.cid  collate utf8_general_ci = u.cid collate utf8_general_ci
+            LEFT JOIN reviewresults rs on rs.id = re.reviewresults_id
+        WHERE  r.date_report BETWEEN '2022-10-01'AND '2023-12-21'
+        and r.status_risk in('ทบทวน')
+         ";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.3718901;i:4;a:1:{i:0;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1026;s:8:"function";s:8:"queryAll";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:1821208;}i:24;a:6:{i:0;s:75:"Rendering view file: /var/www/html/risk/frontend/views/report1/report12.php";i:1;i:8;i:2;s:25:"yii\base\View::renderFile";i:3;d:1703150026.4311421;i:4;a:1:{i:0;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1037;s:8:"function";s:6:"render";s:5:"class";s:19:"yii\base\Controller";s:4:"type";s:2:"->";}}i:5;i:2115064;}i:25;a:6:{i:0;s:188:"The message file for category 'app' does not exist: /var/www/html/risk/frontend/messages/th_TH/app.php Fallback file does not exist as well: /var/www/html/risk/frontend/messages/th/app.php";i:1;i:1;i:2;s:47:"yii\i18n\PhpMessageSource::loadFallbackMessages";i:3;d:1703150026.43468;i:4;a:2:{i:0;a:5:{s:4:"file";s:54:"/var/www/html/risk/frontend/views/report1/report12.php";s:4:"line";i:104;s:8:"function";s:1:"t";s:5:"class";s:11:"yii\BaseYii";s:4:"type";s:2:"::";}i:1;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1037;s:8:"function";s:6:"render";s:5:"class";s:19:"yii\base\Controller";s:4:"type";s:2:"->";}}i:5;i:2366144;}i:26;a:6:{i:0;s:24:"Loading module: gridview";i:1;i:8;i:2;s:26:"yii\base\Module::getModule";i:3;d:1703150026.4349351;i:4;a:3:{i:0;a:5:{s:4:"file";s:66:"/var/www/html/risk/vendor/kartik-v/yii2-krajee-base/src/Config.php";s:4:"line";i:305;s:8:"function";s:9:"getModule";s:5:"class";s:15:"yii\base\Module";s:4:"type";s:2:"->";}i:1;a:5:{s:4:"file";s:61:"/var/www/html/risk/vendor/kartik-v/yii2-grid/src/GridView.php";s:4:"line";i:1450;s:8:"function";s:9:"getModule";s:5:"class";s:18:"kartik\base\Config";s:4:"type";s:2:"::";}i:2;a:5:{s:4:"file";s:61:"/var/www/html/risk/vendor/kartik-v/yii2-grid/src/GridView.php";s:4:"line";i:1058;s:8:"function";s:10:"initModule";s:5:"class";s:20:"kartik\grid\GridView";s:4:"type";s:2:"->";}}i:5;i:2401264;}i:27;a:6:{i:0;s:71:"Rendering view file: /var/www/html/risk/frontend/views/layouts/main.php";i:1;i:8;i:2;s:25:"yii\base\View::renderFile";i:3;d:1703150026.4639969;i:4;a:1:{i:0;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1037;s:8:"function";s:6:"render";s:5:"class";s:19:"yii\base\Controller";s:4:"type";s:2:"->";}}i:5;i:2780160;}i:28;a:6:{i:0;s:43:"SELECT COUNT(id) FROM session_frontend_user";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4663069;i:4;a:2:{i:0;a:5:{s:4:"file";s:50:"/var/www/html/risk/frontend/views/layouts/main.php";s:4:"line";i:159;s:8:"function";s:11:"queryScalar";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}i:1;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1037;s:8:"function";s:6:"render";s:5:"class";s:19:"yii\base\Controller";s:4:"type";s:2:"->";}}i:5;i:2932584;}i:31;a:6:{i:0;s:103:"Access to debugger is denied due to IP address restriction. The requesting IP address is 172.20.250.254";i:1;i:2;i:2;s:29:"yii\debug\Module::checkAccess";i:3;d:1703150026.46682;i:4;a:2:{i:0;a:5:{s:4:"file";s:50:"/var/www/html/risk/frontend/views/layouts/main.php";s:4:"line";i:163;s:8:"function";s:7:"endBody";s:5:"class";s:12:"yii\web\View";s:4:"type";s:2:"->";}i:1;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1037;s:8:"function";s:6:"render";s:5:"class";s:19:"yii\base\Controller";s:4:"type";s:2:"->";}}i:5;i:2939248;}i:32;a:6:{i:0;s:103:"Access to debugger is denied due to IP address restriction. The requesting IP address is 172.20.250.254";i:1;i:2;i:2;s:29:"yii\debug\Module::checkAccess";i:3;d:1703150026.4685979;i:4;a:0:{}i:5;i:2835040;}i:33;a:6:{i:0;s:46:"SHOW FULL COLUMNS FROM `session_frontend_user`";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4691391;i:4;a:0:{}i:5;i:2660144;}i:36;a:6:{i:0;s:629:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'session_frontend_user' AND kcu.table_name = 'session_frontend_user'";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4706089;i:4;a:0:{}i:5;i:2675824;}i:39;a:6:{i:0;s:2009:"SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    CASE
+        WHEN NULL IS NULL AND `kcu`.`REFERENCED_TABLE_SCHEMA` = DATABASE() THEN NULL
+        ELSE `kcu`.`REFERENCED_TABLE_SCHEMA`
+    END AS `foreign_table_schema`,
+    `kcu`.`REFERENCED_TABLE_NAME` AS `foreign_table_name`,
+    `kcu`.`REFERENCED_COLUMN_NAME` AS `foreign_column_name`,
+    `rc`.`UPDATE_RULE` AS `on_update`,
+    `rc`.`DELETE_RULE` AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`REFERENTIAL_CONSTRAINTS` AS `rc`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `rc`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `rc`.`TABLE_NAME` = 'session_frontend_user' AND `rc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME`
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` = 'FOREIGN KEY'
+UNION
+SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    NULL AS `foreign_table_schema`,
+    NULL AS `foreign_table_name`,
+    NULL AS `foreign_column_name`,
+    NULL AS `on_update`,
+    NULL AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` IN ('PRIMARY KEY', 'UNIQUE')
+ORDER BY `position` ASC";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4716101;i:4;a:0:{}i:5;i:2682072;}i:42;a:6:{i:0;s:403:"SELECT
+    `s`.`INDEX_NAME` AS `name`,
+    `s`.`COLUMN_NAME` AS `column_name`,
+    `s`.`NON_UNIQUE` ^ 1 AS `index_is_unique`,
+    `s`.`INDEX_NAME` = 'PRIMARY' AS `index_is_primary`
+FROM `information_schema`.`STATISTICS` AS `s`
+WHERE `s`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `s`.`INDEX_SCHEMA` = `s`.`TABLE_SCHEMA` AND `s`.`TABLE_NAME` = 'session_frontend_user'
+ORDER BY `s`.`SEQ_IN_INDEX` ASC";i:1;i:4;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4736869;i:4;a:0:{}i:5;i:2689320;}i:45;a:6:{i:0;s:290:"INSERT INTO `session_frontend_user` (`data`, `user_id`, `ip`, `id`, `expire`) VALUES ('__flash|a:0:{}', NULL, '172.20.250.254', 'clmm3f7daoqkf2nncbsdfejrh5', 1703151466) ON DUPLICATE KEY UPDATE `data`=VALUES(`data`), `user_id`=VALUES(`user_id`), `ip`=VALUES(`ip`), `expire`=VALUES(`expire`)";i:1;i:4;i:2;s:23:"yii\db\Command::execute";i:3;d:1703150026.474437;i:4;a:0:{}i:5;i:2693960;}}}";s:9:"profiling";s:12639:"a:3:{s:6:"memory";i:3107000;s:4:"time";d:0.11798691749572754;s:8:"messages";a:20:{i:5;a:6:{i:0;s:73:"Opening DB connection: mysql:host=127.0.0.1;port=3306;dbname=riskhospital";i:1;i:80;i:2;s:23:"yii\db\Connection::open";i:3;d:1703150026.367347;i:4;a:0:{}i:5;i:1665008;}i:6;a:6:{i:0;s:73:"Opening DB connection: mysql:host=127.0.0.1;port=3306;dbname=riskhospital";i:1;i:96;i:2;s:23:"yii\db\Connection::open";i:3;d:1703150026.368371;i:4;a:0:{}i:5;i:1676576;}i:8;a:6:{i:0;s:106:"SELECT `data` FROM `session_frontend_user` WHERE `expire`>1703150026 AND `id`='clmm3f7daoqkf2nncbsdfejrh5'";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.3685169;i:4;a:0:{}i:5;i:1673872;}i:9;a:6:{i:0;s:106:"SELECT `data` FROM `session_frontend_user` WHERE `expire`>1703150026 AND `id`='clmm3f7daoqkf2nncbsdfejrh5'";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.369292;i:4;a:0:{}i:5;i:1674640;}i:19;a:6:{i:0;s:29:"SELECT date FROM set_datetime";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.3713961;i:4;a:1:{i:0;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1000;s:8:"function";s:8:"queryOne";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:1809072;}i:20;a:6:{i:0;s:29:"SELECT date FROM set_datetime";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.371645;i:4;a:1:{i:0;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1000;s:8:"function";s:8:"queryOne";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:1810888;}i:22;a:6:{i:0;s:743:" SELECT 
+             r.id_risk as id
+            ,g.riskstore_name as rname
+            ,r.status_risk as rstatus
+            ,m.member_name as review
+            ,re.review_cid as cidreview
+            ,rs.reviewresults_name as result
+        FROM  riskregister r
+            LEFT JOIN riskstore g on g.riskstore_id = r.riskstore_id 
+            LEFT JOIN riskreview re on re.risk_id = r.id_risk
+            LEFT JOIN user u on  u.id = re.created_by
+            LEFT JOIN member m  on m.cid  collate utf8_general_ci = u.cid collate utf8_general_ci
+            LEFT JOIN reviewresults rs on rs.id = re.reviewresults_id
+        WHERE  r.date_report BETWEEN '2022-10-01'AND '2023-12-21'
+        and r.status_risk in('ทบทวน')
+         ";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.3719239;i:4;a:1:{i:0;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1026;s:8:"function";s:8:"queryAll";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:1824072;}i:23;a:6:{i:0;s:743:" SELECT 
+             r.id_risk as id
+            ,g.riskstore_name as rname
+            ,r.status_risk as rstatus
+            ,m.member_name as review
+            ,re.review_cid as cidreview
+            ,rs.reviewresults_name as result
+        FROM  riskregister r
+            LEFT JOIN riskstore g on g.riskstore_id = r.riskstore_id 
+            LEFT JOIN riskreview re on re.risk_id = r.id_risk
+            LEFT JOIN user u on  u.id = re.created_by
+            LEFT JOIN member m  on m.cid  collate utf8_general_ci = u.cid collate utf8_general_ci
+            LEFT JOIN reviewresults rs on rs.id = re.reviewresults_id
+        WHERE  r.date_report BETWEEN '2022-10-01'AND '2023-12-21'
+        and r.status_risk in('ทบทวน')
+         ";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.430618;i:4;a:1:{i:0;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1026;s:8:"function";s:8:"queryAll";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:2031608;}i:29;a:6:{i:0;s:43:"SELECT COUNT(id) FROM session_frontend_user";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.466357;i:4;a:2:{i:0;a:5:{s:4:"file";s:50:"/var/www/html/risk/frontend/views/layouts/main.php";s:4:"line";i:159;s:8:"function";s:11:"queryScalar";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}i:1;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1037;s:8:"function";s:6:"render";s:5:"class";s:19:"yii\base\Controller";s:4:"type";s:2:"->";}}i:5;i:2933976;}i:30;a:6:{i:0;s:43:"SELECT COUNT(id) FROM session_frontend_user";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4667411;i:4;a:2:{i:0;a:5:{s:4:"file";s:50:"/var/www/html/risk/frontend/views/layouts/main.php";s:4:"line";i:159;s:8:"function";s:11:"queryScalar";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}i:1;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1037;s:8:"function";s:6:"render";s:5:"class";s:19:"yii\base\Controller";s:4:"type";s:2:"->";}}i:5;i:2935992;}i:34;a:6:{i:0;s:46:"SHOW FULL COLUMNS FROM `session_frontend_user`";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.469182;i:4;a:0:{}i:5;i:2660384;}i:35;a:6:{i:0;s:46:"SHOW FULL COLUMNS FROM `session_frontend_user`";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4702029;i:4;a:0:{}i:5;i:2666648;}i:37;a:6:{i:0;s:629:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'session_frontend_user' AND kcu.table_name = 'session_frontend_user'";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4706559;i:4;a:0:{}i:5;i:2676648;}i:38;a:6:{i:0;s:629:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'session_frontend_user' AND kcu.table_name = 'session_frontend_user'";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.47123;i:4;a:0:{}i:5;i:2677416;}i:40;a:6:{i:0;s:2009:"SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    CASE
+        WHEN NULL IS NULL AND `kcu`.`REFERENCED_TABLE_SCHEMA` = DATABASE() THEN NULL
+        ELSE `kcu`.`REFERENCED_TABLE_SCHEMA`
+    END AS `foreign_table_schema`,
+    `kcu`.`REFERENCED_TABLE_NAME` AS `foreign_table_name`,
+    `kcu`.`REFERENCED_COLUMN_NAME` AS `foreign_column_name`,
+    `rc`.`UPDATE_RULE` AS `on_update`,
+    `rc`.`DELETE_RULE` AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`REFERENTIAL_CONSTRAINTS` AS `rc`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `rc`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `rc`.`TABLE_NAME` = 'session_frontend_user' AND `rc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME`
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` = 'FOREIGN KEY'
+UNION
+SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    NULL AS `foreign_table_schema`,
+    NULL AS `foreign_table_name`,
+    NULL AS `foreign_column_name`,
+    NULL AS `on_update`,
+    NULL AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` IN ('PRIMARY KEY', 'UNIQUE')
+ORDER BY `position` ASC";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4716811;i:4;a:0:{}i:5;i:2686352;}i:41;a:6:{i:0;s:2009:"SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    CASE
+        WHEN NULL IS NULL AND `kcu`.`REFERENCED_TABLE_SCHEMA` = DATABASE() THEN NULL
+        ELSE `kcu`.`REFERENCED_TABLE_SCHEMA`
+    END AS `foreign_table_schema`,
+    `kcu`.`REFERENCED_TABLE_NAME` AS `foreign_table_name`,
+    `kcu`.`REFERENCED_COLUMN_NAME` AS `foreign_column_name`,
+    `rc`.`UPDATE_RULE` AS `on_update`,
+    `rc`.`DELETE_RULE` AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`REFERENTIAL_CONSTRAINTS` AS `rc`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `rc`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `rc`.`TABLE_NAME` = 'session_frontend_user' AND `rc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME`
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` = 'FOREIGN KEY'
+UNION
+SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    NULL AS `foreign_table_schema`,
+    NULL AS `foreign_table_name`,
+    NULL AS `foreign_column_name`,
+    NULL AS `on_update`,
+    NULL AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` IN ('PRIMARY KEY', 'UNIQUE')
+ORDER BY `position` ASC";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.473495;i:4;a:0:{}i:5;i:2688688;}i:43;a:6:{i:0;s:403:"SELECT
+    `s`.`INDEX_NAME` AS `name`,
+    `s`.`COLUMN_NAME` AS `column_name`,
+    `s`.`NON_UNIQUE` ^ 1 AS `index_is_unique`,
+    `s`.`INDEX_NAME` = 'PRIMARY' AS `index_is_primary`
+FROM `information_schema`.`STATISTICS` AS `s`
+WHERE `s`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `s`.`INDEX_SCHEMA` = `s`.`TABLE_SCHEMA` AND `s`.`TABLE_NAME` = 'session_frontend_user'
+ORDER BY `s`.`SEQ_IN_INDEX` ASC";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4737301;i:4;a:0:{}i:5;i:2690400;}i:44;a:6:{i:0;s:403:"SELECT
+    `s`.`INDEX_NAME` AS `name`,
+    `s`.`COLUMN_NAME` AS `column_name`,
+    `s`.`NON_UNIQUE` ^ 1 AS `index_is_unique`,
+    `s`.`INDEX_NAME` = 'PRIMARY' AS `index_is_primary`
+FROM `information_schema`.`STATISTICS` AS `s`
+WHERE `s`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `s`.`INDEX_SCHEMA` = `s`.`TABLE_SCHEMA` AND `s`.`TABLE_NAME` = 'session_frontend_user'
+ORDER BY `s`.`SEQ_IN_INDEX` ASC";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.473995;i:4;a:0:{}i:5;i:2692480;}i:46;a:6:{i:0;s:290:"INSERT INTO `session_frontend_user` (`data`, `user_id`, `ip`, `id`, `expire`) VALUES ('__flash|a:0:{}', NULL, '172.20.250.254', 'clmm3f7daoqkf2nncbsdfejrh5', 1703151466) ON DUPLICATE KEY UPDATE `data`=VALUES(`data`), `user_id`=VALUES(`user_id`), `ip`=VALUES(`ip`), `expire`=VALUES(`expire`)";i:1;i:80;i:2;s:23:"yii\db\Command::execute";i:3;d:1703150026.4744689;i:4;a:0:{}i:5;i:2694048;}i:47;a:6:{i:0;s:290:"INSERT INTO `session_frontend_user` (`data`, `user_id`, `ip`, `id`, `expire`) VALUES ('__flash|a:0:{}', NULL, '172.20.250.254', 'clmm3f7daoqkf2nncbsdfejrh5', 1703151466) ON DUPLICATE KEY UPDATE `data`=VALUES(`data`), `user_id`=VALUES(`user_id`), `ip`=VALUES(`ip`), `expire`=VALUES(`expire`)";i:1;i:96;i:2;s:23:"yii\db\Command::execute";i:3;d:1703150026.4774699;i:4;a:0:{}i:5;i:2694432;}}}";s:2:"db";s:12209:"a:1:{s:8:"messages";a:18:{i:8;a:6:{i:0;s:106:"SELECT `data` FROM `session_frontend_user` WHERE `expire`>1703150026 AND `id`='clmm3f7daoqkf2nncbsdfejrh5'";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.3685169;i:4;a:0:{}i:5;i:1673872;}i:9;a:6:{i:0;s:106:"SELECT `data` FROM `session_frontend_user` WHERE `expire`>1703150026 AND `id`='clmm3f7daoqkf2nncbsdfejrh5'";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.369292;i:4;a:0:{}i:5;i:1674640;}i:19;a:6:{i:0;s:29:"SELECT date FROM set_datetime";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.3713961;i:4;a:1:{i:0;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1000;s:8:"function";s:8:"queryOne";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:1809072;}i:20;a:6:{i:0;s:29:"SELECT date FROM set_datetime";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.371645;i:4;a:1:{i:0;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1000;s:8:"function";s:8:"queryOne";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:1810888;}i:22;a:6:{i:0;s:743:" SELECT 
+             r.id_risk as id
+            ,g.riskstore_name as rname
+            ,r.status_risk as rstatus
+            ,m.member_name as review
+            ,re.review_cid as cidreview
+            ,rs.reviewresults_name as result
+        FROM  riskregister r
+            LEFT JOIN riskstore g on g.riskstore_id = r.riskstore_id 
+            LEFT JOIN riskreview re on re.risk_id = r.id_risk
+            LEFT JOIN user u on  u.id = re.created_by
+            LEFT JOIN member m  on m.cid  collate utf8_general_ci = u.cid collate utf8_general_ci
+            LEFT JOIN reviewresults rs on rs.id = re.reviewresults_id
+        WHERE  r.date_report BETWEEN '2022-10-01'AND '2023-12-21'
+        and r.status_risk in('ทบทวน')
+         ";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.3719239;i:4;a:1:{i:0;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1026;s:8:"function";s:8:"queryAll";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:1824072;}i:23;a:6:{i:0;s:743:" SELECT 
+             r.id_risk as id
+            ,g.riskstore_name as rname
+            ,r.status_risk as rstatus
+            ,m.member_name as review
+            ,re.review_cid as cidreview
+            ,rs.reviewresults_name as result
+        FROM  riskregister r
+            LEFT JOIN riskstore g on g.riskstore_id = r.riskstore_id 
+            LEFT JOIN riskreview re on re.risk_id = r.id_risk
+            LEFT JOIN user u on  u.id = re.created_by
+            LEFT JOIN member m  on m.cid  collate utf8_general_ci = u.cid collate utf8_general_ci
+            LEFT JOIN reviewresults rs on rs.id = re.reviewresults_id
+        WHERE  r.date_report BETWEEN '2022-10-01'AND '2023-12-21'
+        and r.status_risk in('ทบทวน')
+         ";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.430618;i:4;a:1:{i:0;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1026;s:8:"function";s:8:"queryAll";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}}i:5;i:2031608;}i:29;a:6:{i:0;s:43:"SELECT COUNT(id) FROM session_frontend_user";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.466357;i:4;a:2:{i:0;a:5:{s:4:"file";s:50:"/var/www/html/risk/frontend/views/layouts/main.php";s:4:"line";i:159;s:8:"function";s:11:"queryScalar";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}i:1;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1037;s:8:"function";s:6:"render";s:5:"class";s:19:"yii\base\Controller";s:4:"type";s:2:"->";}}i:5;i:2933976;}i:30;a:6:{i:0;s:43:"SELECT COUNT(id) FROM session_frontend_user";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4667411;i:4;a:2:{i:0;a:5:{s:4:"file";s:50:"/var/www/html/risk/frontend/views/layouts/main.php";s:4:"line";i:159;s:8:"function";s:11:"queryScalar";s:5:"class";s:14:"yii\db\Command";s:4:"type";s:2:"->";}i:1;a:5:{s:4:"file";s:61:"/var/www/html/risk/frontend/controllers/Report1Controller.php";s:4:"line";i:1037;s:8:"function";s:6:"render";s:5:"class";s:19:"yii\base\Controller";s:4:"type";s:2:"->";}}i:5;i:2935992;}i:34;a:6:{i:0;s:46:"SHOW FULL COLUMNS FROM `session_frontend_user`";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.469182;i:4;a:0:{}i:5;i:2660384;}i:35;a:6:{i:0;s:46:"SHOW FULL COLUMNS FROM `session_frontend_user`";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4702029;i:4;a:0:{}i:5;i:2666648;}i:37;a:6:{i:0;s:629:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'session_frontend_user' AND kcu.table_name = 'session_frontend_user'";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4706559;i:4;a:0:{}i:5;i:2676648;}i:38;a:6:{i:0;s:629:"SELECT
+    kcu.constraint_name,
+    kcu.column_name,
+    kcu.referenced_table_name,
+    kcu.referenced_column_name
+FROM information_schema.referential_constraints AS rc
+JOIN information_schema.key_column_usage AS kcu ON
+    (
+        kcu.constraint_catalog = rc.constraint_catalog OR
+        (kcu.constraint_catalog IS NULL AND rc.constraint_catalog IS NULL)
+    ) AND
+    kcu.constraint_schema = rc.constraint_schema AND
+    kcu.constraint_name = rc.constraint_name
+WHERE rc.constraint_schema = database() AND kcu.table_schema = database()
+AND rc.table_name = 'session_frontend_user' AND kcu.table_name = 'session_frontend_user'";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.47123;i:4;a:0:{}i:5;i:2677416;}i:40;a:6:{i:0;s:2009:"SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    CASE
+        WHEN NULL IS NULL AND `kcu`.`REFERENCED_TABLE_SCHEMA` = DATABASE() THEN NULL
+        ELSE `kcu`.`REFERENCED_TABLE_SCHEMA`
+    END AS `foreign_table_schema`,
+    `kcu`.`REFERENCED_TABLE_NAME` AS `foreign_table_name`,
+    `kcu`.`REFERENCED_COLUMN_NAME` AS `foreign_column_name`,
+    `rc`.`UPDATE_RULE` AS `on_update`,
+    `rc`.`DELETE_RULE` AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`REFERENTIAL_CONSTRAINTS` AS `rc`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `rc`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `rc`.`TABLE_NAME` = 'session_frontend_user' AND `rc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME`
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` = 'FOREIGN KEY'
+UNION
+SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    NULL AS `foreign_table_schema`,
+    NULL AS `foreign_table_name`,
+    NULL AS `foreign_column_name`,
+    NULL AS `on_update`,
+    NULL AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` IN ('PRIMARY KEY', 'UNIQUE')
+ORDER BY `position` ASC";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4716811;i:4;a:0:{}i:5;i:2686352;}i:41;a:6:{i:0;s:2009:"SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    CASE
+        WHEN NULL IS NULL AND `kcu`.`REFERENCED_TABLE_SCHEMA` = DATABASE() THEN NULL
+        ELSE `kcu`.`REFERENCED_TABLE_SCHEMA`
+    END AS `foreign_table_schema`,
+    `kcu`.`REFERENCED_TABLE_NAME` AS `foreign_table_name`,
+    `kcu`.`REFERENCED_COLUMN_NAME` AS `foreign_column_name`,
+    `rc`.`UPDATE_RULE` AS `on_update`,
+    `rc`.`DELETE_RULE` AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`REFERENTIAL_CONSTRAINTS` AS `rc`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `rc`.`CONSTRAINT_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `rc`.`TABLE_NAME` = 'session_frontend_user' AND `rc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME`
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` = 'FOREIGN KEY'
+UNION
+SELECT
+    `kcu`.`CONSTRAINT_NAME` AS `name`,
+    `kcu`.`COLUMN_NAME` AS `column_name`,
+    `tc`.`CONSTRAINT_TYPE` AS `type`,
+    NULL AS `foreign_table_schema`,
+    NULL AS `foreign_table_name`,
+    NULL AS `foreign_column_name`,
+    NULL AS `on_update`,
+    NULL AS `on_delete`,
+    `kcu`.`ORDINAL_POSITION` AS `position`
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE` AS `kcu`,
+    `information_schema`.`TABLE_CONSTRAINTS` AS `tc`
+WHERE
+    `kcu`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `kcu`.`TABLE_NAME` = 'session_frontend_user'
+    AND `tc`.`TABLE_SCHEMA` = `kcu`.`TABLE_SCHEMA` AND `tc`.`TABLE_NAME` = 'session_frontend_user' AND `tc`.`CONSTRAINT_NAME` = `kcu`.`CONSTRAINT_NAME` AND `tc`.`CONSTRAINT_TYPE` IN ('PRIMARY KEY', 'UNIQUE')
+ORDER BY `position` ASC";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.473495;i:4;a:0:{}i:5;i:2688688;}i:43;a:6:{i:0;s:403:"SELECT
+    `s`.`INDEX_NAME` AS `name`,
+    `s`.`COLUMN_NAME` AS `column_name`,
+    `s`.`NON_UNIQUE` ^ 1 AS `index_is_unique`,
+    `s`.`INDEX_NAME` = 'PRIMARY' AS `index_is_primary`
+FROM `information_schema`.`STATISTICS` AS `s`
+WHERE `s`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `s`.`INDEX_SCHEMA` = `s`.`TABLE_SCHEMA` AND `s`.`TABLE_NAME` = 'session_frontend_user'
+ORDER BY `s`.`SEQ_IN_INDEX` ASC";i:1;i:80;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.4737301;i:4;a:0:{}i:5;i:2690400;}i:44;a:6:{i:0;s:403:"SELECT
+    `s`.`INDEX_NAME` AS `name`,
+    `s`.`COLUMN_NAME` AS `column_name`,
+    `s`.`NON_UNIQUE` ^ 1 AS `index_is_unique`,
+    `s`.`INDEX_NAME` = 'PRIMARY' AS `index_is_primary`
+FROM `information_schema`.`STATISTICS` AS `s`
+WHERE `s`.`TABLE_SCHEMA` = COALESCE(NULL, DATABASE()) AND `s`.`INDEX_SCHEMA` = `s`.`TABLE_SCHEMA` AND `s`.`TABLE_NAME` = 'session_frontend_user'
+ORDER BY `s`.`SEQ_IN_INDEX` ASC";i:1;i:96;i:2;s:21:"yii\db\Command::query";i:3;d:1703150026.473995;i:4;a:0:{}i:5;i:2692480;}i:46;a:6:{i:0;s:290:"INSERT INTO `session_frontend_user` (`data`, `user_id`, `ip`, `id`, `expire`) VALUES ('__flash|a:0:{}', NULL, '172.20.250.254', 'clmm3f7daoqkf2nncbsdfejrh5', 1703151466) ON DUPLICATE KEY UPDATE `data`=VALUES(`data`), `user_id`=VALUES(`user_id`), `ip`=VALUES(`ip`), `expire`=VALUES(`expire`)";i:1;i:80;i:2;s:23:"yii\db\Command::execute";i:3;d:1703150026.4744689;i:4;a:0:{}i:5;i:2694048;}i:47;a:6:{i:0;s:290:"INSERT INTO `session_frontend_user` (`data`, `user_id`, `ip`, `id`, `expire`) VALUES ('__flash|a:0:{}', NULL, '172.20.250.254', 'clmm3f7daoqkf2nncbsdfejrh5', 1703151466) ON DUPLICATE KEY UPDATE `data`=VALUES(`data`), `user_id`=VALUES(`user_id`), `ip`=VALUES(`ip`), `expire`=VALUES(`expire`)";i:1;i:96;i:2;s:23:"yii\db\Command::execute";i:3;d:1703150026.4774699;i:4;a:0:{}i:5;i:2694432;}}}";s:6:"assets";s:11908:"a:21:{s:19:"yii\web\JqueryAsset";a:9:{s:10:"sourcePath";s:49:"/var/www/html/risk/vendor/bower-asset/jquery/dist";s:2:"js";a:1:{i:0;s:9:"jquery.js";}s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/9e634f0d";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/9e634f0d";s:7:"depends";a:0:{}s:3:"css";a:0:{}s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}}s:27:"kartik\date\DatePickerAsset";a:14:{s:15:"bsPluginEnabled";b:0;s:7:"depends";a:2:{i:0;s:16:"yii\web\YiiAsset";i:1;s:28:"yii\bootstrap\BootstrapAsset";}s:2:"js";a:4:{i:0;s:26:"js/bootstrap-datepicker.js";i:1;s:19:"js/datepicker-kv.js";i:2;s:41:"js/locales/bootstrap-datepicker.th.min.js";i:3;s:41:"js/locales/bootstrap-datepicker.th.min.js";}s:3:"css";a:2:{i:0;s:29:"css/bootstrap-datepicker3.css";i:1;s:21:"css/datepicker-kv.css";}s:10:"sourcePath";s:68:"/var/www/html/risk/vendor/kartik-v/yii2-widget-datepicker/src/assets";s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/94947fd1";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/94947fd1";s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}s:9:"bsVersion";N;s:21:" * _defaultIconPrefix";s:20:"glyphicon glyphicon-";s:17:" * _defaultBtnCss";s:11:"btn-default";s:9:" * _isBs4";b:0;}s:16:"yii\web\YiiAsset";a:9:{s:10:"sourcePath";s:45:"/var/www/html/risk/vendor/yiisoft/yii2/assets";s:2:"js";a:1:{i:0;s:6:"yii.js";}s:7:"depends";a:1:{i:0;s:19:"yii\web\JqueryAsset";}s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/a97f34ce";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/a97f34ce";s:3:"css";a:0:{}s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}}s:28:"yii\bootstrap\BootstrapAsset";a:9:{s:10:"sourcePath";s:52:"/var/www/html/risk/vendor/bower-asset/bootstrap/dist";s:3:"css";a:1:{i:0;s:17:"css/bootstrap.css";}s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/64953780";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/64953780";s:7:"depends";a:0:{}s:2:"js";a:0:{}s:9:"jsOptions";a:1:{s:8:"position";i:1;}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}}s:23:"kartik\base\WidgetAsset";a:14:{s:15:"bsPluginEnabled";b:0;s:7:"depends";a:2:{i:0;s:16:"yii\web\YiiAsset";i:1;s:28:"yii\bootstrap\BootstrapAsset";}s:2:"js";a:1:{i:0;s:16:"js/kv-widgets.js";}s:3:"css";a:1:{i:0;s:18:"css/kv-widgets.css";}s:10:"sourcePath";s:62:"/var/www/html/risk/vendor/kartik-v/yii2-krajee-base/src/assets";s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/c533b5af";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/c533b5af";s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}s:9:"bsVersion";N;s:21:" * _defaultIconPrefix";s:20:"glyphicon glyphicon-";s:17:" * _defaultBtnCss";s:11:"btn-default";s:9:" * _isBs4";b:0;}s:27:"yii\widgets\ActiveFormAsset";a:9:{s:10:"sourcePath";s:45:"/var/www/html/risk/vendor/yiisoft/yii2/assets";s:2:"js";a:1:{i:0;s:17:"yii.activeForm.js";}s:7:"depends";a:1:{i:0;s:16:"yii\web\YiiAsset";}s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/a97f34ce";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/a97f34ce";s:3:"css";a:0:{}s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}}s:25:"kartik\grid\GridViewAsset";a:14:{s:15:"bsPluginEnabled";b:0;s:7:"depends";a:3:{i:0;s:26:"\kartik\dialog\DialogAsset";i:1;s:16:"yii\web\YiiAsset";i:2;s:28:"yii\bootstrap\BootstrapAsset";}s:2:"js";a:0:{}s:3:"css";a:1:{i:0;s:15:"css/kv-grid.css";}s:10:"sourcePath";s:55:"/var/www/html/risk/vendor/kartik-v/yii2-grid/src/assets";s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/281360aa";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/281360aa";s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}s:9:"bsVersion";N;s:21:" * _defaultIconPrefix";s:20:"glyphicon glyphicon-";s:17:" * _defaultBtnCss";s:11:"btn-default";s:9:" * _isBs4";b:0;}s:26:"\kartik\dialog\DialogAsset";a:14:{s:7:"depends";a:1:{i:0;s:28:"yii\bootstrap\BootstrapAsset";}s:15:"bsPluginEnabled";b:0;s:2:"js";a:1:{i:0;s:12:"js/dialog.js";}s:3:"css";a:0:{}s:10:"sourcePath";s:57:"/var/www/html/risk/vendor/kartik-v/yii2-dialog/src/assets";s:8:"basePath";s:46:"/var/www/html/risk/frontend/web/assets/bedf7e3";s:7:"baseUrl";s:33:"/risk/frontend/web/assets/bedf7e3";s:9:"jsOptions";a:1:{s:8:"position";i:1;}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}s:9:"bsVersion";N;s:21:" * _defaultIconPrefix";s:20:"glyphicon glyphicon-";s:17:" * _defaultBtnCss";s:11:"btn-default";s:9:" * _isBs4";b:0;}s:34:"kartik\dialog\DialogBootstrapAsset";a:14:{s:15:"bsPluginEnabled";b:1;s:7:"depends";a:4:{i:0;s:25:"kartik\dialog\DialogAsset";i:1;s:16:"yii\web\YiiAsset";i:2;s:28:"yii\bootstrap\BootstrapAsset";i:3;s:34:"yii\bootstrap\BootstrapPluginAsset";}s:2:"js";a:1:{i:0;s:22:"js/bootstrap-dialog.js";}s:3:"css";a:1:{i:0;s:28:"css/bootstrap-dialog-bs3.css";}s:10:"sourcePath";s:57:"/var/www/html/risk/vendor/kartik-v/yii2-dialog/src/assets";s:8:"basePath";s:46:"/var/www/html/risk/frontend/web/assets/bedf7e3";s:7:"baseUrl";s:33:"/risk/frontend/web/assets/bedf7e3";s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}s:9:"bsVersion";N;s:21:" * _defaultIconPrefix";s:20:"glyphicon glyphicon-";s:17:" * _defaultBtnCss";s:11:"btn-default";s:9:" * _isBs4";b:0;}s:25:"kartik\dialog\DialogAsset";a:14:{s:7:"depends";a:1:{i:0;s:28:"yii\bootstrap\BootstrapAsset";}s:15:"bsPluginEnabled";b:0;s:2:"js";a:1:{i:0;s:12:"js/dialog.js";}s:3:"css";a:0:{}s:10:"sourcePath";s:57:"/var/www/html/risk/vendor/kartik-v/yii2-dialog/src/assets";s:8:"basePath";s:46:"/var/www/html/risk/frontend/web/assets/bedf7e3";s:7:"baseUrl";s:33:"/risk/frontend/web/assets/bedf7e3";s:9:"jsOptions";a:1:{s:8:"position";i:1;}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}s:9:"bsVersion";N;s:21:" * _defaultIconPrefix";s:20:"glyphicon glyphicon-";s:17:" * _defaultBtnCss";s:11:"btn-default";s:9:" * _isBs4";b:0;}s:34:"yii\bootstrap\BootstrapPluginAsset";a:9:{s:10:"sourcePath";s:52:"/var/www/html/risk/vendor/bower-asset/bootstrap/dist";s:2:"js";a:1:{i:0;s:15:"js/bootstrap.js";}s:7:"depends";a:2:{i:0;s:19:"yii\web\JqueryAsset";i:1;s:28:"yii\bootstrap\BootstrapAsset";}s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/64953780";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/64953780";s:3:"css";a:0:{}s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}}s:28:"kartik\dialog\DialogYiiAsset";a:14:{s:7:"depends";a:3:{i:0;s:25:"kartik\dialog\DialogAsset";i:1;s:16:"yii\web\YiiAsset";i:2;s:28:"yii\bootstrap\BootstrapAsset";}s:15:"bsPluginEnabled";b:0;s:2:"js";a:1:{i:0;s:16:"js/dialog-yii.js";}s:3:"css";a:0:{}s:10:"sourcePath";s:57:"/var/www/html/risk/vendor/kartik-v/yii2-dialog/src/assets";s:8:"basePath";s:46:"/var/www/html/risk/frontend/web/assets/bedf7e3";s:7:"baseUrl";s:33:"/risk/frontend/web/assets/bedf7e3";s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}s:9:"bsVersion";N;s:21:" * _defaultIconPrefix";s:20:"glyphicon glyphicon-";s:17:" * _defaultBtnCss";s:11:"btn-default";s:9:" * _isBs4";b:0;}s:27:"kartik\grid\GridExportAsset";a:14:{s:15:"bsPluginEnabled";b:0;s:7:"depends";a:3:{i:0;s:25:"kartik\dialog\DialogAsset";i:1;s:16:"yii\web\YiiAsset";i:2;s:28:"yii\bootstrap\BootstrapAsset";}s:2:"js";a:1:{i:0;s:20:"js/kv-grid-export.js";}s:3:"css";a:0:{}s:10:"sourcePath";s:55:"/var/www/html/risk/vendor/kartik-v/yii2-grid/src/assets";s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/281360aa";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/281360aa";s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}s:9:"bsVersion";N;s:21:" * _defaultIconPrefix";s:20:"glyphicon glyphicon-";s:17:" * _defaultBtnCss";s:11:"btn-default";s:9:" * _isBs4";b:0;}s:34:"kartik\grid\GridResizeColumnsAsset";a:14:{s:15:"bsPluginEnabled";b:0;s:7:"depends";a:3:{i:0;s:16:"yii\web\YiiAsset";i:1;s:25:"kartik\grid\GridViewAsset";i:2;s:28:"yii\bootstrap\BootstrapAsset";}s:2:"js";a:1:{i:0;s:29:"js/jquery.resizableColumns.js";}s:3:"css";a:1:{i:0;s:31:"css/jquery.resizableColumns.css";}s:10:"sourcePath";s:55:"/var/www/html/risk/vendor/kartik-v/yii2-grid/src/assets";s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/281360aa";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/281360aa";s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}s:9:"bsVersion";N;s:21:" * _defaultIconPrefix";s:20:"glyphicon glyphicon-";s:17:" * _defaultBtnCss";s:11:"btn-default";s:9:" * _isBs4";b:0;}s:22:"yii\grid\GridViewAsset";a:9:{s:10:"sourcePath";s:45:"/var/www/html/risk/vendor/yiisoft/yii2/assets";s:2:"js";a:1:{i:0;s:15:"yii.gridView.js";}s:7:"depends";a:1:{i:0;s:16:"yii\web\YiiAsset";}s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/a97f34ce";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/a97f34ce";s:3:"css";a:0:{}s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}}s:21:"yii\widgets\PjaxAsset";a:9:{s:10:"sourcePath";s:47:"/var/www/html/risk/vendor/bower-asset/yii2-pjax";s:2:"js";a:1:{i:0;s:14:"jquery.pjax.js";}s:7:"depends";a:1:{i:0;s:16:"yii\web\YiiAsset";}s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/611676be";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/611676be";s:3:"css";a:0:{}s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}}s:32:"bluezed\scrollTop\ScrollTopAsset";a:9:{s:10:"sourcePath";s:56:"/var/www/html/risk/vendor/bluezed/yii2-scroll-top/assets";s:3:"css";a:1:{i:0;s:18:"css/scroll-top.css";}s:2:"js";a:1:{i:0;s:16:"js/scroll-top.js";}s:7:"depends";a:1:{i:0;s:19:"yii\web\JqueryAsset";}s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/37a6b8ad";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/37a6b8ad";s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}}s:24:"frontend\assets\AppAsset";a:9:{s:8:"basePath";s:31:"/var/www/html/risk/frontend/web";s:7:"baseUrl";s:18:"/risk/frontend/web";s:3:"css";a:2:{i:0;s:12:"css/site.css";i:1;s:14:"css/navbar.css";}s:2:"js";a:1:{i:0;s:11:"js/modal.js";}s:7:"depends";a:3:{i:0;s:16:"yii\web\YiiAsset";i:1;s:28:"yii\bootstrap\BootstrapAsset";i:2;s:35:"rmrevin\yii\fontawesome\AssetBundle";}s:10:"sourcePath";N;s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}}s:35:"rmrevin\yii\fontawesome\AssetBundle";a:9:{s:10:"sourcePath";s:50:"/var/www/html/risk/vendor/fortawesome/font-awesome";s:3:"css";a:1:{i:0;s:24:"css/font-awesome.min.css";}s:8:"basePath";s:46:"/var/www/html/risk/frontend/web/assets/85d95f8";s:7:"baseUrl";s:33:"/risk/frontend/web/assets/85d95f8";s:7:"depends";a:0:{}s:2:"js";a:0:{}s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:1:{s:10:"beforeCopy";s:8:"\Closure";}}s:20:"kartik\nav\NavXAsset";a:14:{s:15:"bsPluginEnabled";b:0;s:7:"depends";a:2:{i:0;s:16:"yii\web\YiiAsset";i:1;s:28:"yii\bootstrap\BootstrapAsset";}s:2:"js";a:0:{}s:3:"css";a:1:{i:0;s:13:"css/nav-x.css";}s:10:"sourcePath";s:52:"/var/www/html/risk/vendor/kartik-v/yii2-nav-x/assets";s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/e106fef1";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/e106fef1";s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}s:9:"bsVersion";N;s:21:" * _defaultIconPrefix";s:20:"glyphicon glyphicon-";s:17:" * _defaultBtnCss";s:11:"btn-default";s:9:" * _isBs4";b:0;}s:30:"kartik\dropdown\DropdownXAsset";a:14:{s:15:"bsPluginEnabled";b:0;s:7:"depends";a:2:{i:0;s:16:"yii\web\YiiAsset";i:1;s:28:"yii\bootstrap\BootstrapAsset";}s:2:"js";a:1:{i:0;s:16:"js/dropdown-x.js";}s:3:"css";a:1:{i:0;s:18:"css/dropdown-x.css";}s:10:"sourcePath";s:57:"/var/www/html/risk/vendor/kartik-v/yii2-dropdown-x/assets";s:8:"basePath";s:47:"/var/www/html/risk/frontend/web/assets/b58aa427";s:7:"baseUrl";s:34:"/risk/frontend/web/assets/b58aa427";s:9:"jsOptions";a:0:{}s:10:"cssOptions";a:0:{}s:14:"publishOptions";a:0:{}s:9:"bsVersion";N;s:21:" * _defaultIconPrefix";s:20:"glyphicon glyphicon-";s:17:" * _defaultBtnCss";s:11:"btn-default";s:9:" * _isBs4";b:0;}}";s:4:"mail";s:6:"a:0:{}";s:8:"timeline";s:93:"a:3:{s:5:"start";d:1703150026.3607121;s:3:"end";d:1703150026.4788871;s:6:"memory";i:3107000;}";s:4:"user";s:2:"N;";s:6:"router";s:207:"a:1:{s:8:"messages";a:1:{i:14;a:6:{i:0;s:56:"Pretty URL not enabled. Using default URL parsing logic.";i:1;i:8;i:2;s:32:"yii\web\UrlManager::parseRequest";i:3;d:1703150026.3704889;i:4;a:0:{}i:5;i:1755016;}}}";s:7:"summary";a:9:{s:3:"tag";s:13:"658401ca5a52a";s:3:"url";s:67:"http://172.20.250.202/risk/frontend/web/index.php?r=report1%2Frep12";s:4:"ajax";i:0;s:6:"method";s:3:"GET";s:2:"ip";s:14:"172.20.250.254";s:4:"time";d:1703150026.358;s:10:"statusCode";i:200;s:8:"sqlCount";i:9;s:9:"mailCount";i:0;}s:10:"exceptions";a:0:{}}

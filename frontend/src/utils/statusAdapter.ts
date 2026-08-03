@@ -1,0 +1,112 @@
+export interface StatusInfo {
+  dbStatus: string;
+  label: string;
+  badgeClass: string;
+  bgLight: string;
+  textColor: string;
+  borderColor: string;
+  dotClass: string;
+  stepIndex: number;
+  description: string;
+}
+
+export const STATUS_MAP: Record<string, StatusInfo> = {
+  'รายงาน': {
+    dbStatus: 'รายงาน',
+    label: 'รอยืนยัน',
+    badgeClass: 'bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-600',
+    bgLight: 'bg-amber-50 dark:bg-amber-900/30',
+    textColor: 'text-amber-800 dark:text-amber-300',
+    borderColor: 'border-amber-300 dark:border-amber-700',
+    dotClass: 'bg-amber-500 animate-pulse',
+    stepIndex: 1,
+    description: 'รายงานเข้าระบบแล้ว รอหัวหน้างาน/ผู้รับผิดชอบตรวจสอบ',
+  },
+  'ตรวจสอบ': {
+    dbStatus: 'ตรวจสอบ',
+    label: 'ยืนยันแล้ว / รอแก้ไข',
+    badgeClass: 'bg-blue-100 text-blue-900 border-blue-400 dark:bg-blue-950/70 dark:text-blue-200 dark:border-blue-600',
+    bgLight: 'bg-blue-50 dark:bg-blue-900/30',
+    textColor: 'text-blue-800 dark:text-blue-300',
+    borderColor: 'border-blue-300 dark:border-blue-700',
+    dotClass: 'bg-blue-500',
+    stepIndex: 2,
+    description: 'ยืนยันข้อเท็จจริงแล้ว อยู่ในคิวรอการวิเคราะห์สาเหตุ/แก้ไข',
+  },
+  'ทบทวน': {
+    dbStatus: 'ทบทวน',
+    label: 'อยู่ระหว่างทบทวน / RCA',
+    badgeClass: 'bg-indigo-100 text-indigo-900 border-indigo-400 dark:bg-indigo-950/70 dark:text-indigo-200 dark:border-indigo-600',
+    bgLight: 'bg-indigo-50 dark:bg-indigo-900/30',
+    textColor: 'text-indigo-800 dark:text-indigo-300',
+    borderColor: 'border-indigo-300 dark:border-indigo-700',
+    dotClass: 'bg-indigo-500 animate-pulse',
+    stepIndex: 3,
+    description: 'อยู่ระหว่างดำเนินการทบทวน RCA หรือปรับปรุงกระบวนการ',
+  },
+  'จำหน่าย': {
+    dbStatus: 'จำหน่าย',
+    label: 'ปิดเคส / เสร็จสิ้น',
+    badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-400 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-600',
+    bgLight: 'bg-emerald-50 dark:bg-emerald-900/30',
+    textColor: 'text-emerald-800 dark:text-emerald-300',
+    borderColor: 'border-emerald-300 dark:border-emerald-700',
+    dotClass: 'bg-emerald-500',
+    stepIndex: 4,
+    description: 'แก้ไขเสร็จสิ้นและมีมาตรการป้องกันความเสี่ยงเรียบร้อยแล้ว',
+  },
+  'ไม่ใช่ความเสี่ยง': {
+    dbStatus: 'ไม่ใช่ความเสี่ยง',
+    label: 'ไม่ใช่ความเสี่ยง / ยกเลิก',
+    badgeClass: 'bg-slate-200 text-slate-800 border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600',
+    bgLight: 'bg-slate-100 dark:bg-slate-800/50',
+    textColor: 'text-slate-700 dark:text-slate-400',
+    borderColor: 'border-slate-300 dark:border-slate-700',
+    dotClass: 'bg-slate-400',
+    stepIndex: 0,
+    description: 'ตรวจสอบแล้วไม่เข้าข่ายอุบัติการณ์ความเสี่ยง',
+  },
+};
+
+export function getStatusInfo(status?: string | null): StatusInfo {
+  if (!status) return STATUS_MAP['รายงาน'];
+  return STATUS_MAP[status] || {
+    dbStatus: status,
+    label: status,
+    badgeClass: 'bg-slate-100 text-slate-800 border-slate-200',
+    bgLight: 'bg-slate-50',
+    textColor: 'text-slate-700',
+    borderColor: 'border-slate-200',
+    stepIndex: 1,
+    description: status,
+  };
+}
+
+export function isSentinelEvent(level?: string | null): boolean {
+  if (!level) return false;
+  const l = level.toUpperCase().trim();
+  return ['E', 'F', 'G', 'H', 'I', '3', '4', '5'].includes(l);
+}
+
+export function getSeverityBadge(level?: string | null): { label: string; badgeClass: string; isSentinel: boolean } {
+  if (!level) return { label: '-', badgeClass: 'bg-slate-100 text-slate-700', isSentinel: false };
+  const l = level.toUpperCase().trim();
+  const isSentinel = isSentinelEvent(l);
+
+  if (['H', 'I', '5'].includes(l)) {
+    return { label: l, badgeClass: 'bg-red-600 text-white font-bold shadow-sm ring-2 ring-red-300 dark:ring-red-900', isSentinel };
+  }
+  if (['G', '4'].includes(l)) {
+    return { label: l, badgeClass: 'bg-red-500 text-white font-bold shadow-sm', isSentinel };
+  }
+  if (['E', 'F', '3'].includes(l)) {
+    return { label: l, badgeClass: 'bg-amber-500 text-white font-bold shadow-sm', isSentinel };
+  }
+  if (['C', 'D', '2'].includes(l)) {
+    return { label: l, badgeClass: 'bg-yellow-500 text-white font-bold shadow-sm', isSentinel: false };
+  }
+  if (['B'].includes(l)) {
+    return { label: l, badgeClass: 'bg-slate-500 text-white font-medium', isSentinel: false };
+  }
+  return { label: l, badgeClass: 'bg-emerald-500 text-white font-medium', isSentinel: false };
+}
