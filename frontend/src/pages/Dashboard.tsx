@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { 
   Activity, ShieldAlert, AlertTriangle, TrendingUp, 
-  Clock, AlertOctagon, Plus, ArrowRight, ExternalLink, ChevronRight
+  Clock, AlertOctagon, Plus, ArrowRight, ExternalLink, ChevronRight,
+  Calendar, UserCheck, FileText
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getStatusInfo, getSeverityBadge, isSentinelEvent } from '../utils/statusAdapter';
+import { format } from 'date-fns';
 
 const StatCard = ({ title, value, icon: Icon, colorClass, to }: any) => {
   const content = (
@@ -53,6 +56,16 @@ export default function Dashboard() {
     sentinelTotal: 0,
   });
 
+  // State for My Reported Incidents
+  const [myReportedData, setMyReportedData] = useState<any>({
+    reportedThisMonth: 0,
+    incidents: [],
+    fiscalYearsList: [],
+    selectedFiscalYear: new Date().getFullYear(),
+  });
+  const [selectedFiscalYear, setSelectedFiscalYear] = useState<string>('');
+  const [loadingMyReported, setLoadingMyReported] = useState<boolean>(true);
+
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -68,6 +81,30 @@ export default function Dashboard() {
     
     fetchStats();
   }, []);
+
+  useEffect(() => {
+    const fetchMyReported = async () => {
+      setLoadingMyReported(true);
+      try {
+        const token = localStorage.getItem('token');
+        const params: any = {};
+        if (selectedFiscalYear) params.fiscalYear = selectedFiscalYear;
+        const response = await axios.get('http://localhost:3000/incidents/my-reported', {
+          params,
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        setMyReportedData(response.data);
+        if (!selectedFiscalYear && response.data.selectedFiscalYear) {
+          setSelectedFiscalYear(response.data.selectedFiscalYear.toString());
+        }
+      } catch (error) {
+        console.error('Failed to fetch my reported incidents', error);
+      } finally {
+        setLoadingMyReported(false);
+      }
+    };
+    fetchMyReported();
+  }, [selectedFiscalYear]);
 
   const statCards = [
     { title: 'อุบัติการณ์ทั้งหมด', value: stats.total, icon: Activity, colorClass: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400', to: '/incidents' },
@@ -113,6 +150,147 @@ export default function Dashboard() {
         {statCards.map((stat, index) => (
           <StatCard key={index} {...stat} />
         ))}
+      </div>
+
+      {/* My Reported Incidents Section */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+        {/* Header */}
+        <div className="bg-slate-50 dark:bg-slate-900/60 px-6 py-4 border-b border-slate-200 dark:border-slate-700/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-xl text-blue-600 dark:text-blue-400">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-800 dark:text-white text-base">📝 ติดตามความเสี่ยงที่คุณรายงาน</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">รายการความเสี่ยงทั้งหมดที่คุณส่งเข้าระบบ</p>
+            </div>
+          </div>
+
+          {/* Fiscal Year Filter Selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">ปีงบประมาณ :</span>
+            <select
+              value={selectedFiscalYear}
+              onChange={(e) => setSelectedFiscalYear(e.target.value)}
+              className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+            >
+              {myReportedData.fiscalYearsList?.map((yr: number) => (
+                <option key={yr} value={yr}>ปีงบประมาณ {yr + 543} (ค.ศ. {yr})</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Content Body */}
+        <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Monthly Counter Box */}
+          <div className="lg:col-span-4 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl p-6 flex flex-col justify-between shadow-md shadow-blue-500/10 min-h-[180px]">
+            <div>
+              <div className="flex justify-between items-start">
+                <span className="text-xs font-medium uppercase tracking-wider text-blue-100/90">surveillance report</span>
+                <Calendar className="w-5 h-5 text-blue-200/80" />
+              </div>
+              <h3 className="text-lg font-bold mt-2 leading-snug">สถิติรายงานของคุณ</h3>
+              <p className="text-xs text-blue-100/80 mt-1">ประจำเดือนนี้</p>
+            </div>
+
+            <div className="mt-4 flex items-baseline gap-2">
+              <span className="text-5xl font-extrabold tracking-tight">
+                {myReportedData.reportedThisMonth}
+              </span>
+              <span className="text-sm font-semibold text-blue-100/90">เรื่อง</span>
+            </div>
+
+            <p className="text-[10px] text-blue-200/70 mt-3 pt-3 border-t border-white/10">
+              * ข้อมูลอิงตามเดือนปฏิทินปัจจุบันเพื่อการรายงานคุณภาพระดับส่วนบุคคล
+            </p>
+          </div>
+
+          {/* Reported Incidents List/Table */}
+          <div className="lg:col-span-8 flex flex-col min-h-[180px]">
+            {loadingMyReported ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-400 text-sm gap-2">
+                <div className="w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <span>กำลังโหลดข้อมูลรายงานของคุณ...</span>
+              </div>
+            ) : myReportedData.incidents?.length === 0 ? (
+              <Link 
+                to="/my-reported" 
+                className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-slate-50 dark:bg-slate-900/30 hover:bg-slate-100 dark:hover:bg-slate-800/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700/60 transition-all group cursor-pointer"
+              >
+                <FileText className="w-8 h-8 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 mb-2 transition-colors" />
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                  ยังไม่มีประวัติการส่งรายงาน
+                </span>
+                <span className="text-[11px] text-slate-400 mt-0.5">ในรอบปีงบประมาณ {Number(selectedFiscalYear) + 543}</span>
+              </Link>
+            ) : (
+              <div className="flex-1 overflow-x-auto border border-slate-100 dark:border-slate-700/60 rounded-2xl">
+                <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+                  <thead className="bg-slate-50 dark:bg-slate-900/40 text-slate-550 font-semibold border-b border-slate-150 dark:border-slate-700">
+                    <tr>
+                      <th className="px-4 py-3 whitespace-nowrap">รหัส</th>
+                      <th className="px-4 py-3 min-w-[200px]">หัวข้อความเสี่ยง</th>
+                      <th className="px-4 py-3 text-center">ระดับ</th>
+                      <th className="px-4 py-3">วันที่รายงาน</th>
+                      <th className="px-4 py-3">สถานะ</th>
+                      <th className="px-4 py-3 text-center">เปิดดู</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                    {myReportedData.incidents.slice(0, 5).map((inc: any) => {
+                      const statusInfo = getStatusInfo(inc.status_risk);
+                      const severity = getSeverityBadge(inc.level_id, inc.riskstore_id);
+                      const isSentinel = isSentinelEvent(inc.level_id, inc.riskstore_id);
+                      return (
+                        <tr 
+                          key={inc.id}
+                          className={`hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors ${
+                            isSentinel ? 'bg-red-50/20 dark:bg-red-950/5' : ''
+                          }`}
+                        >
+                          <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">#{inc.id}</td>
+                          <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-300 truncate max-w-[200px]" title={inc.riskstore_name}>
+                            {inc.riskstore_name}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`px-2 py-0.5 rounded text-[10px] ${severity.badgeClass}`}>
+                              {severity.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {inc.register_date ? format(new Date(inc.register_date), 'dd/MM/yyyy') : '-'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusInfo.badgeClass}`}>
+                              <span className={`w-1 h-1 rounded-full ${statusInfo.dotClass}`}></span>
+                              {statusInfo.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <Link 
+                              to={`/incidents/${inc.id}?from=my-reported`}
+                              className="inline-flex p-1 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {myReportedData.incidents.length > 5 && (
+                  <div className="p-2 bg-slate-50/30 dark:bg-slate-900/10 text-center border-t border-slate-100 dark:border-slate-700">
+                    <span className="text-[10px] text-slate-400">
+                      แสดง 5 รายการล่าสุดจากทั้งหมด {myReportedData.incidents.length} รายการของปีงบนี้
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* 2 Main Categorized Monitoring Panels */}

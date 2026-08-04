@@ -6,6 +6,77 @@ import { GetIncidentsQueryDto } from './dto/get-incidents-query.dto';
 export class IncidentsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async buildScopingFilter(user: any, status_risk?: string, scope_type?: string) {
+    if (!user) return {};
+    const isAdmin = user.accessrules === '1' || user.role === 'admin' || user.accessrules === 'admin';
+    if (isAdmin) return {};
+
+    // If team scope is requested and user has a team, return team-scoped filter immediately for any role
+    if (scope_type === 'team' && user.teamId) {
+      return { sendto_team_id: user.teamId };
+    }
+
+    const isRmCommittee = user.rmStatus === '1' || user.role === 'rm_committee' || user.accessrules === 'rm_committee';
+    const isHeadOfGroup = user.priority === '1' || user.role === 'head' || user.accessrules === 'head';
+
+    if (isRmCommittee) {
+      const scope = scope_type || 'primary';
+      if (status_risk === 'รายงาน') {
+        const deptId = (scope === 'secondary' && user.departmentId2 && user.departmentId2 !== 0)
+          ? user.departmentId2.toString()
+          : (user.departmentId || '').toString();
+        return { department_id: deptId };
+      } else {
+        if (scope === 'team' && user.teamId) {
+          return { sendto_team_id: user.teamId };
+        } else {
+          const deptId = (scope === 'secondary' && user.departmentId2 && user.departmentId2 !== 0)
+            ? user.departmentId2.toString()
+            : (user.departmentId || '').toString();
+          return {
+            OR: [
+              { department_id: deptId },
+              { sendto_department_id: deptId }
+            ]
+          };
+        }
+      }
+    } else if (isHeadOfGroup && user.departmentGroup) {
+      if (status_risk === 'รายงาน') {
+        return { department_id: (user.departmentId || '').toString() };
+      } else {
+        const depts = await this.prisma.department.findMany({
+          where: { depart_group_id: user.departmentGroup },
+          select: { id: true },
+        });
+        const deptIds = depts.map(d => d.id.toString());
+        return {
+          OR: [
+            { department_id: { in: deptIds } },
+            { sendto_department_id: { in: deptIds } }
+          ]
+        };
+      }
+    } else if (user.departmentId) {
+      const scope = scope_type || 'primary';
+      const deptId = (scope === 'secondary' && user.departmentId2 && user.departmentId2 !== 0)
+        ? user.departmentId2.toString()
+        : user.departmentId.toString();
+
+      if (status_risk === 'รายงาน') {
+        return { department_id: deptId };
+      } else {
+        return {
+          OR: [
+            { department_id: deptId },
+            { sendto_department_id: deptId }
+          ]
+        };
+      }
+    }
+    return {};
+  }
+
   async findAll(query: GetIncidentsQueryDto, user?: any) {
     const { 
       page = 1, 
@@ -44,11 +115,29 @@ export class IncidentsService {
     // Severity level filter or Sentinel filter
     if (level_id) {
       if (level_id === 'sentinel_clinical') {
-        where.level_id = { in: ['E', 'F', 'G', 'H', 'I'] };
+        where.OR = [
+          { level_id: { in: ['G', 'H', 'I'] } },
+          {
+            AND: [
+              { level_id: { in: ['E', 'F'] } },
+              { riskstore_id: { in: [297, 298, 300, 302] } }
+            ]
+          },
+          { riskstore_id: 2000071 }
+        ];
       } else if (level_id === 'sentinel_general') {
-        where.level_id = { in: ['3', '4', '5'] };
+        where.level_id = { in: ['4', '5'] };
       } else if (level_id === 'sentinel_all') {
-        where.level_id = { in: ['E', 'F', 'G', 'H', 'I', '3', '4', '5'] };
+        where.OR = [
+          { level_id: { in: ['G', 'H', 'I', '4', '5'] } },
+          {
+            AND: [
+              { level_id: { in: ['E', 'F'] } },
+              { riskstore_id: { in: [297, 298, 300, 302] } }
+            ]
+          },
+          { riskstore_id: 2000071 }
+        ];
       } else {
         where.level_id = level_id;
       }
@@ -80,28 +169,15 @@ export class IncidentsService {
     }
 
     // RBAC Data Scoping
-    if (user) {
-      const isAdmin = user.accessrules === '1' || user.role === 'admin' || user.accessrules === 'admin';
-      const isRmCommittee = user.rmStatus === '1' || user.role === 'rm_committee' || user.accessrules === 'rm_committee';
-      const isSimpleTeam = user.teamId != null;
-      const isHeadOfGroup = user.priority === '1' || user.role === 'head' || user.accessrules === 'head';
-
-      if (isAdmin || isRmCommittee) {
-        if (department_id) where.department_id = department_id;
-      } else if (isHeadOfGroup && user.departmentGroup) {
-        const depts = await this.prisma.department.findMany({
-          where: { depart_group_id: user.departmentGroup },
-          select: { id: true },
-        });
-        const deptIds = depts.map(d => d.id.toString());
-        where.department_id = { in: deptIds };
-        if (department_id && deptIds.includes(department_id)) {
-          where.department_id = department_id;
-        }
-      } else if (user.department_id) {
-        where.department_id = user.department_id.toString();
-      } else if (department_id) {
-        where.department_id = department_id;
+    const scoping = await this.buildScopingFilter(user, status_risk, query.scope_type);
+    if (Object.keys(scoping).length > 0) {
+      if (department_id) {
+        where.AND = [
+          scoping,
+          { department_id: department_id }
+        ];
+      } else {
+        where.AND = [scoping];
       }
     } else if (department_id) {
       where.department_id = department_id;
@@ -119,8 +195,11 @@ export class IncidentsService {
       this.prisma.riskregister.count({ where }),
     ]);
 
-    // Fetch department mapping
-    const deptIds = Array.from(new Set(data.map(d => Number(d.department_id)).filter(Boolean)));
+    // Fetch department mapping for both department_id and sendto_department_id
+    const deptIds = Array.from(new Set([
+      ...data.map(d => Number(d.department_id)).filter(Boolean),
+      ...data.map(d => Number(d.sendto_department_id)).filter(Boolean)
+    ]));
     const departments = await this.prisma.department.findMany({
       where: { id: { in: deptIds } },
       select: { id: true, depart_name: true },
@@ -169,6 +248,7 @@ export class IncidentsService {
     const enrichedData = data.map(item => ({
       ...item,
       department_name: deptMap.get(item.department_id) || `แผนก ${item.department_id}`,
+      sendto_department_name: item.sendto_department_id ? (deptMap.get(item.sendto_department_id.toString()) || `แผนก ${item.sendto_department_id}`) : 'ไม่มีระบุ',
       risk_topic_name: riskMapById.get(item.riskstore_id) || riskMapByRid.get(item.id_risk) || null,
     }));
 
@@ -185,34 +265,45 @@ export class IncidentsService {
   }
 
   async getStats(user?: any) {
-    const where: any = {};
-    if (user) {
-      const isAdmin = user.accessrules === '1' || user.role === 'admin' || user.accessrules === 'admin';
-      const isRmCommittee = user.rmStatus === '1' || user.role === 'rm_committee' || user.accessrules === 'rm_committee';
-      const isHeadOfGroup = user.priority === '1' || user.role === 'head' || user.accessrules === 'head';
-
-      if (!isAdmin && !isRmCommittee) {
-        if (isHeadOfGroup && user.departmentGroup) {
-          const depts = await this.prisma.department.findMany({
-            where: { depart_group_id: user.departmentGroup },
-            select: { id: true }
-          });
-          where.department_id = { in: depts.map(d => d.id.toString()) };
-        } else if (user.department_id) {
-          where.department_id = user.department_id.toString();
-        }
-      }
-    }
+    const [
+      pendingScoping,
+      confirmedScoping,
+      reviewingScoping,
+      closedScoping,
+      notRiskScoping,
+      allScoping
+    ] = await Promise.all([
+      this.buildScopingFilter(user, 'รายงาน'),
+      this.buildScopingFilter(user, 'ตรวจสอบ'),
+      this.buildScopingFilter(user, 'ทบทวน'),
+      this.buildScopingFilter(user, 'จำหน่าย'),
+      this.buildScopingFilter(user, 'ไม่ใช่ความเสี่ยง'),
+      this.buildScopingFilter(user, 'all')
+    ]);
 
     const [total, pending, confirmed, reviewing, closed, notRisk, sentinelClinical, sentinelGeneral] = await Promise.all([
-      this.prisma.riskregister.count({ where }),
-      this.prisma.riskregister.count({ where: { ...where, status_risk: 'รายงาน' } }),
-      this.prisma.riskregister.count({ where: { ...where, status_risk: 'ตรวจสอบ' } }),
-      this.prisma.riskregister.count({ where: { ...where, status_risk: 'ทบทวน' } }),
-      this.prisma.riskregister.count({ where: { ...where, status_risk: 'จำหน่าย' } }),
-      this.prisma.riskregister.count({ where: { ...where, status_risk: 'ไม่ใช่ความเสี่ยง' } }),
-      this.prisma.riskregister.count({ where: { ...where, level_id: { in: ['E', 'F', 'G', 'H', 'I'] } } }),
-      this.prisma.riskregister.count({ where: { ...where, level_id: { in: ['3', '4', '5'] } } }),
+      this.prisma.riskregister.count({ where: allScoping }),
+      this.prisma.riskregister.count({ where: { ...pendingScoping, status_risk: 'รายงาน' } }),
+      this.prisma.riskregister.count({ where: { ...confirmedScoping, status_risk: 'ตรวจสอบ' } }),
+      this.prisma.riskregister.count({ where: { ...reviewingScoping, status_risk: 'ทบทวน' } }),
+      this.prisma.riskregister.count({ where: { ...closedScoping, status_risk: 'จำหน่าย' } }),
+      this.prisma.riskregister.count({ where: { ...notRiskScoping, status_risk: 'ไม่ใช่ความเสี่ยง' } }),
+      this.prisma.riskregister.count({
+        where: {
+          ...allScoping,
+          OR: [
+            { level_id: { in: ['G', 'H', 'I'] } },
+            {
+              AND: [
+                { level_id: { in: ['E', 'F'] } },
+                { riskstore_id: { in: [297, 298, 300, 302] } }
+              ]
+            },
+            { riskstore_id: 2000071 }
+          ]
+        }
+      }),
+      this.prisma.riskregister.count({ where: { ...allScoping, level_id: { in: ['4', '5'] } } }),
     ]);
 
     return {
@@ -225,6 +316,111 @@ export class IncidentsService {
       sentinelClinical,
       sentinelGeneral,
       sentinelTotal: sentinelClinical + sentinelGeneral,
+    };
+  }
+
+  async getMyReported(user: any, fiscalYearParam?: string) {
+    const userId = Number(user?.id || user?.userId || user?.sub);
+    if (!userId) {
+      return {
+        reportedThisMonth: 0,
+        incidents: [],
+        fiscalYearsList: [2026, 2025, 2024],
+        currentFiscalYear: 2026,
+        selectedFiscalYear: 2026
+      };
+    }
+
+    // Calculate current fiscal year (Thailand fiscal year runs Oct 1st to Sep 30th)
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth(); // 0 = Jan, 9 = Oct
+    const defaultFiscalYear = currentMonth >= 9 ? currentYear + 1 : currentYear;
+
+    const selectedFiscalYear = fiscalYearParam ? Number(fiscalYearParam) : defaultFiscalYear;
+
+    // Calculate start and end dates for selected fiscal year (e.g. FY 2026: 2025-10-01 to 2026-09-30)
+    const startOfYear = new Date(`${selectedFiscalYear - 1}-10-01T00:00:00.000Z`);
+    const endOfYear = new Date(`${selectedFiscalYear}-09-30T23:59:59.999Z`);
+
+    // Calculate start and end dates for the current calendar month
+    const startOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
+    const endOfCurrentMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    // Query reported this month count
+    const reportedThisMonth = await this.prisma.riskregister.count({
+      where: {
+        created_by: userId,
+        register_date: {
+          gte: startOfCurrentMonth,
+          lte: endOfCurrentMonth
+        }
+      }
+    });
+
+    // Query all incidents reported by this user in the selected fiscal year
+    const incidents = await this.prisma.riskregister.findMany({
+      where: {
+        created_by: userId,
+        register_date: {
+          gte: startOfYear,
+          lte: endOfYear
+        }
+      },
+      orderBy: {
+        id: 'desc'
+      }
+    });
+
+    // Enrich incidents with riskstore name and department name
+    const enrichedIncidents = await Promise.all(
+      incidents.map(async (inc) => {
+        const [rStore, dept, targetDept] = await Promise.all([
+          this.prisma.riskstore.findFirst({ where: { riskstore_id: inc.riskstore_id } }),
+          this.prisma.department.findUnique({ where: { id: Number(inc.department_id) } }),
+          inc.sendto_department_id ? this.prisma.department.findUnique({ where: { id: Number(inc.sendto_department_id) } }) : null
+        ]);
+        return {
+          ...inc,
+          riskstore_name: rStore ? rStore.riskstore_name : 'ไม่พบข้อมูลหัวข้อ',
+          department_name: dept ? dept.depart_name : 'ไม่พบข้อมูลแผนก',
+          sendto_department_name: targetDept ? targetDept.depart_name : 'ไม่มีระบุ'
+        };
+      })
+    );
+
+    // Generate dynamic list of fiscal years from DB to choose from
+    const earliestRecord = await this.prisma.riskregister.findFirst({
+      where: { created_by: userId },
+      orderBy: { register_date: 'asc' },
+      select: { register_date: true }
+    });
+
+    const yearsList: number[] = [];
+    if (earliestRecord && earliestRecord.register_date) {
+      const earliestYear = new Date(earliestRecord.register_date).getFullYear();
+      for (let y = defaultFiscalYear; y >= earliestYear - 1; y--) {
+        if (!yearsList.includes(y) && y >= 2020) {
+          yearsList.push(y);
+        }
+      }
+    }
+    
+    const fallbackYears = [defaultFiscalYear, defaultFiscalYear - 1, defaultFiscalYear - 2];
+    fallbackYears.forEach(y => {
+      if (!yearsList.includes(y)) {
+        yearsList.push(y);
+      }
+    });
+
+    yearsList.sort((a, b) => b - a);
+
+    return {
+      reportedThisMonth,
+      incidents: enrichedIncidents,
+      fiscalYearsList: yearsList,
+      currentFiscalYear: defaultFiscalYear,
+      selectedFiscalYear
     };
   }
 

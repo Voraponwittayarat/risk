@@ -9,7 +9,8 @@ import {
   Menu,
   X,
   LogOut,
-  ExternalLink
+  ExternalLink,
+  FileText
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -48,17 +49,32 @@ export default function Layout() {
           badge: '+ แจ้งเหตุ',
           badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
         },
+        { 
+          name: 'ความเสี่ยงที่คุณรายงาน', 
+          path: '/my-reported', 
+          icon: FileText,
+          badge: null
+        },
       ]
     },
     {
       groupTitle: 'การบริหารจัดการ',
       items: [
         { 
-          name: 'จัดการความเสี่ยงของคุณ', 
-          path: '/incidents', 
+          name: 'ความเสี่ยงหน่วยงาน', 
+          path: '/incidents/dept', 
           icon: ClipboardList,
           badge: null
         },
+        // Only show team management if user belongs to a team or is admin
+        ...((user?.teamId || user?.role === 'admin' || user?.accessrules === '1' || user?.accessrules === 'admin') ? [
+          {
+            name: 'ความเสี่ยงทีมดูแล',
+            path: '/incidents/team',
+            icon: ClipboardList,
+            badge: 'ทีม'
+          }
+        ] : [])
       ]
     },
     {

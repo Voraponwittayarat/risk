@@ -52,6 +52,12 @@ export class IncidentsController {
     return this.incidentsService.getRiskRegister(query);
   }
 
+  @Get('my-reported')
+  @ApiOperation({ summary: 'Retrieve incidents reported by the current user with fiscal year filter' })
+  getMyReported(@Request() req, @Query('fiscalYear') fiscalYear?: string) {
+    return this.incidentsService.getMyReported(req.user, fiscalYear);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Retrieve a single risk incident by ID with review timeline' })
   findOne(@Param('id') id: string) {

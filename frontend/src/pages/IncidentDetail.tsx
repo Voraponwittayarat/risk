@@ -59,7 +59,14 @@ export default function IncidentDetail() {
 
   const isAdminOrRm = user?.role === 'admin' || user?.accessrules === '1' || user?.accessrules === 'admin' || user?.rmStatus === '1' || user?.role === 'rm_committee';
   const isHeadOfGroup = user?.priority === '1' || user?.role === 'head' || user?.accessrules === 'head';
-  const canEditIncident = isAdminOrRm || isHeadOfGroup;
+  
+  // Extract query parameters to verify if accessed from my-reported page
+  const searchParams = new URLSearchParams(window.location.search);
+  const fromSource = searchParams.get('from');
+  const isClosed = incident?.status_risk === 'จำหน่าย' || incident?.status_risk === 'ไม่ใช่ความเสี่ยง';
+  
+  // Edit is disabled if closed/cancelled or accessed from the general tracking list (/incidents)
+  const canEditIncident = (isAdminOrRm || isHeadOfGroup) && !isClosed && fromSource === 'my-reported';
 
   // Full RCA Mode State (Fishbone 4M1E / 2P Safety)
   const [isFullRcaOpen, setIsFullRcaOpen] = useState(false);
@@ -337,8 +344,8 @@ export default function IncidentDetail() {
   }
 
   const statusInfo = getStatusInfo(incident.status_risk);
-  const severity = getSeverityBadge(incident.level_id);
-  const isSentinel = isSentinelEvent(incident.level_id);
+  const severity = getSeverityBadge(incident.level_id, incident.riskstore_id);
+  const isSentinel = isSentinelEvent(incident.level_id, incident.riskstore_id);
 
   const dtEvent = incident.date_report ? format(new Date(incident.date_report), 'dd/MM/yyyy') : '-';
   const dtRegister = incident.register_date ? format(new Date(incident.register_date), 'dd/MM/yyyy HH:mm') : '-';

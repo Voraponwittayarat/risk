@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import IncidentList from './pages/IncidentList';
 import IncidentForm from './pages/IncidentForm';
 import IncidentDetail from './pages/IncidentDetail';
+import MyReportedIncidents from './pages/MyReportedIncidents';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
@@ -32,10 +33,13 @@ function App() {
           }>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
-            <Route path="incidents" element={<IncidentList />} />
+            <Route path="incidents" element={<Navigate to="/incidents/dept" replace />} />
+            <Route path="incidents/dept" element={<IncidentList mode="dept" />} />
+            <Route path="incidents/team" element={<IncidentList mode="team" />} />
             <Route path="incidents/new" element={<IncidentForm />} />
             <Route path="incidents/:id" element={<IncidentDetail />} />
             <Route path="incidents/:id/edit" element={<IncidentForm />} />
+            <Route path="my-reported" element={<MyReportedIncidents />} />
             <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />
           </Route>

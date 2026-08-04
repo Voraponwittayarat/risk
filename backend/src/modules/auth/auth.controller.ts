@@ -12,4 +12,9 @@ export class AuthController {
     }
     return this.authService.mockRoleLogin(role);
   }
+
+  @Post('login')
+  async login(@Body() body: any) {
+    return this.authService.login(body.username, body.password);
+  }
 }

@@ -21,6 +21,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // The payload returned here will be injected into the request object as req.user
     return { 
       userId: payload.sub, 
+      id: payload.sub,
       cid: payload.cid,
       departmentId: payload.departmentId,
       departmentGroup: payload.departmentGroup,

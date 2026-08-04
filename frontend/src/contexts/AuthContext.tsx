@@ -17,7 +17,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (role: string) => Promise<void>;
+  login: (usernameOrRole: string, password?: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -68,9 +68,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [token]);
 
-  const login = async (role: string) => {
+  const login = async (usernameOrRole: string, password?: string) => {
     try {
-      const response = await axios.post('http://localhost:3000/auth/mock-role', { role });
+      let response;
+      if (password !== undefined) {
+        response = await axios.post('http://localhost:3000/auth/login', {
+          username: usernameOrRole,
+          password
+        });
+      } else {
+        response = await axios.post('http://localhost:3000/auth/mock-role', {
+          role: usernameOrRole
+        });
+      }
       setToken(response.data.access_token);
       setUser(response.data.user);
     } catch (error) {

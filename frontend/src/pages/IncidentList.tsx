@@ -7,8 +7,14 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getStatusInfo, getSeverityBadge, isSentinelEvent } from '../utils/statusAdapter';
+import { useAuth } from '../contexts/AuthContext';
 
-const IncidentList = () => {
+interface IncidentListProps {
+  mode?: 'dept' | 'team';
+}
+
+const IncidentList = ({ mode = 'dept' }: IncidentListProps) => {
+  const { user } = useAuth();
   const [incidents, setIncidents] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +27,32 @@ const IncidentList = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+
+  // RM Committee Scoping States
+  const [scopeType, setScopeType] = useState<string>('primary');
+
+  const isRmCommittee = user?.rmStatus === '1' || user?.role === 'rm_committee' || user?.accessrules === 'rm_committee';
+  const isAdmin = user?.role === 'admin' || user?.accessrules === '1' || user?.accessrules === 'admin';
+  const hasSecondaryDept = user?.department_id2 && user?.department_id2 !== 0;
+  const hasTeam = user?.teamId != null;
+
+  const primaryDeptName = departments.find(d => Number(d.id) === Number(user?.department_id))?.depart_name || 'หน่วยงานหลัก';
+  const secondaryDeptName = departments.find(d => Number(d.id) === Number(user?.department_id2))?.depart_name || 'หน่วยงานรอง';
+
+  const getTeamName = (teamId: number) => {
+    switch (teamId) {
+      case 1: return 'ทีมดูแลรักษาผู้ป่วย (PCT / PT)';
+      case 2: return 'ทีมระบบข้อมูลสารสนเทศและเวชระเบียน (IT)';
+      case 3: return 'ทีมเฝ้าระวังและควบคุมการติดเชื้อ (IC)';
+      case 4: return 'ทีมดูแลสิทธิผู้ป่วย จริยธรรม และข้อร้องเรียน';
+      case 5: return 'ทีมบริหารจัดการองค์กรและความปลอดภัยทั่วไป';
+      case 6: return 'ทีมเครื่องมือและอุปกรณ์ทางการแพทย์';
+      case 8: return 'ทีมสิ่งแวดล้อม สาธารณูปโภค และความปลอดภัย (ENV)';
+      case 10: return 'ทีมระบบยาและความปลอดภัย (Medication)';
+      default: return `ทีมดูแลระบบ (ทีม ${teamId})`;
+    }
+  };
+  const teamName = user?.teamId ? getTeamName(user.teamId) : '';
 
   // Quick Action Confirm Loading
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
@@ -43,6 +75,13 @@ const IncidentList = () => {
     if (search.trim()) params.search = search.trim();
     if (selectedDept) params.department_id = selectedDept;
     if (selectedLevel) params.level_id = selectedLevel;
+
+    // Apply scoping parameter based on mode
+    if (mode === 'team') {
+      params.scope_type = 'team';
+    } else {
+      params.scope_type = scopeType;
+    }
 
     // Handle Tab Mapping
     if (activeTab === 'sentinel') {
@@ -71,7 +110,7 @@ const IncidentList = () => {
 
   useEffect(() => {
     fetchIncidents();
-  }, [page, activeTab, selectedDept, selectedLevel]);
+  }, [page, activeTab, selectedDept, selectedLevel, scopeType, mode]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,10 +152,14 @@ const IncidentList = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            ติดตาม เฝ้าระวัง/ ยืนยัน/ แก้ไข อุบัติการณ์ความเสี่ยง
+            {mode === 'team' 
+              ? `การจัดการความเสี่ยงทีม: ${teamName || 'ทีมดูแล'}`
+              : 'การจัดการความเสี่ยงหน่วยงาน'}
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-            ศูนย์รวมรายการอุบัติการณ์และการไหลของกระบวนการบริหารความเสี่ยง (พบ {totalCount.toLocaleString()} รายการ)
+            {mode === 'team'
+              ? `เฝ้าระวังและร่วมทบทวนอุบัติการณ์สำหรับ${teamName || 'ทีมประสานงาน'} (พบ ${totalCount.toLocaleString()} รายการ)`
+              : `บริหารจัดการความเสี่ยงและขั้นตอนติดตามงานระดับหน่วยงาน (พบ ${totalCount.toLocaleString()} รายการ)`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -129,6 +172,54 @@ const IncidentList = () => {
           </Link>
         </div>
       </div>
+
+      {/* Scoping Selector / Badge - displayed in dept mode for non-admins */}
+      {mode === 'dept' && !isAdmin && (
+        <div className="bg-white dark:bg-slate-800/80 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 backdrop-blur-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></div>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              หน่วยงานที่กำลังเปิดดู :
+            </span>
+          </div>
+
+          {hasSecondaryDept ? (
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800/50">
+              <button
+                onClick={() => {
+                  setScopeType('primary');
+                  setPage(1);
+                }}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  scopeType === 'primary'
+                    ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                }`}
+              >
+                🏢 {primaryDeptName} (หน่วยงานหลัก - Primary)
+              </button>
+              <button
+                onClick={() => {
+                  setScopeType('secondary');
+                  setPage(1);
+                }}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  scopeType === 'secondary'
+                    ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                }`}
+              >
+                🏢 {secondaryDeptName} (หน่วยงานรอง - Secondary)
+              </button>
+            </div>
+          ) : (
+            <div className="px-4 py-2 bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400 rounded-xl text-xs font-bold border border-blue-100 dark:border-blue-900/50 flex items-center gap-2">
+              <span>🏢 หน่วยงานหลัก (Primary):</span>
+              <span className="text-slate-700 dark:text-slate-300 font-semibold">{primaryDeptName}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Status Filter Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200 dark:border-slate-800">
@@ -160,7 +251,7 @@ const IncidentList = () => {
 
       {/* Filter and Search Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 bg-white dark:bg-slate-800/80 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-sm backdrop-blur-sm">
-        <form onSubmit={handleSearchSubmit} className="sm:col-span-6 relative">
+        <form onSubmit={handleSearchSubmit} className={`${isAdmin ? 'sm:col-span-6' : 'sm:col-span-8'} relative`}>
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
@@ -171,23 +262,32 @@ const IncidentList = () => {
           />
         </form>
 
-        <div className="sm:col-span-3">
-          <select
-            value={selectedDept}
-            onChange={(e) => {
-              setSelectedDept(e.target.value);
-              setPage(1);
-            }}
-            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-          >
-            <option value="">ทุกกลุ่ม / หน่วยงาน</option>
-            {departments.map(d => (
-              <option key={d.id} value={d.id}>{d.depart_name}</option>
-            ))}
-          </select>
-        </div>
+        {isAdmin && (
+          <div className="sm:col-span-3">
+            <select
+              value={selectedDept}
+              disabled={isRmCommittee && scopeType === 'team'}
+              onChange={(e) => {
+                setSelectedDept(e.target.value);
+                setPage(1);
+              }}
+              className={`w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white ${
+                isRmCommittee && scopeType === 'team' ? 'opacity-60 cursor-not-allowed' : ''
+              }`}
+            >
+              <option value="">
+                {isRmCommittee && scopeType === 'team' 
+                  ? 'กรองตามทีมที่ดูแล (ทุกแผนก)' 
+                  : 'ทุกกลุ่ม / หน่วยงาน'}
+              </option>
+              {departments.map(d => (
+                <option key={d.id} value={d.id}>{d.depart_name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
-        <div className="sm:col-span-3 flex gap-2">
+        <div className={`${isAdmin ? 'sm:col-span-3' : 'sm:col-span-4'} flex gap-2`}>
           <select
             value={selectedLevel}
             onChange={(e) => {
@@ -227,7 +327,8 @@ const IncidentList = () => {
               <tr>
                 <th className="px-6 py-4 whitespace-nowrap">รหัส</th>
                 <th className="px-6 py-4 min-w-[280px]">รายละเอียดเหตุการณ์</th>
-                <th className="px-6 py-4">หน่วยงานที่เกิดเหตุ</th>
+                <th className="px-6 py-4">หน่วยงานที่รายงาน</th>
+                <th className="px-6 py-4">หน่วยงานที่รายงานถึง</th>
                 <th className="px-6 py-4 text-center">ระดับ</th>
                 <th className="px-6 py-4 min-w-[200px]">สถานะ / วงจร</th>
                 <th className="px-6 py-4 text-center">จัดการ</th>
@@ -236,7 +337,7 @@ const IncidentList = () => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center text-slate-400">
+                  <td colSpan={7} className="px-6 py-16 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <div className="w-7 h-7 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                       <span>กำลังโหลดรายการข้อมูล...</span>
@@ -245,15 +346,15 @@ const IncidentList = () => {
                 </tr>
               ) : incidents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center text-slate-400">
+                  <td colSpan={7} className="px-6 py-16 text-center text-slate-400">
                     ไม่พบรายการอุบัติการณ์ที่ตรงกับเงื่อนไข
                   </td>
                 </tr>
               ) : (
                 incidents.map((inc) => {
                   const statusInfo = getStatusInfo(inc.status_risk);
-                  const severity = getSeverityBadge(inc.level_id);
-                  const isSentinel = isSentinelEvent(inc.level_id);
+                  const severity = getSeverityBadge(inc.level_id, inc.riskstore_id);
+                  const isSentinel = isSentinelEvent(inc.level_id, inc.riskstore_id);
                   const dtEvent = inc.date_report ? format(new Date(inc.date_report), 'dd/MM/yyyy') : '-';
                   const dtRecord = inc.register_date ? format(new Date(inc.register_date), 'dd/MM/yyyy') : '-';
 
@@ -296,10 +397,15 @@ const IncidentList = () => {
                         )}
                       </td>
 
-                      {/* Department */}
+                      {/* Reporting Department */}
                       <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
                         <div className="font-medium">{inc.department_name || `แผนก ${inc.department_id}`}</div>
                         <div className="text-xs text-slate-400 mt-0.5">{inc.user_ir_type || 'รายงานตนเอง'}</div>
+                      </td>
+
+                      {/* Target Department */}
+                      <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
+                        <div className="font-medium text-slate-700 dark:text-slate-200">{inc.sendto_department_name || 'ไม่มีระบุ'}</div>
                         {(inc.sendto_team_id || inc.sendto_department_id) && (
                           <div className="mt-1">
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">

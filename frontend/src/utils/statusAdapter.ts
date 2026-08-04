@@ -82,16 +82,22 @@ export function getStatusInfo(status?: string | null): StatusInfo {
   };
 }
 
-export function isSentinelEvent(level?: string | null): boolean {
+export function isSentinelEvent(level?: string | null, riskstoreId?: number | string | null): boolean {
   if (!level) return false;
   const l = level.toUpperCase().trim();
-  return ['E', 'F', 'G', 'H', 'I', '3', '4', '5'].includes(l);
+  const isGeneralSentinel = ['G', 'H', 'I', '4', '5'].includes(l);
+  
+  const rid = Number(riskstoreId);
+  const isFallSentinel = ['E', 'F'].includes(l) && [297, 298, 300, 302].includes(rid);
+  const isSuicideSentinel = rid === 2000071;
+
+  return isGeneralSentinel || isFallSentinel || isSuicideSentinel;
 }
 
-export function getSeverityBadge(level?: string | null): { label: string; badgeClass: string; isSentinel: boolean } {
+export function getSeverityBadge(level?: string | null, riskstoreId?: number | string | null): { label: string; badgeClass: string; isSentinel: boolean } {
   if (!level) return { label: '-', badgeClass: 'bg-slate-100 text-slate-700', isSentinel: false };
   const l = level.toUpperCase().trim();
-  const isSentinel = isSentinelEvent(l);
+  const isSentinel = isSentinelEvent(l, riskstoreId);
 
   if (['H', 'I', '5'].includes(l)) {
     return { label: l, badgeClass: 'bg-red-600 text-white font-bold shadow-sm ring-2 ring-red-300 dark:ring-red-900', isSentinel };
@@ -100,10 +106,24 @@ export function getSeverityBadge(level?: string | null): { label: string; badgeC
     return { label: l, badgeClass: 'bg-red-500 text-white font-bold shadow-sm', isSentinel };
   }
   if (['E', 'F', '3'].includes(l)) {
-    return { label: l, badgeClass: 'bg-amber-500 text-white font-bold shadow-sm', isSentinel };
+    // If it's a fall with Level E/F or suicide attempt, it will have isSentinel = true and can show as sentinel alert badge
+    return { 
+      label: l, 
+      badgeClass: isSentinel 
+        ? 'bg-red-500 text-white font-bold shadow-sm animate-pulse' 
+        : 'bg-amber-500 text-white font-bold shadow-sm', 
+      isSentinel 
+    };
   }
   if (['C', 'D', '2'].includes(l)) {
-    return { label: l, badgeClass: 'bg-yellow-500 text-white font-bold shadow-sm', isSentinel: false };
+    // If suicide attempt is Level C/D/other, it is still Sentinel, so we can give it special badge styling
+    return {
+      label: l,
+      badgeClass: isSentinel
+        ? 'bg-red-500 text-white font-bold shadow-sm animate-pulse'
+        : 'bg-yellow-500 text-white font-bold shadow-sm',
+      isSentinel
+    };
   }
   if (['B'].includes(l)) {
     return { label: l, badgeClass: 'bg-slate-500 text-white font-medium', isSentinel: false };

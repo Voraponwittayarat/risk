@@ -46,4 +46,14 @@ export class GetIncidentsQueryDto {
   @Type(() => Number)
   @IsInt()
   program_id?: number;
+
+  @ApiPropertyOptional({ description: 'Filter by scope type (primary, secondary, team)' })
+  @IsOptional()
+  scope_type?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by sendto team ID' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  sendto_team_id?: number;
 }
