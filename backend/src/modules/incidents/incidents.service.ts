@@ -336,6 +336,52 @@ export class IncidentsService {
     };
   }
 
+  async getTabCounts(user: any, scope_type?: string) {
+    // Build RBAC scoping filter (no status filter = general scoping)
+    const scoping = await this.buildScopingFilter(user, undefined, scope_type);
+
+    // Helper: merge scoping with extra where clause
+    const countWith = async (extra: any) => {
+      let where: any;
+      if (Object.keys(scoping).length > 0) {
+        where = { AND: [scoping, extra] };
+      } else {
+        where = extra;
+      }
+      return this.prisma.riskregister.count({ where });
+    };
+
+    // For "forwarded" tab: OR filter for sendto being set
+    const forwardedExtra = {
+      OR: [
+        { sendto_team_id: { not: null } },
+        { sendto_department_id: { not: null } },
+      ],
+    };
+
+    // For sentinel: level_id G/H/I or special riskstore
+    const sentinelExtra = {
+      OR: [
+        { level_id: { in: ['G', 'H', 'I'] } },
+        { AND: [{ level_id: { in: ['E', 'F'] } }, { riskstore_id: { in: [297, 298, 300, 302] } }] },
+        { riskstore_id: 2000071 },
+        { level_id: { in: ['4', '5'] } },
+      ],
+    };
+
+    const [all, pending, verified, reviewing, forwarded, closed, sentinel] = await Promise.all([
+      countWith({}),
+      countWith({ status_risk: 'รายงาน' }),
+      countWith({ status_risk: 'ตรวจสอบ' }),
+      countWith({ status_risk: 'ทบทวน' }),
+      countWith(forwardedExtra),
+      countWith({ status_risk: 'จำหน่าย' }),
+      countWith(sentinelExtra),
+    ]);
+
+    return { all, pending, verified, reviewing, forwarded, closed, sentinel };
+  }
+
   async getMyReported(user: any, fiscalYearParam?: string) {
     const userId = Number(user?.id || user?.userId || user?.sub);
     if (!userId) {

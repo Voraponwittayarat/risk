@@ -35,6 +35,9 @@ const IncidentList = ({ mode = 'dept' }: IncidentListProps) => {
   // RM Committee Scoping States
   const [scopeType, setScopeType] = useState<string>('primary');
 
+  // Tab Counts State
+  const [tabCounts, setTabCounts] = useState<Record<string, number>>({});
+
   const handleSort = (field: string) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -86,6 +89,22 @@ const IncidentList = ({ mode = 'dept' }: IncidentListProps) => {
       .then(res => setDepartments(res.data || []))
       .catch(console.error);
   }, []);
+
+  // Fetch per-tab incident counts
+  const fetchTabCounts = () => {
+    const token = localStorage.getItem('token');
+    const scope = mode === 'team' ? 'team' : scopeType;
+    axios.get('http://localhost:3000/incidents/tab-counts', {
+      params: { scope_type: scope },
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+      .then(res => setTabCounts(res.data || {}))
+      .catch(console.error);
+  };
+
+  useEffect(() => {
+    fetchTabCounts();
+  }, [mode, scopeType]);
 
   const fetchIncidents = () => {
     setLoading(true);
@@ -162,13 +181,13 @@ const IncidentList = ({ mode = 'dept' }: IncidentListProps) => {
   };
 
   const tabs = [
-    { id: 'all', label: 'ทั้งหมด' },
-    { id: 'รายงาน', label: 'รอยืนยัน' },
-    { id: 'ตรวจสอบ', label: 'ยืนยันแล้ว / รอแก้ไข' },
-    { id: 'ทบทวน', label: 'อยู่ระหว่างทบทวน / RCA' },
-    { id: 'forwarded', label: '📤 ส่งต่อร่วมทบทวน (Co-Review)' },
-    { id: 'จำหน่าย', label: 'ปิดเคส / เสร็จสิ้น' },
-    { id: 'sentinel', label: '⚠️ ความรุนแรงสูง (Sentinel)' },
+    { id: 'all', label: 'ทั้งหมด', countKey: 'all' },
+    { id: 'รายงาน', label: 'รอยืนยัน', countKey: 'pending' },
+    { id: 'ตรวจสอบ', label: 'ยืนยันแล้ว / รอแก้ไข', countKey: 'verified' },
+    { id: 'ทบทวน', label: 'อยู่ระหว่างทบทวน / RCA', countKey: 'reviewing' },
+    { id: 'forwarded', label: '📤 ส่งต่อร่วมทบทวน (Co-Review)', countKey: 'forwarded' },
+    { id: 'จำหน่าย', label: 'ปิดเคส / เสร็จสิ้น', countKey: 'closed' },
+    { id: 'sentinel', label: '⚠️ ความรุนแรงสูง (Sentinel)', countKey: 'sentinel' },
   ];
 
   return (
@@ -251,6 +270,7 @@ const IncidentList = ({ mode = 'dept' }: IncidentListProps) => {
         {tabs.map(tab => {
           const isActive = activeTab === tab.id;
           const isSentinelTab = tab.id === 'sentinel';
+          const count = tab.countKey ? tabCounts[tab.countKey] : undefined;
           return (
             <button
               key={tab.id}
@@ -269,6 +289,19 @@ const IncidentList = ({ mode = 'dept' }: IncidentListProps) => {
               }`}
             >
               {tab.label}
+              {count !== undefined && count > 0 && (
+                <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold leading-none ${
+                  isActive
+                    ? isSentinelTab
+                      ? 'bg-red-400/40 text-white'
+                      : 'bg-blue-400/40 text-white'
+                    : isSentinelTab
+                      ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400'
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }`}>
+                  {count > 999 ? '999+' : count}
+                </span>
+              )}
             </button>
           );
         })}

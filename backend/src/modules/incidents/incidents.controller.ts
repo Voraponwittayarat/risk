@@ -58,6 +58,12 @@ export class IncidentsController {
     return this.incidentsService.getMyReported(req.user, fiscalYear);
   }
 
+  @Get('tab-counts')
+  @ApiOperation({ summary: 'Retrieve per-tab incident counts for the current user scope' })
+  getTabCounts(@Request() req, @Query('scope_type') scope_type?: string) {
+    return this.incidentsService.getTabCounts(req.user, scope_type);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Retrieve a single risk incident by ID with review timeline' })
   findOne(@Param('id') id: string) {
