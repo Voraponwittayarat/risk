@@ -5,7 +5,7 @@ async function testLogin() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: 'panupong',
-        password: 'password123'
+        password: '123456'
       })
     });
     const data = await res.json();

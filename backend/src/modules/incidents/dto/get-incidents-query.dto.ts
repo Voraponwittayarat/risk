@@ -56,4 +56,12 @@ export class GetIncidentsQueryDto {
   @Type(() => Number)
   @IsInt()
   sendto_team_id?: number;
+
+  @ApiPropertyOptional({ description: 'Field to sort by (id, level_id, status_risk, date_report, register_date, department_id, sendto_department_id)' })
+  @IsOptional()
+  sortBy?: string;
+
+  @ApiPropertyOptional({ description: 'Sort direction (asc, desc)', enum: ['asc', 'desc'] })
+  @IsOptional()
+  sortOrder?: 'asc' | 'desc';
 }

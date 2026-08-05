@@ -183,14 +183,31 @@ export class IncidentsService {
       where.department_id = department_id;
     }
 
+    const sortField = query.sortBy || 'id';
+    const sortDirection = query.sortOrder || 'desc';
+    const orderBy: any = {};
+    const validSortFields = [
+      'id',
+      'level_id',
+      'status_risk',
+      'date_report',
+      'register_date',
+      'department_id',
+      'sendto_department_id'
+    ];
+
+    if (validSortFields.includes(sortField)) {
+      orderBy[sortField] = sortDirection;
+    } else {
+      orderBy['id'] = 'desc';
+    }
+
     const [data, total] = await Promise.all([
       this.prisma.riskregister.findMany({
         where,
         skip,
         take: limit,
-        orderBy: {
-          id: 'desc',
-        },
+        orderBy,
       }),
       this.prisma.riskregister.count({ where }),
     ]);

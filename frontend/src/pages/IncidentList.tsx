@@ -28,8 +28,31 @@ const IncidentList = ({ mode = 'dept' }: IncidentListProps) => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
+  // Sorting State
+  const [sortBy, setSortBy] = useState<string>('id');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
   // RM Committee Scoping States
   const [scopeType, setScopeType] = useState<string>('primary');
+
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('desc');
+    }
+    setPage(1);
+  };
+
+  const renderSortIndicator = (field: string) => {
+    if (sortBy !== field) {
+      return <span className="text-slate-350 dark:text-slate-650 ml-1 select-none text-[10px] opacity-40 group-hover:opacity-100 transition-opacity">⇅</span>;
+    }
+    return sortOrder === 'asc' 
+      ? <span className="text-blue-600 dark:text-blue-400 ml-1 select-none text-[10px]">▲</span> 
+      : <span className="text-blue-600 dark:text-blue-400 ml-1 select-none text-[10px]">▼</span>;
+  };
 
   const isRmCommittee = user?.rmStatus === '1' || user?.role === 'rm_committee' || user?.accessrules === 'rm_committee';
   const isAdmin = user?.role === 'admin' || user?.accessrules === '1' || user?.accessrules === 'admin';
@@ -75,6 +98,8 @@ const IncidentList = ({ mode = 'dept' }: IncidentListProps) => {
     if (search.trim()) params.search = search.trim();
     if (selectedDept) params.department_id = selectedDept;
     if (selectedLevel) params.level_id = selectedLevel;
+    if (sortBy) params.sortBy = sortBy;
+    if (sortOrder) params.sortOrder = sortOrder;
 
     // Apply scoping parameter based on mode
     if (mode === 'team') {
@@ -110,7 +135,7 @@ const IncidentList = ({ mode = 'dept' }: IncidentListProps) => {
 
   useEffect(() => {
     fetchIncidents();
-  }, [page, activeTab, selectedDept, selectedLevel, scopeType, mode]);
+  }, [page, activeTab, selectedDept, selectedLevel, scopeType, mode, sortBy, sortOrder]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -325,12 +350,52 @@ const IncidentList = ({ mode = 'dept' }: IncidentListProps) => {
           <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
             <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-700">
               <tr>
-                <th className="px-6 py-4 whitespace-nowrap">รหัส</th>
+                <th 
+                  onClick={() => handleSort('id')} 
+                  className="px-6 py-4 whitespace-nowrap cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors select-none group"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>รหัส</span>
+                    {renderSortIndicator('id')}
+                  </div>
+                </th>
                 <th className="px-6 py-4 min-w-[280px]">รายละเอียดเหตุการณ์</th>
-                <th className="px-6 py-4">หน่วยงานที่รายงาน</th>
-                <th className="px-6 py-4">หน่วยงานที่รายงานถึง</th>
-                <th className="px-6 py-4 text-center">ระดับ</th>
-                <th className="px-6 py-4 min-w-[200px]">สถานะ / วงจร</th>
+                <th 
+                  onClick={() => handleSort('department_id')} 
+                  className="px-6 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors select-none group"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>หน่วยงานที่รายงาน</span>
+                    {renderSortIndicator('department_id')}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('sendto_department_id')} 
+                  className="px-6 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors select-none group"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>หน่วยงานที่รายงานถึง</span>
+                    {renderSortIndicator('sendto_department_id')}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('level_id')} 
+                  className="px-6 py-4 text-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors select-none group"
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    <span>ระดับ</span>
+                    {renderSortIndicator('level_id')}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('status_risk')} 
+                  className="px-6 py-4 min-w-[200px] cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors select-none group"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>สถานะ / วงจร</span>
+                    {renderSortIndicator('status_risk')}
+                  </div>
+                </th>
                 <th className="px-6 py-4 text-center">จัดการ</th>
               </tr>
             </thead>
