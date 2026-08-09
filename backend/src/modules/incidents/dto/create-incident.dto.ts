@@ -86,4 +86,9 @@ export class CreateIncidentDto {
   @IsNotEmpty()
   @IsString()
   department_id: string;
+
+  @ApiPropertyOptional({ description: 'Incident images (comma-separated filenames)' })
+  @IsOptional()
+  @IsString()
+  image?: string;
 }

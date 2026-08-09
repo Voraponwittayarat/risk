@@ -8,4 +8,15 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    proxy: {
+      '/uploads': { target: 'http://localhost:3000' },
+      '/trigger-tools': { target: 'http://localhost:3000', bypass: (req) => req.headers.accept?.includes('html') ? '/index.html' : undefined },
+      '/rca': { target: 'http://localhost:3000', bypass: (req) => req.headers.accept?.includes('html') ? '/index.html' : undefined },
+      '/incidents': { target: 'http://localhost:3000', bypass: (req) => req.headers.accept?.includes('html') ? '/index.html' : undefined },
+      '/departments': { target: 'http://localhost:3000', bypass: (req) => req.headers.accept?.includes('html') ? '/index.html' : undefined },
+      '/auth': { target: 'http://localhost:3000', bypass: (req) => req.headers.accept?.includes('html') ? '/index.html' : undefined },
+      '/risk-analysis': { target: 'http://localhost:3000', bypass: (req) => req.headers.accept?.includes('html') ? '/index.html' : undefined },
+    }
+  }
 })

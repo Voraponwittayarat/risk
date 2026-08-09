@@ -1,197 +1,112 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, LockKeyhole, UserRound } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { WangChaoHospitalLogo } from '../components/WangChaoLogo';
 
 export default function Login() {
-  const [isMock, setIsMock] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [loadingRole, setLoadingRole] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const handleRealLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!username.trim() || !password.trim()) {
-      setError('กรุณากรอกชื่อผู้ใช้งานและรหัสผ่าน');
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    if (!username.trim() || !password) {
+      setError('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
       return;
     }
-    setError('');
     setIsSubmitting(true);
-    
     try {
-      await login(username.trim(), password.trim());
-      navigate('/');
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message || 
-        'เข้าสู่ระบบล้มเหลว กรุณาตรวจสอบชื่อผู้ใช้งานและรหัสผ่าน'
-      );
+      await login(username.trim(), password);
+      navigate('/', { replace: true });
+    } catch (requestError: any) {
+      setError(requestError.response?.data?.message || 'ไม่สามารถเข้าสู่ระบบได้ กรุณาลองอีกครั้ง');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleRoleLogin = async (role: string) => {
-    setError('');
-    setLoadingRole(role);
-    
-    try {
-      await login(role);
-      navigate('/');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
-    } finally {
-      setLoadingRole(null);
-    }
-  };
-
-  const roles = [
-    { id: 'user', name: 'พนักงานทั่วไป (User)', desc: 'สิทธิ์แจ้งความเสี่ยงปกติ' },
-    { id: 'supervisor', name: 'หัวหน้างาน (Supervisor)', desc: 'ตรวจสอบเบื้องต้น' },
-    { id: 'manager', name: 'หัวหน้าแผนก/ผู้จัดการ (Manager)', desc: 'วิเคราะห์และทบทวนความเสี่ยง' },
-    { id: 'admin', name: 'ผู้ดูแลระบบ (Admin)', desc: 'จัดการระบบทั้งหมด' },
-  ];
-
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans transition-colors duration-200">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <WangChaoHospitalLogo size={64} className="mx-auto mb-3" />
-        <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-          ระบบบริหารความเสี่ยงโรงพยาบาลวังเจ้า
-        </h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 font-medium">
-          Wang Chao Hospital Risk Management System (RiskHRMS)
-        </p>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-card-light dark:bg-card-dark py-8 px-4 shadow-xl border border-border-light dark:border-border-dark sm:rounded-2xl sm:px-10">
-          
-          {error && (
-            <div className="mb-4 bg-danger/10 border border-danger/20 text-danger p-3 rounded-xl text-sm text-center font-medium">
-              {error}
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4 py-10 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_38%),radial-gradient(circle_at_bottom_right,_rgba(37,99,235,0.18),_transparent_38%)]" />
+      <div className="relative w-full max-w-md">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-white/10 overflow-hidden">
+          <div className="px-8 pt-9 pb-6 text-center border-b border-slate-100 dark:border-slate-800">
+            <div className="flex justify-center mb-4">
+              <WangChaoHospitalLogo size={74} />
             </div>
-          )}
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">ระบบบริหารความเสี่ยง</h1>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">โรงพยาบาลวังเจ้า · RiskHRMS</p>
+          </div>
 
-          {!isMock ? (
-            // ==========================================
-            // REAL LOGIN FORM (Username & Password)
-            // ==========================================
-            <form onSubmit={handleRealLogin} className="space-y-5">
-              <div className="text-center mb-6">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white">เข้าสู่ระบบใช้งาน</h3>
-                <p className="text-xs text-slate-400 mt-1">กรอกบัญชีผู้ใช้งานระบบโรงพยาบาลวังเจ้า</p>
+          <form onSubmit={handleSubmit} className="p-8 space-y-5">
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                {error}
               </div>
+            )}
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  ชื่อผู้ใช้งาน (Username)
-                </label>
+            <div>
+              <label htmlFor="username" className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
+                ชื่อผู้ใช้
+              </label>
+              <div className="relative">
+                <UserRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input
-                  type="text"
-                  required
+                  id="username"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="เช่น admin, panupong"
-                  className="w-full px-4 py-3 border border-border-light dark:border-border-dark rounded-xl bg-slate-50/50 dark:bg-slate-900/50 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  onChange={(event) => setUsername(event.target.value)}
+                  autoComplete="username"
+                  autoFocus
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                  placeholder="กรอกชื่อผู้ใช้"
                 />
               </div>
+            </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  รหัสผ่าน (Password)
-                </label>
+            <div>
+              <label htmlFor="password" className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
+                รหัสผ่าน
+              </label>
+              <div className="relative">
+                <LockKeyhole className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input
-                  type="password"
-                  required
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••"
-                  className="w-full px-4 py-3 border border-border-light dark:border-border-dark rounded-xl bg-slate-50/50 dark:bg-slate-900/50 text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  onChange={(event) => setPassword(event.target.value)}
+                  autoComplete="current-password"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-12 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                  placeholder="กรอกรหัสผ่าน"
                 />
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full flex justify-center py-3 px-4 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/95 hover:to-indigo-600/95 shadow-md shadow-primary/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary active:scale-[0.98] transition-all disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <span className="flex items-center gap-2">
-                      <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      กำลังเข้าสู่ระบบ...
-                    </span>
-                  ) : (
-                    'เข้าสู่ระบบ'
-                  )}
-                </button>
-              </div>
-
-              <div className="text-center pt-4 border-t border-slate-100 dark:border-slate-800/80">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsMock(true);
-                    setError('');
-                  }}
-                  className="text-xs font-semibold text-primary hover:text-indigo-600 transition-colors"
+                  onClick={() => setShowPassword((value) => !value)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
                 >
-                  ใช้โหมดทดสอบรวดเร็ว (Mock Role Login)
-                </button>
-              </div>
-            </form>
-          ) : (
-            // ==========================================
-            // MOCK ROLE LOGIN SELECTOR
-            // ==========================================
-            <div className="space-y-4">
-              <div className="mb-6 text-center">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white">โหมดทดสอบ (Mock Login)</h3>
-                <p className="text-xs text-slate-400 mt-1">เลือกสิทธิ์การใช้งานเพื่อเข้าสู่ระบบทันทีโดยไม่ต้องใช้รหัสผ่าน</p>
-              </div>
-              
-              <div className="space-y-3">
-                {roles.map((role) => (
-                  <button
-                    key={role.id}
-                    onClick={() => handleRoleLogin(role.id)}
-                    disabled={loadingRole !== null}
-                    className={`w-full flex flex-col items-center justify-center py-3 px-4 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all active:scale-[0.99] ${
-                      loadingRole === role.id 
-                        ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' 
-                        : 'bg-card-light dark:bg-card-dark text-slate-700 dark:text-slate-300 border-border-light dark:border-border-dark hover:border-primary hover:text-primary'
-                    } ${loadingRole !== null && loadingRole !== role.id ? 'opacity-50' : ''}`}
-                  >
-                    <span className="font-semibold text-base">{role.name}</span>
-                    <span className={loadingRole === role.id ? "text-white/80 text-xs mt-0.5" : "text-slate-500 dark:text-slate-400 text-xs mt-0.5"}>{role.desc}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="text-center pt-4 border-t border-slate-100 dark:border-slate-800/80">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMock(false);
-                    setError('');
-                  }}
-                  className="text-xs font-semibold text-primary hover:text-indigo-600 transition-colors"
-                >
-                  กลับสู่หน้าเข้าสู่ระบบปกติ
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
             </div>
-          )}
 
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full rounded-xl bg-blue-600 py-3 font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSubmitting ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}
+            </button>
+
+            <p className="text-center text-xs text-slate-400">
+              หากลืมรหัสผ่าน กรุณาติดต่อผู้ดูแลระบบเพื่อกำหนดรหัสผ่านใหม่
+            </p>
+          </form>
         </div>
       </div>
     </div>

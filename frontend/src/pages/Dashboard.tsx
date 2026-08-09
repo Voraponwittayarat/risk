@@ -3,7 +3,7 @@ import axios from 'axios';
 import { 
   Activity, ShieldAlert, AlertTriangle, TrendingUp, 
   Clock, AlertOctagon, Plus, ArrowRight, ExternalLink, ChevronRight,
-  Calendar, UserCheck, FileText
+  Calendar, FileText
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -70,7 +70,7 @@ export default function Dashboard() {
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:3000/incidents/stats', {
+        const response = await axios.get('/incidents/stats', {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         setStats(response.data);
@@ -89,7 +89,7 @@ export default function Dashboard() {
         const token = localStorage.getItem('token');
         const params: any = {};
         if (selectedFiscalYear) params.fiscalYear = selectedFiscalYear;
-        const response = await axios.get('http://localhost:3000/incidents/my-reported', {
+        const response = await axios.get('/incidents/my-reported', {
           params,
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });

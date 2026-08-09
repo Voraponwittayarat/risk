@@ -3,11 +3,24 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 import { ValidationPipe } from '@nestjs/common';
+import * as express from 'express';
+import { join, resolve } from 'path';
+import { existsSync, mkdirSync } from 'fs';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors(); // Enable CORS for the frontend
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
+
+  // Ensure upload directory exists and serve it statically
+  const uploadDir = resolve(process.env.UPLOAD_DIR || './uploads');
+  if (!existsSync(uploadDir)) {
+    mkdirSync(uploadDir, { recursive: true });
+    console.log(`Created upload directory at: ${uploadDir}`);
+  } else {
+    console.log(`Using upload directory at: ${uploadDir}`);
+  }
+  app.use('/uploads', express.static(uploadDir));
 
   const config = new DocumentBuilder()
     .setTitle('Hospital Risk Management API')
@@ -18,6 +31,6 @@ async function bootstrap() {
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory);
 
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 }
 bootstrap();

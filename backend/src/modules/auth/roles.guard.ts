@@ -22,7 +22,7 @@ export class RolesGuard implements CanActivate {
     }
 
     // Role Checks based on RBAC rules
-    const isAdmin = user.accessrules === '1';
+    const isAdmin = user.role === 'admin' || user.accessrules === '1' || user.accessrules === 'admin';
     const isRmCommittee = user.rmStatus === '1';
     const isSimpleTeam = user.teamId != null;
     const isHeadOfGroup = user.priority === '1';

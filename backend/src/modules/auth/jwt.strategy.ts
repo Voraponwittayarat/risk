@@ -3,7 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Injectable } from '@nestjs/common';
 
 export const jwtConstants = {
-  secret: 'RISKHRMS_SECRET_KEY', // TODO: Move to .env in production
+  secret: process.env.JWT_SECRET || 'RISKHRMS_SECRET_KEY',
 };
 
 @Injectable()
@@ -11,7 +11,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor() {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: true,
+      ignoreExpiration: false,
       secretOrKey: jwtConstants.secret,
     });
   }
@@ -29,7 +29,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       accessrules: payload.accessrules,
       rmStatus: payload.rmStatus,
       teamId: payload.teamId,
-      name: payload.name
+      name: payload.name,
+      username: payload.username,
+      role: payload.role,
     };
   }
 }

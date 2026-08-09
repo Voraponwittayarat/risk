@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Param, Post, Body, Patch, Delete, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Query, Param, Post, Body, Patch, Delete, UseGuards, Request, UseInterceptors, UploadedFiles, BadRequestException } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { IncidentsService } from './incidents.service';
 import { GetIncidentsQueryDto } from './dto/get-incidents-query.dto';
@@ -7,6 +7,9 @@ import { UpdateIncidentDto } from './dto/update-incident.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 
 @ApiTags('Incidents')
 @ApiBearerAuth()
@@ -70,6 +73,42 @@ export class IncidentsController {
     return this.incidentsService.findOne(+id);
   }
 
+  @Post('upload')
+  @ApiOperation({ summary: 'Upload up to 3 images (max 3MB each) for an incident' })
+  @UseInterceptors(
+    FilesInterceptor('files', 3, {
+      storage: diskStorage({
+        destination: (req, file, cb) => {
+          cb(null, process.env.UPLOAD_DIR || './uploads');
+        },
+        filename: (req, file, cb) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          cb(null, `${uniqueSuffix}${ext}`);
+        },
+      }),
+      limits: {
+        fileSize: 3 * 1024 * 1024, // 3MB
+      },
+      fileFilter: (req, file, cb) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+          return cb(new BadRequestException('อนุญาตให้อัปโหลดเฉพาะไฟล์รูปภาพเท่านั้น! (jpg, jpeg, png, webp)'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  uploadFiles(@UploadedFiles() files: any[]) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('ไม่พบไฟล์ที่อัปโหลด');
+    }
+    return files.map(file => ({
+      filename: file.filename,
+      originalname: file.originalname,
+      size: file.size,
+    }));
+  }
+
   @Post()
   @ApiOperation({ summary: 'Create a new risk incident' })
   create(@Body() createDto: CreateIncidentDto, @Request() req) {
@@ -86,10 +125,10 @@ export class IncidentsController {
   @ApiOperation({ summary: 'Transition risk incident status across lifecycle' })
   updateStatus(
     @Param('id') id: string, 
-    @Body() body: { status_risk: string; note?: string },
+    @Body() body: { status_risk: string; note?: string; department_id?: string; sendto_department_id?: string; user_ir_type?: string },
     @Request() req
   ) {
-    return this.incidentsService.updateStatus(+id, body.status_risk, req.user, body.note);
+    return this.incidentsService.updateStatus(+id, body.status_risk, req.user, body.note, body.department_id, body.sendto_department_id, body.user_ir_type);
   }
 
   @Post(':id/review')

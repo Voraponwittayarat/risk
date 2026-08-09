@@ -183,34 +183,85 @@ export class IncidentsService {
       where.department_id = department_id;
     }
 
-    const sortField = query.sortBy || 'id';
-    const sortDirection = query.sortOrder || 'desc';
-    const orderBy: any = {};
-    const validSortFields = [
-      'id',
-      'level_id',
-      'status_risk',
-      'date_report',
-      'register_date',
-      'department_id',
-      'sendto_department_id'
-    ];
+    let data: any[] = [];
+    let total = 0;
 
-    if (validSortFields.includes(sortField)) {
-      orderBy[sortField] = sortDirection;
-    } else {
-      orderBy['id'] = 'desc';
-    }
+    const STATUS_PRIORITY_ORDER: Record<string, number> = {
+      'รายงาน': 1,           // 1. รอยืนยัน
+      'ตรวจสอบ': 2,          // 2. ยืนยันแล้วรอแก้ไข
+      'ทบทวน': 3,            // 3. อยู่ระหว่างการทบทวน
+      'ส่งต่อ': 4,           // 4. ร่วมส่งต่อทบทวน
+      'จำหน่าย': 5,          // 5. ปิดเคส
+      'ไม่ใช่ความเสี่ยง': 6,  // 6. ไม่ใช่ความเสี่ยง
+    };
 
-    const [data, total] = await Promise.all([
-      this.prisma.riskregister.findMany({
+    const getStatusPriority = (item: any): number => {
+      if (item.sendto_department_id && String(item.sendto_department_id) !== String(item.department_id)) {
+        if (item.status_risk !== 'จำหน่าย' && item.status_risk !== 'ไม่ใช่ความเสี่ยง') {
+          return 4; // ร่วมส่งต่อทบทวน
+        }
+      }
+      return STATUS_PRIORITY_ORDER[item.status_risk] || 99;
+    };
+
+    if (!query.sortBy || query.sortBy === 'default' || query.sortBy === 'id') {
+      // Default Status Priority Sorting for "ทั้งหมด" tab
+      const allMatching = await this.prisma.riskregister.findMany({
         where,
-        skip,
-        take: limit,
-        orderBy,
-      }),
-      this.prisma.riskregister.count({ where }),
-    ]);
+        select: {
+          id: true,
+          status_risk: true,
+          department_id: true,
+          sendto_department_id: true,
+        },
+      });
+
+      allMatching.sort((a, b) => {
+        const pA = getStatusPriority(a);
+        const pB = getStatusPriority(b);
+        if (pA !== pB) return pA - pB;
+        return b.id - a.id;
+      });
+
+      total = allMatching.length;
+      const pageIds = allMatching.slice(skip, skip + limit).map((item) => item.id);
+
+      const pageRecords = await this.prisma.riskregister.findMany({
+        where: { id: { in: pageIds } },
+      });
+
+      const recordMap = new Map(pageRecords.map((r) => [r.id, r]));
+      data = pageIds.map((id) => recordMap.get(id)).filter(Boolean);
+    } else {
+      const sortField = query.sortBy;
+      const sortDirection = query.sortOrder || 'desc';
+      const orderBy: any = {};
+      const validSortFields = [
+        'id',
+        'level_id',
+        'status_risk',
+        'date_report',
+        'register_date',
+        'department_id',
+        'sendto_department_id'
+      ];
+
+      if (validSortFields.includes(sortField)) {
+        orderBy[sortField] = sortDirection;
+      } else {
+        orderBy['id'] = 'desc';
+      }
+
+      [data, total] = await Promise.all([
+        this.prisma.riskregister.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy,
+        }),
+        this.prisma.riskregister.count({ where }),
+      ]);
+    }
 
     // Fetch department mapping for both department_id and sendto_department_id
     const deptIds = Array.from(new Set([
@@ -369,17 +420,19 @@ export class IncidentsService {
       ],
     };
 
-    const [all, pending, verified, reviewing, forwarded, closed, sentinel] = await Promise.all([
+    const [all, pending, returnedForEdit, verified, reviewing, forwarded, closed, notRisk, sentinel] = await Promise.all([
       countWith({}),
       countWith({ status_risk: 'รายงาน' }),
+      countWith({ status_risk: 'แก้ไข' }),
       countWith({ status_risk: 'ตรวจสอบ' }),
       countWith({ status_risk: 'ทบทวน' }),
       countWith(forwardedExtra),
       countWith({ status_risk: 'จำหน่าย' }),
+      countWith({ status_risk: 'ไม่ใช่ความเสี่ยง' }),
       countWith(sentinelExtra),
     ]);
 
-    return { all, pending, verified, reviewing, forwarded, closed, sentinel };
+    return { all, pending, returnedForEdit, verified, reviewing, forwarded, closed, notRisk, sentinel };
   }
 
   async getMyReported(user: any, fiscalYearParam?: string) {
@@ -488,7 +541,7 @@ export class IncidentsService {
   }
 
   async getFormData() {
-    const [departments, riskGroups, programs, reviewresults] = await Promise.all([
+    const [departments, riskGroups, programs, reviewresults, locations] = await Promise.all([
       this.prisma.department.findMany({
         select: { id: true, depart_name: true, depart_group_id: true },
         orderBy: { depart_name: 'asc' },
@@ -504,6 +557,10 @@ export class IncidentsService {
       this.prisma.reviewresults.findMany({
         select: { id: true, reviewresults_name: true },
         orderBy: { id: 'asc' },
+      }),
+      this.prisma.location.findMany({
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
       }),
     ]);
 
@@ -524,6 +581,9 @@ export class IncidentsService {
     try {
       // Pull risk topics from the dedicated riskstore table
       const rawTopics = await this.prisma.riskstore.findMany({
+        where: {
+          OR: [{ status: null }, { status: '1' }],
+        },
         orderBy: { riskstore_name: 'asc' }
       });
  
@@ -565,6 +625,7 @@ export class IncidentsService {
           id: row.riskstore_id,
           group_id,
           program_id,
+          type_id: row.type_id || (group_id === 1 ? 2 : 1), // fallback: if no type_id, infer from group_id (1=clinical/type2, 2=general/type1)
           clear_id,
           risk_name,
           riskstore_full: text, // full string for reference
@@ -580,7 +641,7 @@ export class IncidentsService {
       ];
     }
 
-    return { departments, riskGroups: formattedRiskGroups, programs: mockPrograms, risks, reviewresults };
+    return { departments, locations, riskGroups: formattedRiskGroups, programs: mockPrograms, risks, reviewresults };
   }
 
 
@@ -696,9 +757,23 @@ export class IncidentsService {
       reviewresults_name: resultMap.get(r.reviewresults_id) || 'ทบทวนเหตุการณ์'
     }));
 
+    // Get Location details
+    let locationName: string | null = null;
+    if (incident.location_id) {
+      try {
+        const loc = await this.prisma.location.findUnique({
+          where: { id: Number(incident.location_id) }
+        });
+        if (loc) locationName = loc.name;
+      } catch (e) {
+        // ignore
+      }
+    }
+
     return {
       ...incident,
       department_name: departmentName,
+      location_name: locationName,
       program_name: programName,
       sendto_team_name: sendtoTeamName,
       sendto_department_name: sendtoDeptName,
@@ -790,8 +865,17 @@ export class IncidentsService {
     return this.findOne(id);
   }
 
-  async updateStatus(id: number, newStatus: string, user?: any, note?: string) {
-    const validStatuses = ['รายงาน', 'ตรวจสอบ', 'ทบทวน', 'จำหน่าย', 'ไม่ใช่ความเสี่ยง'];
+  async updateStatus(
+    id: number, 
+    newStatus: string, 
+    user?: any, 
+    note?: string,
+    department_id?: string,
+    sendto_department_id?: string,
+    user_ir_type?: string
+  ) {
+    console.log('DEBUG SERVICE ARGS:', { id, newStatus, user_id: user?.id, note, department_id, sendto_department_id, user_ir_type });
+    const validStatuses = ['รายงาน', 'แก้ไข', 'ตรวจสอบ', 'ทบทวน', 'จำหน่าย', 'ไม่ใช่ความเสี่ยง'];
     if (!validStatuses.includes(newStatus)) {
       throw new Error(`Invalid status: ${newStatus}`);
     }
@@ -801,6 +885,18 @@ export class IncidentsService {
       modify_date: new Date(),
       updated_by: user?.id || 1,
     };
+
+    if (department_id !== undefined && department_id !== null && department_id !== '') {
+      updateData.department_id = String(department_id);
+    }
+
+    if (sendto_department_id !== undefined) {
+      updateData.sendto_department_id = sendto_department_id ? String(sendto_department_id) : null;
+    }
+
+    if (user_ir_type !== undefined && user_ir_type !== null && user_ir_type !== '') {
+      updateData.user_ir_type = String(user_ir_type);
+    }
 
     if (newStatus === 'ตรวจสอบ') {
       updateData.send_date = new Date();

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { 
@@ -28,7 +28,7 @@ export default function MyReportedIncidents() {
         const token = localStorage.getItem('token');
         const params: any = {};
         if (selectedFiscalYear) params.fiscalYear = selectedFiscalYear;
-        const response = await axios.get('http://localhost:3000/incidents/my-reported', {
+        const response = await axios.get('/incidents/my-reported', {
           params,
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
@@ -91,8 +91,27 @@ export default function MyReportedIncidents() {
         </div>
       </div>
 
+      {/* Returned for edit alert banner */}
+      {data.incidents?.some((inc: any) => inc.status_risk === 'แก้ไข') && (
+        <div className="bg-gradient-to-r from-orange-500/15 via-amber-500/10 to-transparent border-l-4 border-orange-500 p-4 rounded-2xl flex items-center justify-between gap-4 bg-white dark:bg-slate-800 border border-orange-200 dark:border-orange-900/50 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-orange-500 text-white rounded-xl shadow-sm shrink-0">
+              <ShieldAlert className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-orange-950 dark:text-orange-200 text-sm">
+                ⚠️ มีอุบัติการณ์ถูกส่งกลับมาให้คุณแก้ไขจำนวน {data.incidents?.filter((inc: any) => inc.status_risk === 'แก้ไข').length} เรื่อง
+              </h3>
+              <p className="text-xs text-orange-800 dark:text-orange-300 mt-0.5">
+                กรุณาคลิก "ดู/แก้ไขเคส" ในตารางด้านล่างเพื่อทำการปรับปรุงข้อมูลและส่งกลับเข้าสู่ระบบอีกครั้ง
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center gap-4">
           <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-xl text-blue-600 dark:text-blue-400">
             <FileText className="w-6 h-6" />
@@ -110,6 +129,18 @@ export default function MyReportedIncidents() {
           <div>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">รายงานในเดือนนี้</p>
             <h3 className="text-2xl font-bold text-slate-900 dark:text-white mt-0.5">{(data.reportedThisMonth || 0).toLocaleString()} เรื่อง</h3>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center gap-4">
+          <div className="p-3 bg-orange-50 dark:bg-orange-900/30 rounded-xl text-orange-600 dark:text-orange-400">
+            <ShieldAlert className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">ส่งกลับมาให้แก้ไข</p>
+            <h3 className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-0.5">
+              {(data.incidents?.filter((inc: any) => inc.status_risk === 'แก้ไข').length || 0).toLocaleString()} เรื่อง
+            </h3>
           </div>
         </div>
 
@@ -176,11 +207,16 @@ export default function MyReportedIncidents() {
                   const statusInfo = getStatusInfo(inc.status_risk);
                   const severity = getSeverityBadge(inc.level_id, inc.riskstore_id);
                   const isSentinel = isSentinelEvent(inc.level_id, inc.riskstore_id);
+                  const isReturnedForEdit = inc.status_risk === 'แก้ไข';
                   return (
                     <tr 
                       key={inc.id}
                       className={`hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors align-top ${
-                        isSentinel ? 'bg-red-50/20 dark:bg-red-950/5' : ''
+                        isReturnedForEdit
+                          ? 'bg-orange-50/40 dark:bg-orange-950/20'
+                          : isSentinel
+                            ? 'bg-red-50/20 dark:bg-red-950/5'
+                            : ''
                       }`}
                     >
                       <td className="px-6 py-4 font-bold text-slate-900 dark:text-white whitespace-nowrap">
@@ -217,10 +253,14 @@ export default function MyReportedIncidents() {
                       <td className="px-6 py-4 text-center whitespace-nowrap">
                         <Link 
                           to={`/incidents/${inc.id}?from=my-reported`}
-                          className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-blue-600 hover:text-white dark:bg-slate-700 dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                            isReturnedForEdit
+                              ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-xs'
+                              : 'bg-slate-100 hover:bg-blue-600 hover:text-white dark:bg-slate-700 dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200'
+                          }`}
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
-                          <span>ดูเคส</span>
+                          <span>{isReturnedForEdit ? 'ดู/แก้ไขเคส' : 'ดูเคส'}</span>
                         </Link>
                       </td>
                     </tr>

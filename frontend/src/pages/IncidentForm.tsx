@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FileText, Bot, Send, Calendar, Clock, MapPin, AlertTriangle, Search, User, PenTool, CheckCircle, Stethoscope, FileSearch } from 'lucide-react';
+import { FileText, Bot, Send, Calendar, Clock, MapPin, AlertTriangle, Search, User, PenTool, CheckCircle, Stethoscope, FileSearch, Upload, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
+import { AiChatbotModal } from '../components/AiChatbotModal';
 
 export default function IncidentForm() {
   const { user } = useAuth();
   const navigate = useNavigate();
   
   // Data options
-  const [departments, setDepartments] = useState<any[]>([]);
-  const [riskGroups, setRiskGroups] = useState<any[]>([]);
+  const [, setDepartments] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [, setRiskGroups] = useState<any[]>([]);
   const [, setPrograms] = useState<any[]>([]);
   const [risks, setRisks] = useState<any[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
@@ -38,10 +40,12 @@ export default function IncidentForm() {
     time_report: format(new Date(), 'HH:mm'),
     shift: '',
     department_id: user?.department_id ? String(user.department_id) : '',
+    location_id: '', // สถานที่เกิดความเสี่ยง (ตาราง location)
     reportType: 'self',
     reportToDepartment: '', // แผนกที่รายงานถึง (กรณีรายงานผู้อื่น)
     group_id: '',
     program_id: '',
+    type_id: '',
     risk_id: '',
     riskstore_text: '', // full riskstore text e.g. "IC/02 วัสดุ..."
     detail: '',
@@ -56,11 +60,103 @@ export default function IncidentForm() {
 
   const [saving, setSaving] = useState(false);
 
+  // States and helper functions for image uploads
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [imageError, setImageError] = useState<string | null>(null);
+
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+
+  const handleApplyAiData = (aiData: any) => {
+    setFormData(prev => {
+      const selectedRisk = risks.find(r => r.id.toString() === aiData.risk_id);
+      return {
+        ...prev,
+        date_report: aiData.date_report || prev.date_report,
+        time_report: aiData.time_report || prev.time_report,
+        shift: aiData.duration_name || prev.shift,
+        location_id: aiData.location_id || prev.location_id,
+        risk_id: aiData.risk_id || prev.risk_id,
+        riskstore_text: selectedRisk 
+          ? (selectedRisk.riskstore_full || `${selectedRisk.clear_id} ${selectedRisk.risk_name}`) 
+          : prev.riskstore_text,
+        group_id: selectedRisk ? selectedRisk.group_id?.toString() : prev.group_id,
+        program_id: selectedRisk ? selectedRisk.program_id?.toString() : prev.program_id,
+        type_id: selectedRisk ? selectedRisk.type_id?.toString() : prev.type_id,
+        level_id: aiData.level_id || prev.level_id,
+        detail: aiData.detail || prev.detail,
+        affected: aiData.affected || prev.affected,
+      };
+    });
+    
+    // Clear search value if matched topic is set
+    if (aiData.riskstore_name) {
+      setRiskSearch('');
+    }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      addImages(files);
+    }
+  };
+
+  const addImages = (files: File[]) => {
+    setImageError(null);
+    
+    // Check total count limit
+    if (selectedImages.length + files.length > 3) {
+      setImageError('สามารถอัปโหลดรูปภาพได้สูงสุด 3 รูปเท่านั้น');
+      return;
+    }
+
+    const validFiles: File[] = [];
+    const newPreviews: string[] = [];
+
+    for (const file of files) {
+      // Validate file type
+      if (!file.type.match(/image\/(jpeg|jpg|png|webp)/)) {
+        setImageError(`ไฟล์ "${file.name}" ไม่ใช่ประเภทรูปภาพที่รองรับ (รองรับเฉพาะ JPG, PNG, WEBP)`);
+        continue;
+      }
+      // Validate file size (3MB = 3 * 1024 * 1024 bytes)
+      if (file.size > 3 * 1024 * 1024) {
+        setImageError(`ไฟล์ "${file.name}" มีขนาดใหญ่เกิน 3MB`);
+        continue;
+      }
+      validFiles.push(file);
+      newPreviews.push(URL.createObjectURL(file));
+    }
+
+    if (validFiles.length > 0) {
+      setSelectedImages(prev => [...prev, ...validFiles]);
+      setImagePreviews(prev => [...prev, ...newPreviews]);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    URL.revokeObjectURL(imagePreviews[index]);
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+    setImageError(null);
+  };
+
+  // Clean up object URLs on unmount to avoid memory leaks
+  const previewsRef = useRef<string[]>([]);
+  previewsRef.current = imagePreviews;
+  useEffect(() => {
+    return () => {
+      previewsRef.current.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []);
+
   useEffect(() => {
     // Fetch form data
-    axios.get('http://localhost:3000/incidents/form-data')
+    axios.get('/incidents/form-data')
       .then(res => {
         setDepartments(res.data.departments || []);
+        setLocations(res.data.locations || []);
         setRiskGroups(res.data.riskGroups || []);
         setPrograms(res.data.programs || []);
         setRisks(res.data.risks || []);
@@ -95,6 +191,7 @@ export default function IncidentForm() {
         riskstore_text: selectedRisk ? (selectedRisk.riskstore_full || `${selectedRisk.clear_id} ${selectedRisk.risk_name}`) : '',
         group_id: selectedRisk ? selectedRisk.group_id?.toString() : '',
         program_id: selectedRisk ? selectedRisk.program_id?.toString() : '',
+        type_id: selectedRisk ? selectedRisk.type_id?.toString() : '',
         level_id: '' // Force user to re-select severity to avoid invalid data
       }));
     } else {
@@ -113,11 +210,34 @@ export default function IncidentForm() {
     }
     setSaving(true);
     try {
+      // 1. Upload images first if any
+      let uploadedFilenames = '';
+      if (selectedImages.length > 0) {
+        const uploadFormData = new FormData();
+        selectedImages.forEach(image => {
+          uploadFormData.append('files', image);
+        });
+
+        const token = localStorage.getItem('token');
+        const uploadRes = await axios.post('/incidents/upload', uploadFormData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          }
+        });
+
+        if (Array.isArray(uploadRes.data)) {
+          uploadedFilenames = uploadRes.data.map((f: any) => f.filename).join(',');
+        }
+      }
+
+      // 2. Submit incident data
       const payload = {
         date_report: formData.date_report,
         time_report: `${formData.date_report}T${formData.time_report || '00:00'}:00.000Z`,
         user_ir_type: formData.reportType === 'self' ? 'ตนเอง' : 'ผู้อื่น',
         department_id: String(formData.department_id || (user?.department_id ? user.department_id.toString() : '1')),
+        location_id: formData.location_id ? Number(formData.location_id) : null,
         program_id: formData.program_id ? Number(formData.program_id) : null,
         riskstore_id: formData.risk_id ? Number(formData.risk_id) : 1,
         riskstore_text: formData.riskstore_text || '',
@@ -128,10 +248,11 @@ export default function IncidentForm() {
         edit: formData.isResolved === 'yes' ? formData.edit : 'ยังไม่สามารถแก้ไขได้',
         problem_basic: formData.incidentSource || null,
         status_risk: 'รายงาน', // Default status: รายงาน (รอยืนยัน)
+        image: uploadedFilenames || null,
       };
 
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:3000/incidents', payload, {
+      await axios.post('/incidents', payload, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
 
@@ -145,11 +266,9 @@ export default function IncidentForm() {
     }
   };
 
-  // Determine if selected group is clinical
-  const selectedGroup = riskGroups.find(g => g.id.toString() === formData.group_id);
-  const isClinical = selectedGroup?.risk_group_name?.includes('คลินิก') ?? false;
-  // If we have a group but it's not clinical, it's general (1-5)
-  const isGeneral = selectedGroup && !isClinical;
+  // Determine if selected risk is clinical based on type_id (2 = Clinical, 1 = General)
+  const isClinical = formData.type_id === '2';
+  const isGeneral = formData.type_id === '1';
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
@@ -158,7 +277,11 @@ export default function IncidentForm() {
           <h1 className="text-[24px] font-bold text-slate-900 dark:text-white tracking-tight">รายงานอุบัติการณ์</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">อ้างอิงจากคู่มือการรายงานความเสี่ยง (Incident Report)</p>
         </div>
-        <button type="button" className="flex items-center justify-center gap-2 bg-info/10 text-info hover:bg-info/20 dark:bg-info/20 dark:text-info px-5 py-2.5 rounded-[8px] font-medium text-sm transition-all shadow-sm">
+        <button 
+          type="button" 
+          onClick={() => setIsAiModalOpen(true)}
+          className="flex items-center justify-center gap-2 bg-info/10 text-info hover:bg-info/20 dark:bg-info/20 dark:text-info px-5 py-2.5 rounded-[8px] font-medium text-sm transition-all shadow-sm cursor-pointer"
+        >
           <Bot className="w-5 h-5" />
           ให้น้อง AI ช่วยกรอก
         </button>
@@ -216,40 +339,16 @@ export default function IncidentForm() {
                 </select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">ประเภทการรายงาน <span className="text-danger">*</span></label>
-                <div className="flex bg-bg-light dark:bg-bg-dark p-1 rounded-[8px] border border-border-light dark:border-border-dark h-[42px]">
-                  <button type="button" onClick={() => setFormData({...formData, reportType: 'self'})} className={`flex-1 text-sm font-medium rounded-md transition-colors ${formData.reportType === 'self' ? 'bg-card-light dark:bg-card-dark text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>ตนเอง</button>
-                  <button type="button" onClick={() => setFormData({...formData, reportType: 'other'})} className={`flex-1 text-sm font-medium rounded-md transition-colors ${formData.reportType === 'other' ? 'bg-card-light dark:bg-card-dark text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>ผู้อื่น</button>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
                 <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  <MapPin className="w-4 h-4 text-slate-400" /> สถานที่เกิดความเสี่ยง <span className="text-danger">*</span>
+                  <MapPin className="w-4 h-4 text-primary" /> สถานที่เกิดเหตุเฉพาะจุด
                 </label>
-                <select name="department_id" required value={formData.department_id} onChange={handleChange} className="w-full px-4 py-2.5 bg-bg-light dark:bg-bg-dark border border-border-light dark:border-border-dark rounded-[8px] text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-shadow">
-                  <option value="">-- เลือกแผนก หรือสถานที่ --</option>
-                  {departments.map(d => (
-                    <option key={d.id} value={d.id}>{d.depart_name}</option>
+                <select name="location_id" value={formData.location_id} onChange={handleChange} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-primary/40 rounded-[8px] text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-shadow">
+                  <option value="">-- เลือกสถานที่เฉพาะจุด (เช่น หน้าโรงพยาบาล, OPD ฯลฯ) --</option>
+                  {locations.map(loc => (
+                    <option key={loc.id} value={loc.id}>📍 {loc.name}</option>
                   ))}
                 </select>
               </div>
-              
-              {formData.reportType === 'other' && (
-                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    <AlertTriangle className="w-4 h-4 text-warning" /> แผนกที่รายงานถึง <span className="text-danger">*</span>
-                  </label>
-                  <select name="reportToDepartment" required={formData.reportType === 'other'} value={formData.reportToDepartment} onChange={handleChange} className="w-full px-4 py-2.5 bg-bg-light dark:bg-bg-dark border border-border-light dark:border-border-dark rounded-[8px] text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-shadow">
-                    <option value="">-- เลือกแผนกที่ต้องการรายงานข้อผิดพลาด --</option>
-                    {departments.map(d => (
-                      <option key={d.id} value={d.id}>{d.depart_name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
           </div>
 
@@ -338,6 +437,7 @@ export default function IncidentForm() {
                                 riskstore_text: r.riskstore_full || `${r.clear_id} ${r.risk_name}`,
                                 group_id: r.group_id?.toString() || '',
                                 program_id: r.program_id?.toString() || '',
+                                type_id: r.type_id?.toString() || '',
                                 level_id: '',
                               }));
                               setRiskSearch('');
@@ -363,8 +463,8 @@ export default function IncidentForm() {
                 <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
                   <AlertTriangle className="w-4 h-4 text-slate-400" /> ระดับความรุนแรง <span className="text-danger">*</span>
                 </label>
-                <select name="level_id" required value={formData.level_id} onChange={handleChange} disabled={!formData.group_id} className="w-full px-4 py-2.5 bg-bg-light dark:bg-bg-dark border border-border-light dark:border-border-dark rounded-[8px] text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-shadow font-semibold text-danger disabled:opacity-70 disabled:cursor-not-allowed">
-                  <option value="">{formData.group_id ? '-- เลือกระดับความรุนแรง --' : '-- รอเลือกชื่อความเสี่ยง --'}</option>
+                <select name="level_id" required value={formData.level_id} onChange={handleChange} disabled={!formData.type_id} className="w-full px-4 py-2.5 bg-bg-light dark:bg-bg-dark border border-border-light dark:border-border-dark rounded-[8px] text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-shadow font-semibold text-danger disabled:opacity-70 disabled:cursor-not-allowed">
+                  <option value="">{formData.type_id ? '-- เลือกระดับความรุนแรง --' : '-- รอเลือกชื่อความเสี่ยง --'}</option>
                   {isClinical && (
                     <>
                       <option value="A">ระดับ A (เกิดขึ้นแต่ยังไม่ถึงตัวผู้ป่วย)</option>
@@ -492,8 +592,72 @@ export default function IncidentForm() {
             </div>
 
           </div>
-        </div>
 
+          {/* Section 4 */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 border-b border-border-light dark:border-border-dark pb-3">
+              <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">4</div>
+              <h3 className="text-[18px] font-bold text-slate-800 dark:text-slate-200">รูปภาพประกอบ (Attached Images)</h3>
+            </div>
+
+            <div className="space-y-4">
+              {/* Drag and Drop Container */}
+              {selectedImages.length < 3 ? (
+                <label className="flex flex-col items-center justify-center border-2 border-dashed border-primary/30 hover:border-primary bg-slate-50 dark:bg-slate-800/40 hover:bg-primary/5 p-6 rounded-xl cursor-pointer transition-all duration-200 group">
+                  <div className="bg-primary/10 text-primary group-hover:scale-110 p-3 rounded-full transition-transform duration-200">
+                    <Upload className="w-6 h-6" />
+                  </div>
+                  <span className="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-200">คลิกเพื่อเลือกรูปภาพ หรือลากรูปภาพมาวางที่นี่</span>
+                  <span className="mt-1.5 text-xs text-slate-400">อัปโหลดได้สูงสุด 3 รูป (ขนาดไม่เกิน 3MB ต่อรูป, รองรับเฉพาะ JPG, PNG, WEBP)</span>
+                  <span className="text-xs font-medium text-primary mt-1">อัปโหลดแล้ว {selectedImages.length} จาก 3 รูป</span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
+                </label>
+              ) : (
+                <div className="border border-border-light dark:border-border-dark bg-slate-100 dark:bg-slate-800/40 p-4 rounded-xl text-center text-sm font-medium text-slate-500">
+                  🚫 คุณเลือกรูปภาพครบ 3 รูปแล้ว (หากต้องการเปลี่ยนให้ลบรูปภาพเดิมออกก่อน)
+                </div>
+              )}
+
+              {/* Error Alert */}
+              {imageError && (
+                <div className="flex items-center gap-2 bg-danger/10 border border-danger/20 text-danger text-xs font-semibold px-4 py-3 rounded-lg animate-in fade-in slide-in-from-top-1 duration-200">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{imageError}</span>
+                </div>
+              )}
+
+              {/* Previews Grid */}
+              {imagePreviews.length > 0 && (
+                <div className="grid grid-cols-3 gap-4 pt-2">
+                  {imagePreviews.map((url, index) => (
+                    <div key={index} className="relative group aspect-square rounded-xl overflow-hidden border border-border-light dark:border-border-dark bg-slate-100 dark:bg-slate-900 shadow-sm transition-all duration-200 hover:shadow-md">
+                      <img src={url} alt={`preview-${index}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="bg-danger hover:bg-danger/90 text-white p-2 rounded-full transform scale-90 group-hover:scale-100 transition-all duration-200 shadow-lg"
+                          title="ลบรูปนี้"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <span className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-semibold px-2 py-0.5 rounded backdrop-blur-sm">
+                        {selectedImages[index] ? (selectedImages[index].size / 1024 / 1024).toFixed(2) : 0} MB
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
         {/* Footer Actions */}
         <div className="px-6 sm:px-8 py-5 border-t border-border-light dark:border-border-dark bg-bg-light dark:bg-bg-dark flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4">
           <Link to="/incidents" className="w-full sm:w-auto px-6 py-2.5 text-center text-sm font-semibold text-slate-600 hover:text-slate-900 bg-card-light dark:bg-card-dark border border-border-light dark:border-border-dark rounded-[8px] transition-all shadow-sm">
@@ -514,6 +678,13 @@ export default function IncidentForm() {
           </button>
         </div>
       </form>
+      <AiChatbotModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        risks={risks}
+        locations={locations}
+        onApply={handleApplyAiData}
+      />
     </div>
   );
 }

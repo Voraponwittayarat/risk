@@ -5,13 +5,14 @@ import { format } from 'date-fns';
 import { 
   ArrowLeft, AlertTriangle, CheckCircle2, 
   FileSearch, 
-  MessageSquare, Check, X, ShieldAlert, ExternalLink,
+  MessageSquare, Check, X, ShieldAlert,
   Calendar, Sparkles, RefreshCw, History, Target,
-  ChevronDown, ChevronUp, Share2, Users, Send, Building2, HelpCircle,
-  Printer, Edit3
+  ChevronDown, ChevronUp, Share2, Users, Send,
+  Printer, Edit3, Layers, ShieldCheck, ArrowRight
 } from 'lucide-react';
 import { getStatusInfo, getSeverityBadge, isSentinelEvent } from '../utils/statusAdapter';
 import { useAuth } from '../contexts/AuthContext';
+import { MiniRcaModal } from './rca/MiniRcaModal';
 
 export default function IncidentDetail() {
   const { user } = useAuth();
@@ -19,6 +20,11 @@ export default function IncidentDetail() {
   const [incident, setIncident] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedLightboxImage, setSelectedLightboxImage] = useState<string | null>(null);
+
+  // Linked RCA State (Standard & Mini)
+  const [linkedRca, setLinkedRca] = useState<{ standardCases: any[]; miniConciseCases: any[] } | null>(null);
+  const [isMiniRcaModalOpen, setIsMiniRcaModalOpen] = useState(false);
 
   // Action / Review State
   const [reviewDate, setReviewDate] = useState(new Date().toISOString().split('T')[0]);
@@ -37,7 +43,6 @@ export default function IncidentDetail() {
   const [submittingForward, setSubmittingForward] = useState(false);
   const [departmentsList, setDepartmentsList] = useState<any[]>([]);
   const [programsList, setProgramsList] = useState<any[]>([]); // loaded from DB
-  const [reviewResultsList, setReviewResultsList] = useState<any[]>([]); // loaded from DB
   
   // Edit Incident Modal States
   const [risksList, setRisksList] = useState<any[]>([]);
@@ -57,6 +62,121 @@ export default function IncidentDetail() {
     level_id: '',
   });
 
+  // Confirmation Modal State
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [confirmDeptId, setConfirmDeptId] = useState('');
+  const [confirmSendToDeptId, setConfirmSendToDeptId] = useState('');
+  const [confirmNote, setConfirmNote] = useState('');
+  const [submittingConfirm, setSubmittingConfirm] = useState(false);
+
+  const handleDirectConfirm = async () => {
+    if (!incident) return;
+    if (!window.confirm('คุณต้องการยืนยันความเสี่ยงนี้ใช่หรือไม่?')) return;
+    
+    setSubmittingAction(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(
+        `/incidents/${incident.id}/status`,
+        {
+          status_risk: 'ตรวจสอบ',
+          note: 'หัวหน้างานยืนยันความเสี่ยงเรียบร้อยแล้ว',
+          department_id: incident.department_id ? String(incident.department_id) : '',
+          sendto_department_id: incident.sendto_department_id ? String(incident.sendto_department_id) : '',
+        },
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      setSaveSuccessMsg('✅ ยืนยันความเสี่ยงเรียบร้อยแล้ว!');
+      setTimeout(() => setSaveSuccessMsg(''), 4000);
+      fetchDetail();
+    } catch (err: any) {
+      alert('เกิดข้อผิดพลาดในการดำเนินการ: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  const handleConfirmSubmit = async (targetStatus: 'ตรวจสอบ' | 'แก้ไข') => {
+    if (!incident) return;
+    setSubmittingConfirm(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(
+        `/incidents/${incident.id}/status`,
+        {
+          status_risk: targetStatus,
+          note: confirmNote.trim() || (targetStatus === 'ตรวจสอบ' ? 'หัวหน้างานยืนยันความเสี่ยงเรียบร้อยแล้ว' : 'ส่งกลับให้ผู้รายงานแก้ไขข้อมูล'),
+          department_id: confirmDeptId,
+          sendto_department_id: confirmSendToDeptId,
+        },
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      setIsConfirmModalOpen(false);
+      setSaveSuccessMsg(targetStatus === 'ตรวจสอบ' ? '✅ ยืนยันความเสี่ยงและปรับปรุงข้อมูลเรียบร้อยแล้ว!' : '🟠 ส่งกลับให้ผู้รายงานแก้ไขเรียบร้อยแล้ว!');
+      setTimeout(() => setSaveSuccessMsg(''), 4000);
+      fetchDetail();
+    } catch (err: any) {
+      alert('เกิดข้อผิดพลาดในการดำเนินการ: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSubmittingConfirm(false);
+    }
+  };
+
+  const handleQuickAssignReviewDept = async (newDeptId: string) => {
+    if (!incident) return;
+    const selectedDept = departmentsList.find(d => String(d.id) === String(newDeptId));
+    
+    // ถ้าเลือกกลับมาเป็นแผนกตัวเอง ให้เปลี่ยนลักษณะการรายงานเป็น "ตนเอง" และเคลียร์เป้าหมายส่งต่อ
+    const isSelf = newDeptId && String(newDeptId) === String(incident.department_id);
+    const targetDeptId = isSelf ? null : (newDeptId ? String(newDeptId) : null);
+    const autoIrType = isSelf ? 'ตนเอง' : (newDeptId ? 'ผู้อื่น' : 'ตนเอง');
+
+    // Optimistic UI update for immediate response
+    setIncident((prev: any) => ({
+      ...prev,
+      sendto_department_id: targetDeptId,
+      sendto_department_name: selectedDept?.depart_name || prev?.sendto_department_name,
+      user_ir_type: autoIrType
+    }));
+
+    setSubmittingAction(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.patch(
+        `/incidents/${incident.id}/status`,
+        {
+          status_risk: incident.status_risk,
+          sendto_department_id: targetDeptId,
+          user_ir_type: autoIrType,
+          note: `ปรับเปลี่ยนหน่วยงานรับผิดชอบทบทวนหลักเป็น ${selectedDept?.depart_name || 'ไม่ระบุ'} (${autoIrType})`
+        },
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      
+      // Update state directly from the patched response to avoid race conditions and browser caching issues
+      if (res.data) {
+        setIncident(res.data);
+      }
+      
+      setSaveSuccessMsg(`✅ เปลี่ยนหน่วยงานรับผิดชอบหลักเป็น "${selectedDept?.depart_name || 'ไม่ระบุ'}" (ลักษณะการรายงาน: ${autoIrType}) เรียบร้อยแล้ว!`);
+      setTimeout(() => setSaveSuccessMsg(''), 4000);
+      
+      // Fetch linked RCA cases for this incident (if needed) to ensure sync
+      axios.get(`/rca/by-incident/${incident.id}`)
+        .then(res => {
+          if (res.data) setLinkedRca(res.data);
+        })
+        .catch(err => console.log('No linked RCA found:', err));
+        
+    } catch (err: any) {
+      alert('เกิดข้อผิดพลาดในการเลือกหน่วยงาน: ' + (err.response?.data?.message || err.message));
+      // Revert optimistic UI on failure
+      fetchDetail();
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
   const isAdminOrRm = user?.role === 'admin' || user?.accessrules === '1' || user?.accessrules === 'admin' || user?.rmStatus === '1' || user?.role === 'rm_committee';
   const isHeadOfGroup = user?.priority === '1' || user?.role === 'head' || user?.accessrules === 'head';
   
@@ -65,8 +185,18 @@ export default function IncidentDetail() {
   const fromSource = searchParams.get('from');
   const isClosed = incident?.status_risk === 'จำหน่าย' || incident?.status_risk === 'ไม่ใช่ความเสี่ยง';
   
-  // Edit is disabled if closed/cancelled or accessed from the general tracking list (/incidents)
-  const canEditIncident = (isAdminOrRm || isHeadOfGroup) && !isClosed && fromSource === 'my-reported';
+  // Edit permission logic:
+  // - Closed/Cancelled cases (!isClosed=false) cannot be edited by anyone
+  // - Management (Admin, RM, Head) can edit active incidents
+  // - Regular Creator/Owner can ONLY edit when status is 'รายงาน' (รอยืนยัน) or 'แก้ไข' (ส่งกลับแก้ไข)
+  // - Once confirmed ('ตรวจสอบ' / 'ทบทวน'), regular creator/owner CANNOT edit
+  const isCreator = user?.id && (String(user.id) === String(incident?.created_by) || String(user.id) === String(incident?.user_create));
+  const isPendingOrReturned = incident?.status_risk === 'รายงาน' || incident?.status_risk === 'แก้ไข';
+  
+  const canEditIncident = !isClosed && (
+    (isAdminOrRm || isHeadOfGroup) || 
+    (isPendingOrReturned && (isCreator || fromSource === 'my-reported'))
+  );
 
   // Full RCA Mode State (Fishbone 4M1E / 2P Safety)
   const [isFullRcaOpen, setIsFullRcaOpen] = useState(false);
@@ -82,7 +212,7 @@ export default function IncidentDetail() {
     if (!id) return;
     setLoading(true);
     const token = localStorage.getItem('token');
-    axios.get(`http://localhost:3000/incidents/${id}`, {
+    axios.get(`/incidents/${id}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
       .then(res => {
@@ -97,22 +227,26 @@ export default function IncidentDetail() {
         setError('ไม่พบข้อมูลอุบัติการณ์ความเสี่ยงนี้');
         setLoading(false);
       });
+
+    // Fetch linked RCA cases for this incident
+    axios.get(`/rca/by-incident/${id}`)
+      .then(res => {
+        if (res.data) setLinkedRca(res.data);
+      })
+      .catch(err => console.log('No linked RCA found:', err));
   };
 
   useEffect(() => {
     fetchDetail();
     // Fetch master data for dropdowns
     const token = localStorage.getItem('token');
-    axios.get('http://localhost:3000/incidents/form-data', {
+    axios.get('/incidents/form-data', {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
       .then(res => {
         if (res.data.departments) setDepartmentsList(res.data.departments);
         if (res.data.programs && res.data.programs.length > 0) {
           setProgramsList(res.data.programs);
-        }
-        if (res.data.reviewresults && res.data.reviewresults.length > 0) {
-          setReviewResultsList(res.data.reviewresults);
         }
         if (res.data.risks && res.data.risks.length > 0) {
           setRisksList(res.data.risks);
@@ -177,7 +311,7 @@ export default function IncidentDetail() {
         modify_date: new Date(),
       };
 
-      await axios.patch(`http://localhost:3000/incidents/${incident.id}`, payload, {
+      await axios.patch(`/incidents/${incident.id}`, payload, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
 
@@ -197,7 +331,7 @@ export default function IncidentDetail() {
     try {
       const token = localStorage.getItem('token');
       await axios.patch(
-        `http://localhost:3000/incidents/${incident.id}/status`,
+        `/incidents/${incident.id}/status`,
         { status_risk: newStatus, note: note || `เปลี่ยนสถานะเป็น ${newStatus}` },
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
@@ -264,7 +398,7 @@ export default function IncidentDetail() {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        `http://localhost:3000/incidents/${incident.id}/review`,
+        `/incidents/${incident.id}/review`,
         {
           review_date: reviewDate,
           notereview: finalNote,
@@ -306,7 +440,7 @@ export default function IncidentDetail() {
         note: forwardNote.trim(),
       };
       await axios.post(
-        `http://localhost:3000/incidents/${incident.id}/forward`,
+        `/incidents/${incident.id}/forward`,
         payload,
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
@@ -370,6 +504,17 @@ export default function IncidentDetail() {
         </Link>
 
         <div className="flex flex-wrap items-center gap-2">
+          {canEditIncident && (
+            <button
+              type="button"
+              onClick={handleOpenEditModal}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:hover:bg-amber-900/70 dark:text-amber-300 font-bold text-xs sm:text-sm border border-amber-200 dark:border-amber-800 shadow-xs transition-all cursor-pointer"
+            >
+              <Edit3 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              แก้ไขรายละเอียด
+            </button>
+          )}
+
           {/* Print Summary Button */}
           <button
             type="button"
@@ -379,20 +524,37 @@ export default function IncidentDetail() {
             <Printer className="w-4 h-4 text-slate-500" />
             พิมพ์รายงาน
           </button>
-
-          {/* External RCA Trigger */}
-          <a
-            href={`http://localhost:3001/rca/new?riskId=${incident.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 dark:hover:bg-indigo-900/60 font-medium text-xs sm:text-sm border border-indigo-200 dark:border-indigo-800 transition-all shadow-xs"
-          >
-            <FileSearch className="w-4 h-4" />
-            โปรแกรม RCA (Swiss Cheese)
-            <ExternalLink className="w-3 h-3" />
-          </a>
         </div>
       </div>
+
+      {/* Returned for Edit High-Alert Banner */}
+      {incident.status_risk === 'แก้ไข' && (
+        <div className="bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent border-l-4 border-orange-500 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-orange-500 text-white rounded-lg shadow-sm mt-0.5 shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-orange-950 dark:text-orange-200 text-sm">
+                🟠 อุบัติการณ์ถูกส่งกลับมาให้แก้ไขรายละเอียด
+              </h3>
+              <p className="text-xs text-orange-800 dark:text-orange-300 mt-0.5">
+                หัวหน้างาน/ผู้รับผิดชอบได้ส่งรายงานฉบับนี้กลับมาให้แก้ไขเพิ่มเติม ท่านสามารถกดปุ่ม "แก้ไขรายละเอียด" เพื่ออัปเดตข้อมูลได้ทันที
+              </p>
+            </div>
+          </div>
+          {canEditIncident && (
+            <button
+              type="button"
+              onClick={handleOpenEditModal}
+              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-xs whitespace-nowrap shadow-sm flex items-center gap-1.5 transition cursor-pointer self-start sm:self-center"
+            >
+              <Edit3 className="w-4 h-4" />
+              แก้ไขรายละเอียดรายงาน
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Sentinel High-Alert Banner */}
       {isSentinel && (
@@ -410,14 +572,13 @@ export default function IncidentDetail() {
               </p>
             </div>
           </div>
-          <a
-            href={`http://localhost:3001/rca/new?riskId=${incident.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-xs whitespace-nowrap shadow-sm"
+          <Link
+            to={`/rca/standard/new?incident_id=${incident.id}&topic=${encodeURIComponent(incident.risk_topic_name || incident.detail || '')}&rm_no=${encodeURIComponent(incident.id_risk || '')}&severity=${encodeURIComponent(incident.severity_level_code || '')}`}
+            className="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs whitespace-nowrap shadow-sm flex items-center gap-1.5 transition cursor-pointer"
           >
-            ทำ RCA ทันที
-          </a>
+            <Target className="w-3.5 h-3.5" />
+            ทำ Standard RCA ทันที
+          </Link>
         </div>
       )}
 
@@ -452,10 +613,11 @@ export default function IncidentDetail() {
 
           {/* Quick Actions for Supervisor & Committee */}
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* If status is report, allow Supervisor confirmation */}
-            {incident.status_risk === 'รายงาน' && (
+
+            {/* If status is report or edit, allow Supervisor confirmation */}
+            {(incident.status_risk === 'รายงาน' || incident.status_risk === 'แก้ไข') && (
               <button
-                onClick={() => handleStatusChange('ตรวจสอบ', 'หัวหน้างานยืนยันอุบัติการณ์')}
+                onClick={handleDirectConfirm}
                 disabled={submittingAction}
                 className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md shadow-blue-600/20 transition-all cursor-pointer"
               >
@@ -518,12 +680,77 @@ export default function IncidentDetail() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
           {/* Incident Description */}
           <div className="space-y-4">
+            {/* Primary Responsible Reviewing Department Card */}
+            {incident.status_risk !== 'จำหน่าย' && (
+              <div className="p-4 rounded-2xl bg-purple-50/80 dark:bg-purple-950/40 border-2 border-purple-200 dark:border-purple-800 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-extrabold text-purple-950 dark:text-purple-200 uppercase tracking-wider flex items-center gap-1.5">
+                    🏢 หน่วยงานที่รับผิดชอบทบทวนหลัก
+                  </label>
+                  <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900 px-2.5 py-0.5 rounded-lg border border-purple-200 dark:border-purple-800">
+                    Primary Action Dept
+                  </span>
+                </div>
+                <select
+                  value={incident.sendto_department_id ? String(incident.sendto_department_id) : (incident.department_id ? String(incident.department_id) : '')}
+                  onChange={e => handleQuickAssignReviewDept(e.target.value)}
+                  disabled={isClosed || submittingAction}
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 text-purple-950 dark:text-purple-200 font-extrabold rounded-xl text-sm border-2 border-purple-300 dark:border-purple-700 focus:ring-2 focus:ring-purple-500 cursor-pointer shadow-xs disabled:opacity-75 disabled:cursor-not-allowed"
+                >
+                  <option value="">-- เลือกหน่วยงานรับผิดชอบหลัก --</option>
+                  {departmentsList.map((d: any) => (
+                    <option key={d.id} value={d.id}>🏢 {d.depart_name || d.name}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-purple-800 dark:text-purple-300 font-medium flex items-center gap-1">
+                  💡 *หน่วยงานปลายทางที่จะเป็นผู้รับผิดชอบดำเนินการวิเคราะห์สาเหตุและทบทวนความเสี่ยงฉบับนี้*
+                </p>
+              </div>
+            )}
             <div>
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">รายละเอียดเหตุการณ์ที่เกิดขึ้น</label>
               <div className="mt-1.5 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">
                 {incident.detail || incident.problem_basic || 'ไม่มีรายละเอียด'}
               </div>
             </div>
+
+            {/* Attached Images Gallery */}
+            {incident.image && incident.image.split(',').filter(Boolean).length > 0 && (
+              <div className="mt-3">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider font-semibold text-slate-500">รูปภาพประกอบ ({incident.image.split(',').filter(Boolean).length} รูป)</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-2">
+                  {incident.image.split(',').filter(Boolean).map((imgName: string, idx: number) => {
+                    const imgUrl = imgName.startsWith('http') || imgName.startsWith('/') 
+                      ? imgName 
+                      : `/uploads/${imgName}`;
+                    return (
+                      <div 
+                        key={idx} 
+                        className="relative group aspect-video sm:aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 cursor-pointer shadow-sm hover:shadow-md transition-all duration-200"
+                        onClick={() => setSelectedLightboxImage(imgUrl)}
+                      >
+                        <img 
+                          src={imgUrl} 
+                          alt={`attached-img-${idx}`} 
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            if (!target.src.includes('/riskimage/')) {
+                              target.src = `/riskimage/${imgName}`;
+                            }
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                          <span className="text-white text-xs font-semibold px-2.5 py-1.5 bg-black/60 rounded-full backdrop-blur-sm shadow-sm scale-90 group-hover:scale-100 transition-transform duration-200">
+                            คลิกเพื่อขยาย
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {incident.detail_hosxp && (
               <div>
@@ -567,6 +794,13 @@ export default function IncidentDetail() {
               <span className="text-slate-400">หน่วยงานที่เกิดเหตุ :</span>
               <span className="font-semibold text-slate-700 dark:text-slate-200">{incident.department_name}</span>
             </div>
+
+            {incident.location_name && (
+              <div className="flex items-center justify-between text-xs py-2 border-b border-slate-200/60 dark:border-slate-800">
+                <span className="text-slate-400">สถานที่เกิดเหตุเฉพาะจุด :</span>
+                <span className="font-semibold text-primary dark:text-primary-light">📍 {incident.location_name}</span>
+              </div>
+            )}
 
             <div className="flex items-center justify-between text-xs py-2 border-b border-slate-200/60 dark:border-slate-800">
               <span className="text-slate-400">โปรแกรมความเสี่ยง :</span>
@@ -771,7 +1005,7 @@ export default function IncidentDetail() {
               type="button"
               onClick={handleToggleFullRca}
               className={`p-3.5 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
-                isFullRcaOpen || reviewResultId === 3
+                isFullRcaOpen || reviewResultId === 3 || (linkedRca && ((linkedRca.standardCases?.length || 0) > 0 || (linkedRca.miniConciseCases?.length || 0) > 0))
                   ? 'bg-purple-50/90 border-purple-500 dark:bg-purple-950/40 dark:border-purple-500 shadow-sm ring-2 ring-purple-500/20'
                   : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 hover:border-purple-300'
               }`}
@@ -781,121 +1015,242 @@ export default function IncidentDetail() {
               </div>
               <div className="flex-1">
                 <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center justify-between">
-                  <span>3. ได้รับการทำ RCA (เต็มรูปแบบ)</span>
+                  <span>3. ได้รับการทำ RCA (ศูนย์จัดการ RCA รพ.วังเจ้า)</span>
                   {isFullRcaOpen ? <ChevronUp className="w-3.5 h-3.5 text-purple-600" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
                 </div>
                 <div className="text-[11px] text-purple-700 dark:text-purple-300 font-medium mt-0.5">
-                  {isFullRcaOpen ? 'กำลังเปิดเครื่องมือ RCA (เลือกหัวข้อได้รับการทำ RCA อัตโนมัติ)' : 'คลิกเพื่อเปิดเครื่องมือวิเคราะห์ 4M1E & บันทึก RCA'}
+                  {isFullRcaOpen
+                    ? 'กำลังเปิดเครื่องมือ RCA (เลือกหัวข้อได้รับการทำ RCA อัตโนมัติ)'
+                    : (linkedRca?.standardCases?.length || 0) + (linkedRca?.miniConciseCases?.length || 0) > 0
+                    ? `✅ พบเอกสาร RCA ที่เชื่อมโยงแล้ว (${(linkedRca?.standardCases?.length || 0) + (linkedRca?.miniConciseCases?.length || 0)} ฉบับ) - คลิกเพื่อจัดการ`
+                    : 'คลิกเพื่อเปิดเครื่องมือวิเคราะห์ 4M1E & เชื่อมโยง Standard/Mini RCA'}
                 </div>
               </div>
             </button>
           </div>
         </div>
 
-        {/* 3. ส่วนขยาย RCA เต็มรูปแบบ (Full Root Cause Analysis Deep-dive) */}
+        {/* 3. ส่วนขยาย RCA เต็มรูปแบบ (Full Root Cause Analysis Deep-dive & Integration) */}
         {isFullRcaOpen && (
-          <div className="p-5 rounded-2xl bg-purple-50/60 dark:bg-purple-950/30 border-2 border-purple-200 dark:border-purple-800 space-y-4 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-2 border-b border-purple-200/80 dark:border-purple-800">
+          <div className="p-5 rounded-2xl bg-purple-50/60 dark:bg-purple-950/30 border-2 border-purple-200 dark:border-purple-800 space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-purple-200/80 dark:border-purple-800 gap-2">
               <div className="flex items-center gap-2 font-bold text-purple-900 dark:text-purple-200 text-sm">
                 <Target className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                <span>เครื่องมือวิเคราะห์สาเหตุรากเหง้าเชิงระบบ (Fishbone / 4M1E RCA Workbench)</span>
+                <span>เครื่องมือวิเคราะห์สาเหตุรากเหง้าเชิงระบบ (Root Cause Analysis Hub)</span>
               </div>
-              <span className="text-[11px] text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/60 px-2 py-0.5 rounded-md font-semibold">
-                RCA Level 2/3
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 1. Man */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <span>👤 ด้านบุคคล / ทักษะการปฏิบัติงาน (Man / Staff):</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="เช่น ขาดทักษะเฉพาะ, ความเหนื่อยล้า, การสื่อสารคลาดเคลื่อน..."
-                  value={rcaMan}
-                  onChange={(e) => setRcaMan(e.target.value)}
-                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
-                />
-              </div>
-
-              {/* 2. Method */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <span>📋 ด้านระบบ / ขั้นตอนปฏิบัติ / WI / CPG (Method):</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="เช่น ขาดคู่มือแนวทางชัดเจน, ไม่ได้ทำ Double Check, ขั้นตอนส่งต่อข้อมูล..."
-                  value={rcaMethod}
-                  onChange={(e) => setRcaMethod(e.target.value)}
-                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
-                />
-              </div>
-
-              {/* 3. Machine & Environment */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <span>⚙️ ด้านเครื่องมือ / อุปกรณ์ / สิ่งแวดล้อม (Machine & Environment):</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="เช่น เครื่องมือชำรุด, แสงสว่างไม่เพียงพอ, สัญญาณเตือน Alarm ไม่ดัง..."
-                  value={rcaMachine}
-                  onChange={(e) => setRcaMachine(e.target.value)}
-                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
-                />
-              </div>
-
-              {/* 4. Management & Communication */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <span>🏢 ด้านการบริหาร / การประสานงาน (Management / Communication):</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="เช่น การจัดอัตรากำลัง, การควบคุมกำกับ, การประสานงานระหว่างหน่วยงาน..."
-                  value={rcaManagement}
-                  onChange={(e) => setRcaManagement(e.target.value)}
-                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
-                />
-              </div>
-            </div>
-
-            {/* Safety Goal & Preventive System */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  🎯 เป้าหมายความปลอดภัย 2P Safety Goals ที่เชื่อมโยง:
-                </label>
-                <select
-                  value={rcaSafetyGoal}
-                  onChange={(e) => setRcaSafetyGoal(e.target.value)}
-                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/rca"
+                  className="text-[11px] text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 font-bold flex items-center gap-1 hover:underline"
                 >
-                  <option value="">-- เลือกเป้าหมาย 2P Safety Goal (ถ้ามี) --</option>
-                  <option value="Safe Surgery (การผ่าตัดปลอดภัย)">Safe Surgery (การผ่าตัดปลอดภัย)</option>
-                  <option value="Infection Prevention (การควบคุมการติดเชื้อ)">Infection Prevention (การควบคุมการติดเชื้อ)</option>
-                  <option value="Medication & Blood Safety (ความปลอดภัยด้านยาและเลือด)">Medication & Blood Safety (ความปลอดภัยด้านยาและเลือด)</option>
-                  <option value="Patient Care Process (กระบวนการดูแลผู้ป่วย/ส่งต่อ)">Patient Care Process (กระบวนการดูแลผู้ป่วย/ส่งต่อ)</option>
-                  <option value="Line, Tube & Catheter (สายสวนและท่อช่วยหายใจ)">Line, Tube & Catheter (สายสวนและท่อช่วยหายใจ)</option>
-                  <option value="Emergency Response (การตอบสนองภาวะฉุกเฉิน)">Emergency Response (การตอบสนองภาวะฉุกเฉิน)</option>
-                  <option value="Personnel Safety (ความปลอดภัยของบุคลากร)">Personnel Safety (ความปลอดภัยของบุคลากร)</option>
-                </select>
+                  <FileSearch className="w-3 h-3" />
+                  หน้ารวม RCA ทั้งหมด
+                </Link>
+                <span className="text-[11px] text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/60 px-2 py-0.5 rounded-md font-semibold">
+                  Wang Chao RCA Level 1/2/3
+                </span>
+              </div>
+            </div>
+
+            {/* A. การเชื่อมโยงกับ Standard / Mini RCA ที่มีอยู่แล้ว */}
+            {linkedRca && (linkedRca.standardCases?.length > 0 || linkedRca.miniConciseCases?.length > 0) && (
+              <div className="space-y-2 bg-white dark:bg-slate-900 p-4 rounded-xl border border-purple-200 dark:border-purple-800/80 shadow-xs">
+                <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>เอกสาร RCA ที่เชื่อมโยงกับอุบัติการณ์นี้ในฐานข้อมูล:</span>
+                </div>
+                <div className="space-y-2 pt-1">
+                  {linkedRca.standardCases?.map((stdCase: any) => (
+                    <div key={stdCase.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-purple-50/50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 gap-2">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-purple-600 text-white uppercase tracking-wider">
+                            Standard Full RCA
+                          </span>
+                          <span className="text-xs font-bold text-purple-950 dark:text-purple-200">
+                            {stdCase.id}
+                          </span>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${stdCase.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {stdCase.status === 'completed' ? '✓ เสร็จสมบูรณ์' : 'กำลังดำเนินการ'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                          หัวข้อ: {stdCase.topic} | 5-Whys: {stdCase.whys?.length || 0} ลำดับ | ก้างปลา 6M: {stdCase.fishbones?.length || 0} ปัจจัย | แผน CAPA: {stdCase.capas?.length || 0} แผน
+                        </p>
+                      </div>
+                      <Link
+                        to={`/rca/standard/${stdCase.id}`}
+                        className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-xs transition"
+                      >
+                        <FileSearch className="w-3.5 h-3.5" />
+                        เปิดดู / แก้ไข RCA ฉบับเต็ม
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  ))}
+
+                  {linkedRca.miniConciseCases?.map((mCase: any) => (
+                    <div key={mCase.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 gap-2">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-indigo-600 text-white uppercase tracking-wider">
+                            {mCase.rca_type === 'concise' ? 'Concise RCA' : 'Mini RCA'}
+                          </span>
+                          <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200">
+                            {mCase.id}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                          หัวข้อ: {mCase.topic} | Swiss Cheese: {mCase.swiss_cheeses?.length || 0} จุดบกพร่อง | CMP Action: {mCase.cmps?.length || 0} มาตรการ
+                        </p>
+                      </div>
+                      <Link
+                        to="/rca"
+                        className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-xs transition"
+                      >
+                        <FileSearch className="w-3.5 h-3.5" />
+                        เปิดดูใน RCA Hub
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* B. Action Buttons เพื่อเปิดทำ Standard RCA หรือ Mini RCA */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Link
+                to={`/rca/standard/new?incident_id=${incident.id}&topic=${encodeURIComponent(incident.risk_topic_name || incident.detail || '')}&rm_no=${encodeURIComponent(incident.id_risk || '')}&severity=${encodeURIComponent(incident.severity_level_code || '')}`}
+                className="p-3.5 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white shadow-sm flex items-center justify-between transition-all group cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <Target className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold">1. เปิดทำ Standard Full RCA ฉบับสมบูรณ์</div>
+                    <div className="text-[11px] text-rose-100">กระบวนการ HA 5 ขั้นตอน (Why-Why, 6M, CAPA, สรุปประชุม)</div>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => setIsMiniRcaModalOpen(true)}
+                className="p-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white shadow-sm flex items-center justify-between text-left transition-all group cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <Layers className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold">2. ทำ Mini RCA ประจำหน่วยงาน (ในหน้านี้)</div>
+                    <div className="text-[11px] text-indigo-100">วิเคราะห์ Swiss Cheese Model & CMP Action Plan ทันที</div>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+
+            {/* C. วิเคราะห์ 4M1E เบื้องต้นเพื่อบันทึกร่วมกับผลการทบทวน */}
+            <div className="pt-2 border-t border-purple-200/80 dark:border-purple-800">
+              <div className="text-xs font-bold text-purple-950 dark:text-purple-200 mb-3 flex items-center gap-1.5">
+                <span>📋 หรือบันทึกสาเหตุรากเหง้า 4M1E & มาตรการป้องกันในบันทึกการทบทวนของหน้านี้:</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 1. Man */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <span>👤 ด้านบุคคล / ทักษะการปฏิบัติงาน (Man / Staff):</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="เช่น ขาดทักษะเฉพาะ, ความเหนื่อยล้า, การสื่อสารคลาดเคลื่อน..."
+                    value={rcaMan}
+                    onChange={(e) => setRcaMan(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
+                  />
+                </div>
+
+                {/* 2. Method */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <span>📋 ด้านระบบ / ขั้นตอนปฏิบัติ / WI / CPG (Method):</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="เช่น ขาดคู่มือแนวทางชัดเจน, ไม่ได้ทำ Double Check, ขั้นตอนส่งต่อข้อมูล..."
+                    value={rcaMethod}
+                    onChange={(e) => setRcaMethod(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
+                  />
+                </div>
+
+                {/* 3. Machine & Environment */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <span>⚙️ ด้านเครื่องมือ / อุปกรณ์ / สิ่งแวดล้อม (Machine & Environment):</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="เช่น เครื่องมือชำรุด, แสงสว่างไม่เพียงพอ, สัญญาณเตือน Alarm ไม่ดัง..."
+                    value={rcaMachine}
+                    onChange={(e) => setRcaMachine(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
+                  />
+                </div>
+
+                {/* 4. Management & Communication */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <span>🏢 ด้านการบริหาร / การประสานงาน (Management / Communication):</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="เช่น การจัดอัตรากำลัง, การควบคุมกำกับ, การประสานงานระหว่างหน่วยงาน..."
+                    value={rcaManagement}
+                    onChange={(e) => setRcaManagement(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  🛡️ แผนป้องกันเชิงระบบ (Systemic Defense / Redundancy):
-                </label>
-                <input
-                  type="text"
-                  placeholder="เช่น ปรับแก้ระบบบันทึกอิเล็กทรอนิกส์, จัดทำ Check-list บังคับ..."
-                  value={rcaActionPlan}
-                  onChange={(e) => setRcaActionPlan(e.target.value)}
-                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
-                />
+              {/* Safety Goal & Preventive System */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    🎯 เป้าหมายความปลอดภัย 2P Safety Goals ที่เชื่อมโยง:
+                  </label>
+                  <select
+                    value={rcaSafetyGoal}
+                    onChange={(e) => setRcaSafetyGoal(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
+                  >
+                    <option value="">-- เลือกเป้าหมาย 2P Safety Goal (ถ้ามี) --</option>
+                    <option value="Safe Surgery (การผ่าตัดปลอดภัย)">Safe Surgery (การผ่าตัดปลอดภัย)</option>
+                    <option value="Infection Prevention (การควบคุมการติดเชื้อ)">Infection Prevention (การควบคุมการติดเชื้อ)</option>
+                    <option value="Medication & Blood Safety (ความปลอดภัยด้านยาและเลือด)">Medication & Blood Safety (ความปลอดภัยด้านยาและเลือด)</option>
+                    <option value="Patient Care Process (กระบวนการดูแลผู้ป่วย/ส่งต่อ)">Patient Care Process (กระบวนการดูแลผู้ป่วย/ส่งต่อ)</option>
+                    <option value="Line, Tube & Catheter (สายสวนและท่อช่วยหายใจ)">Line, Tube & Catheter (สายสวนและท่อช่วยหายใจ)</option>
+                    <option value="Emergency Response (การตอบสนองภาวะฉุกเฉิน)">Emergency Response (การตอบสนองภาวะฉุกเฉิน)</option>
+                    <option value="Personnel Safety (ความปลอดภัยของบุคลากร)">Personnel Safety (ความปลอดภัยของบุคลากร)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    🛡️ แผนป้องกันเชิงระบบ (Systemic Defense / Redundancy):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="เช่น ปรับแก้ระบบบันทึกอิเล็กทรอนิกส์, จัดทำ Check-list บังคับ..."
+                    value={rcaActionPlan}
+                    onChange={(e) => setRcaActionPlan(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -1303,7 +1658,16 @@ export default function IncidentDetail() {
                   <select
                     required
                     value={editFormData.department_id}
-                    onChange={e => setEditFormData({ ...editFormData, department_id: e.target.value })}
+                    onChange={e => {
+                      const newDeptId = e.target.value;
+                      const userDeptId = user?.department_id ? String(user.department_id) : (incident ? String(incident.department_id) : '');
+                      const autoIrType = (newDeptId && newDeptId !== userDeptId) ? 'ผู้อื่น' : 'ตนเอง';
+                      setEditFormData({
+                        ...editFormData,
+                        department_id: newDeptId,
+                        user_ir_type: autoIrType
+                      });
+                    }}
                     className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   >
                     <option value="">-- เลือกหน่วยงาน --</option>
@@ -1388,12 +1752,26 @@ export default function IncidentDetail() {
                   <select
                     required
                     value={editFormData.user_ir_type}
-                    onChange={e => setEditFormData({ ...editFormData, user_ir_type: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    onChange={e => {
+                      const newType = e.target.value;
+                      const userDeptId = user?.department_id ? String(user.department_id) : (incident ? String(incident.department_id) : '');
+                      setEditFormData({
+                        ...editFormData,
+                        user_ir_type: newType,
+                        department_id: newType === 'ตนเอง' ? userDeptId : editFormData.department_id
+                      });
+                    }}
+                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold"
                   >
                     <option value="ตนเอง">ตนเอง (รายงานตนเอง)</option>
                     <option value="ผู้อื่น">ผู้อื่น (รายงานผู้อื่น)</option>
                   </select>
+                  {editFormData.user_ir_type === 'ผู้อื่น' && (
+                    <div className="mt-1 px-2.5 py-1 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 rounded-lg text-[11px] font-semibold border border-purple-200 dark:border-purple-800 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span>
+                      <span>ผูกข้อมูลอัตโนมัติถึงหน่วยงาน: {departmentsList.find(d => String(d.id) === String(editFormData.department_id))?.depart_name || 'ตามหน่วยงานที่เลือกด้านบน'}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1478,6 +1856,172 @@ export default function IncidentDetail() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Risk Confirmation & Department Assignment Modal */}
+      {isConfirmModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-xl">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base">ยืนยันความเสี่ยง & ตรวจสอบหน่วยงาน</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">ตรวจสอบหน่วยงานรับผิดชอบและส่งเรื่องเข้าสู่กระบวนการทบทวน</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsConfirmModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Target Incident Title */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200/60 dark:border-slate-700">
+                <span className="text-slate-400 block font-medium">เรื่องที่ต้องการยืนยัน:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 text-sm mt-0.5 block">
+                  #{incident.id} - {incident.risk_topic_name || incident.detail}
+                </span>
+              </div>
+
+              {/* Responsible Department */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                  🏢 หน่วยงานรับผิดชอบหลัก (`department_id`):
+                </label>
+                <select
+                  value={confirmDeptId}
+                  onChange={e => setConfirmDeptId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                >
+                  <option value="">-- เลือกหน่วยงานรับผิดชอบ --</option>
+                  {departmentsList.map((d: any) => (
+                    <option key={d.id} value={d.id}>
+                      {d.depart_name || d.name} (ID: {d.id})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400">
+                  * หากผู้รายงานระบุหน่วยงานผิด สามารถปรับเลือกหน่วยงานที่ถูกต้องในจุดนี้ได้
+                </p>
+              </div>
+
+              {/* Target / Forwarded Department */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                  📤 ส่งต่อให้หน่วยงานปลายทางร่วมทบทวน/แก้ไข (`sendto_department_id`):
+                </label>
+                <select
+                  value={confirmSendToDeptId}
+                  onChange={e => setConfirmSendToDeptId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                >
+                  <option value="">-- ไม่ระบุ (รับผิดชอบเฉพาะหน่วยงานหลัก) --</option>
+                  {departmentsList.map((d: any) => (
+                    <option key={d.id} value={d.id}>
+                      {d.depart_name || d.name} (ID: {d.id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Confirmation Note / Reason */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                  📝 ข้อความยืนยัน / หมายเหตุข้อสั่งการเพิ่มเติม:
+                </label>
+                <textarea
+                  rows={2}
+                  value={confirmNote}
+                  onChange={e => setConfirmNote(e.target.value)}
+                  placeholder="ระบุข้อสังเกต คำแนะนำ หรือเหตุผลกรณีส่งกลับให้ผู้รายงานแก้ไข..."
+                  className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-750">
+              <button
+                type="button"
+                onClick={() => handleConfirmSubmit('แก้ไข')}
+                disabled={submittingConfirm}
+                className="w-full sm:w-auto px-4 py-2.5 bg-orange-50 hover:bg-orange-100 text-orange-700 dark:bg-orange-950/60 dark:hover:bg-orange-900 dark:text-orange-200 border border-orange-200 dark:border-orange-800 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                ส่งกลับให้แก้ไข (สถานะ: แก้ไข)
+              </button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmModalOpen(false)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleConfirmSubmit('ตรวจสอบ')}
+                  disabled={submittingConfirm}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  {submittingConfirm ? 'กำลังยืนยัน...' : 'ยืนยันความเสี่ยง (สถานะ: ตรวจสอบ)'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mini RCA Modal for Department */}
+      {incident && (
+        <MiniRcaModal
+          isOpen={isMiniRcaModalOpen}
+          onClose={() => setIsMiniRcaModalOpen(false)}
+          incident={{
+            id: incident.id,
+            id_risk: incident.id_risk,
+            topic: incident.risk_topic_name || incident.detail,
+            risk_name: incident.risk_topic_name || incident.detail,
+            level_id: incident.severity_level_code,
+            department_id: incident.department_id ? String(incident.department_id) : undefined,
+            detail: incident.detail,
+            date_risk: incident.date_report,
+          }}
+          onSuccess={() => {
+            fetchDetail();
+          }}
+        />
+      )}
+
+      {/* Image Lightbox Modal */}
+      {selectedLightboxImage && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setSelectedLightboxImage(null)}
+        >
+          <button 
+            type="button"
+            className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white hover:text-slate-200 p-2 rounded-full transition-colors backdrop-blur-sm"
+            onClick={() => setSelectedLightboxImage(null)}
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <div className="max-w-4xl max-h-[85vh] overflow-hidden rounded-lg shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <img 
+              src={selectedLightboxImage} 
+              alt="enlarged-incident-pic" 
+              className="max-w-full max-h-[85vh] object-contain mx-auto" 
+            />
           </div>
         </div>
       )}

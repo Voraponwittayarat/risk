@@ -482,12 +482,12 @@ export default function Reports() {
     const token = localStorage.getItem('token');
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-    axios.get('http://localhost:3000/departments', { headers })
+    axios.get('/departments', { headers })
       .then(res => setDepartments(res.data || []))
       .catch(console.error);
 
     // Fetch recent incidents for smart import
-    axios.get('http://localhost:3000/incidents?limit=25', { headers })
+    axios.get('/incidents?limit=25', { headers })
       .then(res => setRecentIncidents(res.data?.data || res.data || []))
       .catch(console.error);
   }, []);
@@ -508,9 +508,9 @@ export default function Reports() {
     }
 
     Promise.all([
-      axios.get('http://localhost:3000/risk-analysis', { params, headers }),
-      axios.get('http://localhost:3000/risk-analysis/stats', { headers }),
-      axios.get('http://localhost:3000/incidents/matrix/stats', { headers }),
+      axios.get('/risk-analysis', { params, headers }),
+      axios.get('/risk-analysis/stats', { headers }),
+      axios.get('/incidents/matrix/stats', { headers }),
     ])
       .then(([risksRes, statsRes, matrixRes]) => {
         setRisks(risksRes.data || []);
@@ -659,7 +659,7 @@ export default function Reports() {
   // Open Detail Drill-Down Modal
   const handleOpenDetailModal = (item: any) => {
     setLoading(true);
-    axios.get(`http://localhost:3000/risk-analysis/${item.id}`)
+    axios.get(`/risk-analysis/${item.id}`)
       .then(res => {
         setSelectedRiskItem(res.data);
         setIsDetailModalOpen(true);
@@ -677,7 +677,7 @@ export default function Reports() {
   const handleSubmitCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:3000/risk-analysis', formData);
+      await axios.post('/risk-analysis', formData);
       setIsCreateModalOpen(false);
       fetchRiskAnalysisData();
     } catch (err: any) {
@@ -690,7 +690,7 @@ export default function Reports() {
     e.preventDefault();
     if (!selectedRiskItem) return;
     try {
-      await axios.patch(`http://localhost:3000/risk-analysis/${selectedRiskItem.id}`, formData);
+      await axios.patch(`/risk-analysis/${selectedRiskItem.id}`, formData);
       setIsEditModalOpen(false);
       fetchRiskAnalysisData();
     } catch (err: any) {
@@ -703,7 +703,7 @@ export default function Reports() {
     e.preventDefault();
     if (!selectedRiskItem) return;
     try {
-      await axios.post(`http://localhost:3000/risk-analysis/${selectedRiskItem.id}/reviews`, reviewFormData);
+      await axios.post(`/risk-analysis/${selectedRiskItem.id}/reviews`, reviewFormData);
       setIsReviewModalOpen(false);
       fetchRiskAnalysisData();
     } catch (err: any) {
@@ -715,7 +715,7 @@ export default function Reports() {
   const handleDeleteRisk = async (id: number, code: string) => {
     if (!confirm(`คุณต้องการลบทะเบียนความเสี่ยง "${code}" ใช่หรือไม่?`)) return;
     try {
-      await axios.delete(`http://localhost:3000/risk-analysis/${id}`);
+      await axios.delete(`/risk-analysis/${id}`);
       fetchRiskAnalysisData();
     } catch (err: any) {
       alert('ลบล้มเหลว: ' + (err.response?.data?.message || err.message));

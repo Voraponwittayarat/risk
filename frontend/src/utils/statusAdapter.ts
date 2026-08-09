@@ -22,6 +22,17 @@ export const STATUS_MAP: Record<string, StatusInfo> = {
     stepIndex: 1,
     description: 'รายงานเข้าระบบแล้ว รอหัวหน้างาน/ผู้รับผิดชอบตรวจสอบ',
   },
+  'แก้ไข': {
+    dbStatus: 'แก้ไข',
+    label: 'ส่งกลับแก้ไข',
+    badgeClass: 'bg-orange-100 text-orange-900 border-orange-400 dark:bg-orange-950/70 dark:text-orange-200 dark:border-orange-600',
+    bgLight: 'bg-orange-50 dark:bg-orange-900/30',
+    textColor: 'text-orange-800 dark:text-orange-300',
+    borderColor: 'border-orange-300 dark:border-orange-700',
+    dotClass: 'bg-orange-500 animate-pulse',
+    stepIndex: 1,
+    description: 'ส่งกลับโดยหัวหน้างาน/RM เพื่อให้ผู้รายงานแก้ไขรายละเอียดเพิ่มเติม',
+  },
   'ตรวจสอบ': {
     dbStatus: 'ตรวจสอบ',
     label: 'ยืนยันแล้ว / รอแก้ไข',

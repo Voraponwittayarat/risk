@@ -8,7 +8,13 @@ import IncidentDetail from './pages/IncidentDetail';
 import MyReportedIncidents from './pages/MyReportedIncidents';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import UserManagement from './pages/UserManagement';
+import RiskTopicManagement from './pages/RiskTopicManagement';
 import Login from './pages/Login';
+import TriggerToolReview from './pages/TriggerToolReview';
+import RcaList from './pages/rca/RcaList';
+import ConciseRcaForm from './pages/rca/ConciseRcaForm';
+import StandardRcaForm from './pages/rca/StandardRcaForm';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -16,6 +22,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAdmin } = useAuth();
+  if (!isAdmin) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
@@ -34,14 +46,25 @@ function App() {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="incidents" element={<Navigate to="/incidents/dept" replace />} />
+            <Route path="incidents/pending" element={<IncidentList mode="pending" defaultTab="รายงาน" />} />
             <Route path="incidents/dept" element={<IncidentList mode="dept" />} />
             <Route path="incidents/team" element={<IncidentList mode="team" />} />
             <Route path="incidents/new" element={<IncidentForm />} />
             <Route path="incidents/:id" element={<IncidentDetail />} />
             <Route path="incidents/:id/edit" element={<IncidentForm />} />
             <Route path="my-reported" element={<MyReportedIncidents />} />
+            
+            {/* Trigger Tool & RCA Program Routes */}
+            <Route path="trigger-tool" element={<TriggerToolReview />} />
+            <Route path="rca" element={<Navigate to="/rca/list" replace />} />
+            <Route path="rca/list" element={<RcaList />} />
+            <Route path="rca/concise" element={<ConciseRcaForm />} />
+            <Route path="rca/standard/:id" element={<StandardRcaForm />} />
+
             <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="users" element={<AdminRoute><UserManagement /></AdminRoute>} />
+            <Route path="risk-topics" element={<AdminRoute><RiskTopicManagement /></AdminRoute>} />
           </Route>
         </Routes>
       </Router>

@@ -4,6 +4,10 @@ import { IncidentsModule } from './modules/incidents/incidents.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { RiskAnalysisModule } from './modules/risk-analysis/risk-analysis.module';
+import { TriggerToolModule } from './modules/trigger-tool/trigger-tool.module';
+import { RcaModule } from './modules/rca/rca.module';
+import { UsersModule } from './modules/users/users.module';
+import { RiskTopicsModule } from './modules/risk-topics/risk-topics.module';
 
 @Module({
   imports: [
@@ -12,6 +16,10 @@ import { RiskAnalysisModule } from './modules/risk-analysis/risk-analysis.module
     DepartmentsModule,
     AuthModule,
     RiskAnalysisModule,
+    TriggerToolModule,
+    RcaModule,
+    UsersModule,
+    RiskTopicsModule,
   ],
   controllers: [],
   providers: [],
