@@ -42,6 +42,8 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [progress, setProgress] = useState(0);
+  // Full chat history for Gemini multi-turn context
+  const [chatHistory, setChatHistory] = useState<{ role: string; text: string }[]>([]);
 
   // Keep track of accumulated extracted values during the conversation
   const [currentExtraction, setCurrentExtraction] = useState<ExtractedJSON>({
@@ -283,50 +285,94 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
     return updated;
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
 
-    const userMsg: Message = {
-      sender: 'user',
-      text: inputValue,
-      timestamp: new Date(),
-    };
-
+    const userText = inputValue;
+    const userMsg: Message = { sender: 'user', text: userText, timestamp: new Date() };
     setMessages(prev => [...prev, userMsg]);
     setInputValue('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      // Analyze current conversation
-      const nextExtraction = parseNaturalLanguage(inputValue, currentExtraction);
-      setCurrentExtraction(nextExtraction);
+    const newHistory = [...chatHistory, { role: 'user', text: userText }];
+    setChatHistory(newHistory);
 
-      let replyText = '';
-      if (nextExtraction.clarification_question) {
-        replyText = `หนูได้รับข้อมูลเพิ่มแล้วค่ะ! 🔍\n\n${nextExtraction.clarification_question}`;
-      } else {
-        replyText = `🎉 ยอดเยี่ยมค่ะ! หนูวิเคราะห์สกัดข้อมูลได้ครบถ้วนและพร้อมกรอกลงฟอร์มแล้วค่ะ รบกวนพี่ๆ ตรวจทานความถูกต้องเบื้องต้นดังนี้นะคะ:\n\n` +
-          `📅 **วันที่เกิดเหตุ**: ${nextExtraction.date_report}\n` +
-          `⏰ **เวลาเกิดเหตุ**: ${nextExtraction.time_report} น. (เวร${nextExtraction.duration_name || 'เช้า'})\n` +
-          `📍 **สถานที่**: ${nextExtraction.location_name || 'ไม่ระบุ'}\n` +
-          `⚠️ **ชื่อความเสี่ยง**: ${nextExtraction.riskstore_name || 'ไม่พบการจัดประเภทหลัก'}\n` +
-          `🚨 **ระดับความรุนแรง**: ระดับ ${nextExtraction.level_id}\n` +
-          `👥 **ผู้ได้รับผลกระทบ**: ${nextExtraction.affected?.join(', ')}\n` +
-          `📝 **รายละเอียดสรุป**: "${nextExtraction.detail}"\n\n` +
-          `หากข้อมูลถูกต้องครบถ้วนแล้ว สามารถกดปุ่ม **"นำข้อมูลกรอกลงแบบฟอร์ม"** ด้านล่างได้ทันทีเลยค่ะ!`;
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch('/api/incidents/ai-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ messages: newHistory }),
+      });
+
+      if (!res.ok) throw new Error('API error');
+      const aiData: ExtractedJSON = await res.json();
+
+      // Match location_id from master data using location_name returned by AI
+      if (aiData.location_name && !aiData.location_id) {
+        const locMatch = locations.find(l =>
+          l.name.toLowerCase().includes(aiData.location_name!.toLowerCase()) ||
+          aiData.location_name!.toLowerCase().includes(l.name.toLowerCase())
+        );
+        if (locMatch) { aiData.location_id = String(locMatch.id); aiData.location_name = locMatch.name; }
       }
 
-      setMessages(prev => [
-        ...prev,
-        {
-          sender: 'bot',
-          text: replyText,
-          timestamp: new Date(),
-          extractedData: nextExtraction,
-        },
-      ]);
+      // Match risk_id from master data using riskstore_name returned by AI
+      if (aiData.riskstore_name && !aiData.risk_id) {
+        const riskMatch = risks.find(r =>
+          r.risk_name.toLowerCase().includes(aiData.riskstore_name!.toLowerCase()) ||
+          aiData.riskstore_name!.toLowerCase().includes(r.risk_name.toLowerCase())
+        );
+        if (riskMatch) { aiData.risk_id = String(riskMatch.id); aiData.riskstore_name = riskMatch.risk_name; }
+      }
+
+      // Merge with current extraction (accumulate)
+      const merged: ExtractedJSON = {
+        date_report: aiData.date_report || currentExtraction.date_report,
+        time_report: aiData.time_report || currentExtraction.time_report,
+        duration_name: aiData.duration_name || currentExtraction.duration_name,
+        location_name: aiData.location_name || currentExtraction.location_name,
+        location_id: aiData.location_id || currentExtraction.location_id,
+        riskstore_name: aiData.riskstore_name || currentExtraction.riskstore_name,
+        risk_id: aiData.risk_id || currentExtraction.risk_id,
+        level_id: aiData.level_id || currentExtraction.level_id,
+        affected: aiData.affected || currentExtraction.affected,
+        detail: aiData.detail || currentExtraction.detail,
+        clarification_question: aiData.clarification_question,
+      };
+      setCurrentExtraction(merged);
+
+      let replyText = '';
+      if (merged.clarification_question) {
+        replyText = merged.clarification_question;
+      } else {
+        replyText =
+          `🎉 ยอดเยี่ยมค่ะ! สกัดข้อมูลครบถ้วนแล้ว รบกวนตรวจทานก่อนกรอกลงฟอร์มนะคะ:\n\n` +
+          `📅 วันที่: ${merged.date_report}\n` +
+          `⏰ เวลา: ${merged.time_report} น. (เวร${merged.duration_name || ''})\n` +
+          `📍 สถานที่: ${merged.location_name || 'ไม่ระบุ'}\n` +
+          `⚠️ ชื่อความเสี่ยง: ${merged.riskstore_name || 'ไม่ระบุ'}\n` +
+          `🚨 ระดับความรุนแรง: ระดับ ${merged.level_id || '-'}\n` +
+          `👥 ผู้ได้รับผลกระทบ: ${merged.affected?.join(', ') || '-'}\n` +
+          `📝 รายละเอียด: "${merged.detail}"\n\n` +
+          `หากข้อมูลถูกต้อง กดปุ่ม **"นำข้อมูลกรอกลงแบบฟอร์ม"** ได้เลยค่ะ!`;
+      }
+
+      const botResponse = { role: 'model', text: replyText };
+      setChatHistory(prev => [...prev, botResponse]);
+      setMessages(prev => [...prev, { sender: 'bot', text: replyText, timestamp: new Date(), extractedData: merged }]);
+
+    } catch (err) {
+      // Fallback to rule-based if API fails
+      const nextExtraction = parseNaturalLanguage(userText, currentExtraction);
+      setCurrentExtraction(nextExtraction);
+      const fallbackText = nextExtraction.clarification_question
+        ? `⚠️ (Offline mode) ${nextExtraction.clarification_question}`
+        : `🎉 (Offline mode) ข้อมูลครบแล้ว กดปุ่มนำข้อมูลกรอกลงแบบฟอร์มได้เลยค่ะ!`;
+      setMessages(prev => [...prev, { sender: 'bot', text: fallbackText, timestamp: new Date() }]);
+    } finally {
       setIsTyping(false);
-    }, 1200);
+    }
   };
 
   const handleApplyToForm = () => {

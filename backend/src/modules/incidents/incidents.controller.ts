@@ -157,4 +157,64 @@ export class IncidentsController {
   remove(@Param('id') id: string) {
     return this.incidentsService.remove(+id);
   }
+
+  @Post('ai-chat')
+  @ApiOperation({ summary: 'Chat with AI assistant to extract incident data from natural language' })
+  async aiChat(@Body() body: { messages: { role: string; text: string }[] }) {
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+    const systemPrompt = `Role & Persona:
+คุณคือ AI ผู้ช่วยอัจฉริยะสำหรับระบบบริหารความเสี่ยงโรงพยาบาล (Hospital Risk Management System - HRMS) หน้าที่หลักของคุณคือการวิเคราะห์ข้อความที่บุคลากรทางการแพทย์รายงานเหตุการณ์ความเสี่ยง (Natural Language) และสกัดข้อมูลเพื่อนำไปกรอกลงในฟอร์มของระบบอัตโนมัติได้อย่างแม่นยำ
+
+Instructions:
+เมื่อได้รับข้อความจากผู้ใช้ ให้คุณสกัดข้อมูลออกมาในรูปแบบ JSON เสมอ โดยมีโครงสร้างดังนี้:
+{
+  "date_report": "YYYY-MM-DD หรือ null",
+  "time_report": "HH:MM หรือ null",
+  "duration_name": "เช้า หรือ บ่าย หรือ ดึก หรือ null",
+  "location_name": "ชื่อสถานที่หรือ null",
+  "riskstore_name": "ชื่อความเสี่ยงหรือ null",
+  "level_id": "A, B, C, D, E, F, G, H, หรือ I หรือ null",
+  "affected": ["ผู้ป่วย", "เจ้าหน้าที่", "ญาติ"] หรือ null,
+  "detail": "สรุปเหตุการณ์ด้วยภาษาทางการแพทย์หรือ null",
+  "clarification_question": "คำถามถามผู้ใช้หากข้อมูลไม่ครบ หรือ null ถ้าข้อมูลครบแล้ว"
+}
+
+ระดับความรุนแรง: A=ไม่มีความเสี่ยง, B=ไม่เกิดอันตราย, C=บาดเจ็บเล็กน้อย, D=บาดเจ็บปานกลาง, E=บาดเจ็บรุนแรง, F=พิการถาวร/บาดเจ็บรุนแรงมาก, G=ใกล้เสียชีวิต, H=วิกฤต/CPR, I=เสียชีวิต
+
+Rules:
+- ตอบ ONLY JSON เท่านั้น ไม่มีข้อความอื่น
+- วันที่ปัจจุบัน: ${new Date().toISOString().split('T')[0]}
+- ถ้าข้อมูลสำคัญขาดหายหรือคลุมเครือ ให้ถามในฟิลด์ clarification_question ด้วยภาษาที่เป็นมิตรและเป็นธรรมชาติ
+- ถ้าข้อมูลครบถ้วนแล้ว ให้ clarification_question เป็น null`;
+
+    const history = body.messages.slice(0, -1).map(m => ({
+      role: m.role === 'user' ? 'user' : 'model',
+      parts: [{ text: m.text }],
+    }));
+    const lastMessage = body.messages[body.messages.length - 1].text;
+
+    const chat = model.startChat({
+      history: [
+        { role: 'user', parts: [{ text: systemPrompt }] },
+        { role: 'model', parts: [{ text: '{"clarification_question": "สวัสดีค่ะ! กรุณาเล่าเหตุการณ์ความเสี่ยงที่เกิดขึ้นได้เลยค่ะ"}' }] },
+        ...history,
+      ],
+    });
+
+    const result = await chat.sendMessage(lastMessage);
+    const rawText = result.response.text().trim();
+
+    // Strip markdown code fences if any
+    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+
+    try {
+      const parsed = JSON.parse(cleaned);
+      return parsed;
+    } catch {
+      return { clarification_question: 'ขออภัยค่ะ เกิดข้อผิดพลาดในการประมวลผล กรุณาลองอีกครั้งนะคะ', raw: cleaned };
+    }
+  }
 }
