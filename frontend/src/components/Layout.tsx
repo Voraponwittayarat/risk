@@ -30,6 +30,9 @@ export function cn(...inputs: ClassValue[]) {
 export default function Layout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState<number>(0);
+  const [myReportedCount, setMyReportedCount] = useState<number>(0);
+  const [deptReviewCount, setDeptReviewCount] = useState<number>(0);
+  const [teamReviewCount, setTeamReviewCount] = useState<number>(0);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -41,6 +44,15 @@ export default function Layout() {
       .then(res => {
         if (res.data?.pending !== undefined) {
           setPendingCount(res.data.pending);
+        }
+        if (res.data?.myReportedThisMonth !== undefined) {
+          setMyReportedCount(res.data.myReportedThisMonth);
+        }
+        if (res.data?.deptReviewCount !== undefined) {
+          setDeptReviewCount(res.data.deptReviewCount);
+        }
+        if (res.data?.teamReviewCount !== undefined) {
+          setTeamReviewCount(res.data.teamReviewCount);
         }
       })
       .catch(console.error);
@@ -73,7 +85,8 @@ export default function Layout() {
           name: 'ความเสี่ยงที่คุณรายงาน', 
           path: '/my-reported', 
           icon: FileText,
-          badge: null
+          badge: myReportedCount > 0 ? `${myReportedCount}` : null,
+          badgeColor: 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
         },
         { 
           name: 'ทบทวนเวชระเบียน Trigger Tool', 
@@ -98,7 +111,8 @@ export default function Layout() {
           name: 'ทบทวนความเสี่ยงหน่วยงานคุณ', 
           path: '/incidents/dept', 
           icon: Building2,
-          badge: null
+          badge: deptReviewCount > 0 ? `${deptReviewCount}` : null,
+          badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold'
         },
         // Only show team management if user belongs to a team or is admin
         ...((user?.teamId || user?.role === 'admin' || user?.accessrules === '1' || user?.accessrules === 'admin') ? [
@@ -106,7 +120,8 @@ export default function Layout() {
             name: 'ทบทวนความเสี่ยงทีมคุณ',
             path: '/incidents/team',
             icon: Users,
-            badge: 'ทีม'
+            badge: teamReviewCount > 0 ? `${teamReviewCount}` : null,
+            badgeColor: 'bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold'
           }
         ] : []),
         { 

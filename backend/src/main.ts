@@ -24,6 +24,7 @@ async function bootstrap() {
     console.log(`Using upload directory at: ${uploadDir}`);
   }
   app.use('/uploads', express.static(uploadDir));
+  app.use('/riskimage', express.static(uploadDir));
 
   const config = new DocumentBuilder()
     .setTitle('Hospital Risk Management API')

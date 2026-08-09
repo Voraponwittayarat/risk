@@ -11,6 +11,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/uploads': { target: 'http://localhost:3000' },
+      '/riskimage': { target: 'http://localhost:3000' },
       '/trigger-tools': { target: 'http://localhost:3000', bypass: (req) => req.headers.accept?.includes('html') ? '/index.html' : undefined },
       '/rca': { target: 'http://localhost:3000', bypass: (req) => req.headers.accept?.includes('html') ? '/index.html' : undefined },
       '/incidents': { target: 'http://localhost:3000', bypass: (req) => req.headers.accept?.includes('html') ? '/index.html' : undefined },

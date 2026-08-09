@@ -7,14 +7,18 @@ export class IncidentsService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async buildScopingFilter(user: any, status_risk?: string, scope_type?: string) {
+    // If team scope is requested, enforce team filtering for all roles (including Admin & unauthenticated)
+    if (scope_type === 'team') {
+      if (user?.teamId) {
+        return { sendto_team_id: Number(user.teamId) };
+      }
+      return { sendto_team_id: { not: null } };
+    }
+
     if (!user) return {};
+
     const isAdmin = user.accessrules === '1' || user.role === 'admin' || user.accessrules === 'admin';
     if (isAdmin) return {};
-
-    // If team scope is requested and user has a team, return team-scoped filter immediately for any role
-    if (scope_type === 'team' && user.teamId) {
-      return { sendto_team_id: user.teamId };
-    }
 
     const isRmCommittee = user.rmStatus === '1' || user.role === 'rm_committee' || user.accessrules === 'rm_committee';
     const isHeadOfGroup = user.priority === '1' || user.role === 'head' || user.accessrules === 'head';
@@ -420,7 +424,12 @@ export class IncidentsService {
       ],
     };
 
-    const [all, pending, returnedForEdit, verified, reviewing, forwarded, closed, notRisk, sentinel] = await Promise.all([
+    const userId = Number(user?.id || user?.userId || user?.sub);
+    const today = new Date();
+    const startOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
+    const endOfCurrentMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const [all, pending, returnedForEdit, verified, reviewing, forwarded, closed, notRisk, sentinel, myReportedThisMonth] = await Promise.all([
       countWith({}),
       countWith({ status_risk: 'รายงาน' }),
       countWith({ status_risk: 'แก้ไข' }),
@@ -430,9 +439,41 @@ export class IncidentsService {
       countWith({ status_risk: 'จำหน่าย' }),
       countWith({ status_risk: 'ไม่ใช่ความเสี่ยง' }),
       countWith(sentinelExtra),
+      userId ? this.prisma.riskregister.count({
+        where: {
+          created_by: userId,
+          register_date: {
+            gte: startOfCurrentMonth,
+            lte: endOfCurrentMonth
+          }
+        }
+      }) : 0,
     ]);
 
-    return { all, pending, returnedForEdit, verified, reviewing, forwarded, closed, notRisk, sentinel };
+    const teamScoping = await this.buildScopingFilter(user, undefined, 'team');
+    const teamReviewCount = await this.prisma.riskregister.count({
+      where: {
+        AND: [
+          teamScoping,
+          { status_risk: { in: ['ตรวจสอบ', 'แก้ไข'] } }
+        ]
+      }
+    });
+
+    return { 
+      all, 
+      pending, 
+      returnedForEdit, 
+      verified, 
+      reviewing, 
+      forwarded, 
+      closed, 
+      notRisk, 
+      sentinel, 
+      myReportedThisMonth,
+      deptReviewCount: verified + returnedForEdit,
+      teamReviewCount
+    };
   }
 
   async getMyReported(user: any, fiscalYearParam?: string) {
@@ -770,6 +811,36 @@ export class IncidentsService {
       }
     }
 
+    // Get automatic Level Warning from levelwarning table based on severity (level_id)
+    const lvl = (incident.level_id || '').toUpperCase().trim();
+    let warningCode = 'RV1';
+    if (['1', 'A', 'B'].includes(lvl)) warningCode = 'RV1';
+    else if (['2', 'C', 'D'].includes(lvl)) warningCode = 'RV2';
+    else if (['3', 'E', 'F'].includes(lvl)) warningCode = 'RV3';
+    else if (['4', '5', 'G', 'H', 'I'].includes(lvl)) warningCode = 'RV4';
+
+    let levelWarning: any = null;
+    try {
+      levelWarning = await this.prisma.levelwarning.findFirst({
+        where: { warning_code: warningCode }
+      });
+    } catch (e) {
+      // ignore
+    }
+
+    if (!levelWarning) {
+      const fallbacks: Record<string, string> = {
+        RV1: 'ทบทวน 14 วัน (ความเสี่ยงทั่วไประดับ 1,คลินิกระดับ A,B)',
+        RV2: 'ทบทวน 7 วัน (ความเสี่ยงทั่วไประดับ 2,คลินิกระดับ C,D)',
+        RV3: 'ทบทวนภายใน 3 วัน (ความเสี่ยงทั่วไประดับ 3,คลินิกระดับ E,F)',
+        RV4: 'ทบทวนภายใน 24 ชม. (ความเสี่ยงทั่วไประดับ 4,5,คลินิกระดับ G,H,I)',
+      };
+      levelWarning = {
+        warning_code: warningCode,
+        warning_name: fallbacks[warningCode] || 'ทบทวน 14 วัน'
+      };
+    }
+
     return {
       ...incident,
       department_name: departmentName,
@@ -778,6 +849,7 @@ export class IncidentsService {
       sendto_team_name: sendtoTeamName,
       sendto_department_name: sendtoDeptName,
       risk_topic_name: riskTopicName,
+      level_warning: levelWarning,
       reviews: enrichedReviews,
     };
   }
@@ -809,6 +881,7 @@ export class IncidentsService {
       inform_id: data.inform_id ? Number(data.inform_id) : 0,
       status_risk: data.status_risk || 'รายงาน', // Default legacy status: รายงาน (รอยืนยัน)
       department_id: data.department_id ? data.department_id.toString() : (user?.department_id?.toString() || '1'),
+      image: data.image || null,
       register_date: new Date(),
       created_by: user?.id || 1,
       create_date: new Date(),
@@ -952,11 +1025,12 @@ export class IncidentsService {
       }
     });
 
-    // Update riskregister status to 'ทบทวน'
+    // Update riskregister status: if currently 'รายงาน' (Pending), auto-confirm to 'ตรวจสอบ'
+    const targetStatus = (incident.status_risk === 'รายงาน' || incident.status_risk === 'แก้ไข') ? 'ตรวจสอบ' : (incident.status_risk || 'ทบทวน');
     await this.prisma.riskregister.updateMany({
       where: { id },
       data: {
-        status_risk: 'ทบทวน',
+        status_risk: targetStatus,
         modify_date: new Date(),
         updated_by: user?.id || 1,
       }

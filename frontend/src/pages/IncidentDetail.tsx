@@ -8,7 +8,7 @@ import {
   MessageSquare, Check, X, ShieldAlert,
   Calendar, Sparkles, RefreshCw, History, Target,
   ChevronDown, ChevronUp, Share2, Users, Send,
-  Printer, Edit3, Layers, ShieldCheck, ArrowRight
+  Printer, Edit3, Layers, ShieldCheck, ArrowRight, RotateCcw, Building2, Clock
 } from 'lucide-react';
 import { getStatusInfo, getSeverityBadge, isSentinelEvent } from '../utils/statusAdapter';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,6 +21,7 @@ export default function IncidentDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedLightboxImage, setSelectedLightboxImage] = useState<string | null>(null);
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
   // Linked RCA State (Standard & Mini)
   const [linkedRca, setLinkedRca] = useState<{ standardCases: any[]; miniConciseCases: any[] } | null>(null);
@@ -96,6 +97,34 @@ export default function IncidentDetail() {
     }
   };
 
+  const handleDirectReturn = async () => {
+    if (!incident) return;
+    const note = window.prompt('กรุณาระบุเหตุผลหรือข้อความที่ต้องการส่งกลับแก้ไข:');
+    if (note === null) return;
+
+    setSubmittingAction(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(
+        `/incidents/${incident.id}/status`,
+        {
+          status_risk: 'แก้ไข',
+          note: note.trim() || 'ส่งกลับให้ผู้รายงานแก้ไขข้อมูล',
+          department_id: incident.department_id ? String(incident.department_id) : '',
+          sendto_department_id: incident.sendto_department_id ? String(incident.sendto_department_id) : '',
+        },
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      setSaveSuccessMsg('🟠 ส่งกลับให้ผู้รายงานแก้ไขเรียบร้อยแล้ว!');
+      setTimeout(() => setSaveSuccessMsg(''), 4000);
+      fetchDetail();
+    } catch (err: any) {
+      alert('เกิดข้อผิดพลาดในการดำเนินการ: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
   const handleConfirmSubmit = async (targetStatus: 'ตรวจสอบ' | 'แก้ไข') => {
     if (!incident) return;
     setSubmittingConfirm(true);
@@ -122,60 +151,6 @@ export default function IncidentDetail() {
     }
   };
 
-  const handleQuickAssignReviewDept = async (newDeptId: string) => {
-    if (!incident) return;
-    const selectedDept = departmentsList.find(d => String(d.id) === String(newDeptId));
-    
-    // ถ้าเลือกกลับมาเป็นแผนกตัวเอง ให้เปลี่ยนลักษณะการรายงานเป็น "ตนเอง" และเคลียร์เป้าหมายส่งต่อ
-    const isSelf = newDeptId && String(newDeptId) === String(incident.department_id);
-    const targetDeptId = isSelf ? null : (newDeptId ? String(newDeptId) : null);
-    const autoIrType = isSelf ? 'ตนเอง' : (newDeptId ? 'ผู้อื่น' : 'ตนเอง');
-
-    // Optimistic UI update for immediate response
-    setIncident((prev: any) => ({
-      ...prev,
-      sendto_department_id: targetDeptId,
-      sendto_department_name: selectedDept?.depart_name || prev?.sendto_department_name,
-      user_ir_type: autoIrType
-    }));
-
-    setSubmittingAction(true);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await axios.patch(
-        `/incidents/${incident.id}/status`,
-        {
-          status_risk: incident.status_risk,
-          sendto_department_id: targetDeptId,
-          user_ir_type: autoIrType,
-          note: `ปรับเปลี่ยนหน่วยงานรับผิดชอบทบทวนหลักเป็น ${selectedDept?.depart_name || 'ไม่ระบุ'} (${autoIrType})`
-        },
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
-      
-      // Update state directly from the patched response to avoid race conditions and browser caching issues
-      if (res.data) {
-        setIncident(res.data);
-      }
-      
-      setSaveSuccessMsg(`✅ เปลี่ยนหน่วยงานรับผิดชอบหลักเป็น "${selectedDept?.depart_name || 'ไม่ระบุ'}" (ลักษณะการรายงาน: ${autoIrType}) เรียบร้อยแล้ว!`);
-      setTimeout(() => setSaveSuccessMsg(''), 4000);
-      
-      // Fetch linked RCA cases for this incident (if needed) to ensure sync
-      axios.get(`/rca/by-incident/${incident.id}`)
-        .then(res => {
-          if (res.data) setLinkedRca(res.data);
-        })
-        .catch(err => console.log('No linked RCA found:', err));
-        
-    } catch (err: any) {
-      alert('เกิดข้อผิดพลาดในการเลือกหน่วยงาน: ' + (err.response?.data?.message || err.message));
-      // Revert optimistic UI on failure
-      fetchDetail();
-    } finally {
-      setSubmittingAction(false);
-    }
-  };
 
   const isAdminOrRm = user?.role === 'admin' || user?.accessrules === '1' || user?.accessrules === 'admin' || user?.rmStatus === '1' || user?.role === 'rm_committee';
   const isHeadOfGroup = user?.priority === '1' || user?.role === 'head' || user?.accessrules === 'head';
@@ -493,8 +468,57 @@ export default function IncidentDetail() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-16">
+      {/* Official A4 Print CSS Styles */}
+      <style>{`
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 12mm 12mm 12mm 12mm;
+          }
+          body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            font-size: 10pt !important;
+            font-family: 'Sarabun', 'TH Sarabun PSK', sans-serif !important;
+          }
+          .no-print, header, aside, nav, button, a[href="#review-workstation"], .no-print-area {
+            display: none !important;
+          }
+          .print-only {
+            display: flex !important;
+          }
+          .print-footer-signatures {
+            display: block !important;
+          }
+          .dark {
+            color-scheme: light !important;
+          }
+        }
+      `}</style>
+
+      {/* Official Hospital Print Header for A4 */}
+      <div className="hidden print-only print-header flex-row items-center justify-between pb-3 mb-4 border-b-2 border-slate-900 text-black">
+        <div className="flex items-center gap-3.5">
+          <img src="/logo.png" alt="Hospital Logo" className="w-16 h-16 object-contain shrink-0" />
+          <div>
+            <h1 className="text-xl font-black text-slate-900 tracking-tight leading-tight">โรงพยาบาลวังเจ้า (WANGCHAO HOSPITAL)</h1>
+            <h2 className="text-sm font-bold text-slate-800">แบบบันทึกรายงานอุบัติการณ์และความเสี่ยงทางคลินิก/ทั่วไป (INCIDENT REPORT)</h2>
+            <p className="text-xs text-slate-600 font-medium">กลุ่มงานบริหารจัดการความเสี่ยงและพัฒนาระบบคุณภาพ (RM & Quality Assurance System)</p>
+          </div>
+        </div>
+        <div className="text-right text-xs space-y-1 shrink-0">
+          <div className="font-mono font-bold text-sm border border-slate-900 px-2.5 py-1 rounded bg-slate-100 text-slate-900">
+            เลขที่เอกสาร: #{incident?.id}
+          </div>
+          <div>รหัส IR: <strong>{incident?.id_risk}</strong></div>
+          <div>วันที่พิมพ์: {format(new Date(), 'dd/MM/yyyy HH:mm')}</div>
+        </div>
+      </div>
+
       {/* Top Navigation Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Link 
           to="/incidents" 
           className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 text-sm font-medium border border-slate-200 dark:border-slate-700 shadow-xs transition-all w-fit"
@@ -599,6 +623,14 @@ export default function IncidentDetail() {
               <span className={`inline-flex items-center px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-sm ${severity.badgeClass}`}>
                 ความรุนแรงระดับ {severity.label}
               </span>
+
+              {/* Automatic Level Warning Badge */}
+              {incident.level_warning && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-amber-500/15 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-500/30 shadow-xs" title={incident.level_warning.warning_name}>
+                  <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  {incident.level_warning.warning_code}: {incident.level_warning.warning_name}
+                </span>
+              )}
             </div>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded-md font-mono font-semibold text-slate-600 dark:text-slate-300 text-xs">
@@ -611,34 +643,8 @@ export default function IncidentDetail() {
 
           </div>
 
-          {/* Quick Actions for Supervisor & Committee */}
+          {/* Jump to Review Workstation */}
           <div className="flex flex-wrap items-center gap-2.5">
-
-            {/* If status is report or edit, allow Supervisor confirmation */}
-            {(incident.status_risk === 'รายงาน' || incident.status_risk === 'แก้ไข') && (
-              <button
-                onClick={handleDirectConfirm}
-                disabled={submittingAction}
-                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md shadow-blue-600/20 transition-all cursor-pointer"
-              >
-                <Check className="w-4 h-4" />
-                ยืนยันความเสี่ยง
-              </button>
-            )}
-
-            {/* Co-Review Forward Button (Team Leads / Committees) */}
-            {incident.status_risk !== 'จำหน่าย' && (
-              <button
-                type="button"
-                onClick={() => setIsForwardModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/60 border border-purple-200 dark:border-purple-800 rounded-xl font-semibold text-sm shadow-xs transition-all cursor-pointer"
-              >
-                <Share2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                ส่งต่อทีมนำร่วมทบทวน
-              </button>
-            )}
-
-            {/* Jump to Review Workstation */}
             {incident.status_risk !== 'จำหน่าย' && (
               <a
                 href="#review-workstation"
@@ -681,32 +687,7 @@ export default function IncidentDetail() {
           {/* Incident Description */}
           <div className="space-y-4">
             {/* Primary Responsible Reviewing Department Card */}
-            {incident.status_risk !== 'จำหน่าย' && (
-              <div className="p-4 rounded-2xl bg-purple-50/80 dark:bg-purple-950/40 border-2 border-purple-200 dark:border-purple-800 shadow-xs space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-extrabold text-purple-950 dark:text-purple-200 uppercase tracking-wider flex items-center gap-1.5">
-                    🏢 หน่วยงานที่รับผิดชอบทบทวนหลัก
-                  </label>
-                  <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900 px-2.5 py-0.5 rounded-lg border border-purple-200 dark:border-purple-800">
-                    Primary Action Dept
-                  </span>
-                </div>
-                <select
-                  value={incident.sendto_department_id ? String(incident.sendto_department_id) : (incident.department_id ? String(incident.department_id) : '')}
-                  onChange={e => handleQuickAssignReviewDept(e.target.value)}
-                  disabled={isClosed || submittingAction}
-                  className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 text-purple-950 dark:text-purple-200 font-extrabold rounded-xl text-sm border-2 border-purple-300 dark:border-purple-700 focus:ring-2 focus:ring-purple-500 cursor-pointer shadow-xs disabled:opacity-75 disabled:cursor-not-allowed"
-                >
-                  <option value="">-- เลือกหน่วยงานรับผิดชอบหลัก --</option>
-                  {departmentsList.map((d: any) => (
-                    <option key={d.id} value={d.id}>🏢 {d.depart_name || d.name}</option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-purple-800 dark:text-purple-300 font-medium flex items-center gap-1">
-                  💡 *หน่วยงานปลายทางที่จะเป็นผู้รับผิดชอบดำเนินการวิเคราะห์สาเหตุและทบทวนความเสี่ยงฉบับนี้*
-                </p>
-              </div>
-            )}
+
             <div>
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">รายละเอียดเหตุการณ์ที่เกิดขึ้น</label>
               <div className="mt-1.5 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">
@@ -723,6 +704,17 @@ export default function IncidentDetail() {
                     const imgUrl = imgName.startsWith('http') || imgName.startsWith('/') 
                       ? imgName 
                       : `/uploads/${imgName}`;
+
+                    if (failedImages[imgName]) {
+                      return (
+                        <div key={idx} className="aspect-video sm:aspect-square rounded-xl border border-dashed border-amber-300 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 p-3 flex flex-col items-center justify-center text-center gap-1.5 text-amber-600 dark:text-amber-400">
+                          <AlertTriangle className="w-5 h-5 text-amber-500" />
+                          <span className="text-[11px] font-bold">ไม่พบไฟล์รูปบนเซิร์ฟเวอร์</span>
+                          <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500 truncate max-w-[130px]" title={imgName}>{imgName}</span>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div 
                         key={idx} 
@@ -737,6 +729,8 @@ export default function IncidentDetail() {
                             const target = e.target as HTMLImageElement;
                             if (!target.src.includes('/riskimage/')) {
                               target.src = `/riskimage/${imgName}`;
+                            } else {
+                              setFailedImages(prev => ({ ...prev, [imgName]: true }));
                             }
                           }}
                         />
@@ -765,6 +759,57 @@ export default function IncidentDetail() {
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">การแก้ไขปัญหาเบื้องต้น ณ ที่เกิดเหตุ</label>
               <div className="mt-1.5 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-sm">
                 {incident.edit || 'ยังไม่ได้ระบุ'}
+              </div>
+
+              {/* Action Buttons right under Immediate Problem Solving */}
+              <div className="flex flex-wrap items-center gap-2.5 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                {(incident.status_risk === 'รายงาน' || incident.status_risk === 'แก้ไข') && (
+                  <>
+                    <button
+                      onClick={handleDirectConfirm}
+                      disabled={submittingAction}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                    >
+                      <Check className="w-4 h-4" />
+                      ยืนยันความเสี่ยง
+                    </button>
+                    <button
+                      onClick={handleDirectReturn}
+                      disabled={submittingAction}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-sm shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      ส่งกลับแก้ไข
+                    </button>
+                  </>
+                )}
+
+                {incident.status_risk !== 'จำหน่าย' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForwardTargetType('team');
+                        setIsForwardModalOpen(true);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/60 border border-purple-200 dark:border-purple-800 rounded-xl font-semibold text-sm shadow-xs transition-all cursor-pointer"
+                    >
+                      <Share2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      ส่งต่อทีมนำร่วมทบทวน
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForwardTargetType('department');
+                        setIsForwardModalOpen(true);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 rounded-xl font-semibold text-sm shadow-xs transition-all cursor-pointer"
+                    >
+                      <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      ส่งต่อหน่วยงานอื่นร่วมทบทวน
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -850,6 +895,16 @@ export default function IncidentDetail() {
               {incident.note && (
                 <div className="text-xs text-purple-900 dark:text-purple-300 bg-purple-50/80 dark:bg-purple-950/40 p-2.5 rounded-lg border border-purple-200/80 dark:border-purple-800/60 mt-1.5">
                   <span className="font-bold">📝 ประเด็นขอคำปรึกษา/ร่วมทบทวน:</span> {incident.note}
+                </div>
+              )}
+
+              {/* Level Warning Rule Box */}
+              {incident.level_warning && (
+                <div className="text-xs text-amber-900 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-950/40 p-2.5 rounded-lg border border-amber-300/60 dark:border-amber-800/60 mt-1.5 flex items-center gap-2 font-medium">
+                  <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>
+                    <strong>⏱️ กำหนดเวลาทบทวนตามระดับความรุนแรง ({incident.level_warning.warning_code}):</strong> {incident.level_warning.warning_name}
+                  </span>
                 </div>
               )}
 
@@ -2025,6 +2080,28 @@ export default function IncidentDetail() {
           </div>
         </div>
       )}
+
+      {/* Official Signatures Block for A4 Print */}
+      <div className="hidden print-only print-footer-signatures mt-8 pt-4 border-t-2 border-slate-900 text-xs text-black page-break-inside-avoid">
+        <h3 className="font-bold mb-6 text-sm text-slate-900">ส่วนที่ 4: การลงนามรับรองและการติดตามผลการบริหารความเสี่ยง (Official Signatures)</h3>
+        <div className="grid grid-cols-3 gap-6 text-center">
+          <div className="space-y-6">
+            <p className="font-bold">ลงชื่อ....................................................</p>
+            <p className="font-medium">({user?.name || '....................................................'})<br/><span className="text-[11px] text-slate-700">ผู้รายงาน / ผู้รับแจ้งเหตุ</span></p>
+            <p>วันที่ .......... / .......... / ..........</p>
+          </div>
+          <div className="space-y-6">
+            <p className="font-bold">ลงชื่อ....................................................</p>
+            <p className="font-medium">(....................................................)<br/><span className="text-[11px] text-slate-700">หัวหน้างาน / ผู้รับผิดชอบหน่วยงาน</span></p>
+            <p>วันที่ .......... / .......... / ..........</p>
+          </div>
+          <div className="space-y-6">
+            <p className="font-bold">ลงชื่อ....................................................</p>
+            <p className="font-medium">(....................................................)<br/><span className="text-[11px] text-slate-700">ประธานคณะกรรมการบริหารความเสี่ยง (RM)</span></p>
+            <p>วันที่ .......... / .......... / ..........</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

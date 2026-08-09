@@ -192,7 +192,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
 
   const tabs = [
     { id: 'all', label: 'ทั้งหมด', countKey: 'all' },
-    { id: 'รายงาน', label: 'รอยืนยัน', countKey: 'pending' },
+    ...(mode === 'dept' || mode === 'team' ? [] : [{ id: 'รายงาน', label: 'รอยืนยัน', countKey: 'pending' }]),
     { id: 'แก้ไข', label: 'ส่งกลับแก้ไข', countKey: 'returnedForEdit' },
     { id: 'ตรวจสอบ', label: 'ยืนยันแล้ว / รอแก้ไข', countKey: 'verified' },
     { id: 'ทบทวน', label: 'อยู่ระหว่างทบทวน / RCA', countKey: 'reviewing' },

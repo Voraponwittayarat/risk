@@ -906,167 +906,179 @@ export default function Reports() {
         }
       `}</style>
 
-      {/* Top Header Banner (Hidden on Print) */}
-      <div className="no-print bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl border border-slate-800 relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-semibold tracking-wider uppercase backdrop-blur-sm">
-              <Award className="w-3.5 h-3.5 text-indigo-400" />
-              Proactive Hospital Risk Register & 2P Safety System
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
-              <Building className="w-8 h-8 text-indigo-400" />
-              ทะเบียนความเสี่ยงและแผนบริหารจัดการความเสี่ยง (Risk Register)
-            </h1>
+      {/* Top Header Banner (Minimal & Professional) */}
+      <div className="no-print bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200/80 dark:border-slate-700/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all">
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs font-semibold tracking-wide">
+            <Award className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+            Proactive Risk Management & 2P Safety System
           </div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
+            <Building className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+            ทะเบียนและความเสี่ยงโรงพยาบาล (Risk Register)
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            ระบบบริหารจัดการความเสี่ยงเชิงรุก มาตรฐาน HA 9 ด้าน และการติดตามประเมินผลระดับโรงพยาบาล/หน่วยงาน
+          </p>
+        </div>
 
-          {/* Quick Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={handleOpenCreateModal}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-bold text-sm shadow-lg shadow-indigo-500/25 transition duration-200"
-            >
-              <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-              ลงทะเบียนความเสี่ยงใหม่ (Auto-Fill)
-            </button>
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={handleOpenCreateModal}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm rounded-xl shadow-xs transition-all cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            + ลงทะเบียนความเสี่ยงใหม่
+          </button>
 
-            <button
-              onClick={exportToCSV}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-semibold text-sm backdrop-blur-sm transition"
-              title="ส่งออกเป็นไฟล์ Excel / CSV"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-              ส่งออก CSV
-            </button>
+          <button
+            onClick={exportToCSV}
+            className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-600 transition cursor-pointer"
+            title="ส่งออกเป็นไฟล์ Excel / CSV"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            ส่งออก CSV
+          </button>
 
-            <button
-              onClick={handlePrintTable}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-lg shadow-emerald-600/30 transition"
-              title="พิมพ์ตารางรายงานออกทางเครื่องพิมพ์ (Print Only Table)"
-            >
-              <Printer className="w-4 h-4" />
-              พิมพ์ตารางรายงาน
-            </button>
-          </div>
+          <button
+            onClick={handlePrintTable}
+            className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-600 transition cursor-pointer"
+            title="พิมพ์ตารางรายงานออกทางเครื่องพิมพ์"
+          >
+            <Printer className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+            พิมพ์ตาราง
+          </button>
         </div>
       </div>
 
-      {/* KPI Cards Overview (Hidden on Print) */}
+      {/* KPI Cards Overview */}
       {stats && (
-        <div className="no-print grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
+        <div className="no-print grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+          <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700/80 shadow-xs transition hover:border-indigo-300 dark:hover:border-indigo-700">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500">ความเสี่ยงทั้งหมด</span>
-              <Layers className="w-4 h-4 text-indigo-500" />
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">ความเสี่ยงทั้งหมด</span>
+              <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+                <Layers className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-black text-slate-900">{stats.total}</span>
-              <span className="text-xs text-slate-500 font-medium">รายการ</span>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold text-slate-900 dark:text-white">{stats.total}</span>
+              <span className="text-xs text-slate-400 font-medium">รายการ</span>
             </div>
-            <div className="mt-1 text-[11px] text-slate-500">รพ. {stats.hospitalScopeCount} | แผนก {stats.departmentScopeCount}</div>
+            <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">รพ. {stats.hospitalScopeCount} | แผนก {stats.departmentScopeCount}</div>
           </div>
 
-          <div className="bg-red-50/80 rounded-xl p-4 border border-red-200 shadow-sm hover:shadow-md transition">
+          <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-rose-200/80 dark:border-rose-900/50 shadow-xs transition hover:border-rose-400">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-red-800">วิกฤต (Extreme)</span>
-              <Flame className="w-4 h-4 text-red-600 animate-bounce" />
+              <span className="text-xs font-semibold text-rose-700 dark:text-rose-400">วิกฤต (Extreme)</span>
+              <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
+                <Flame className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-black text-red-600">{stats.extremeCount}</span>
-              <span className="text-xs text-red-600 font-bold">15-25 คะแนน</span>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold text-rose-600 dark:text-rose-400">{stats.extremeCount}</span>
+              <span className="text-xs text-rose-500 font-semibold">15-25 คะแนน</span>
             </div>
-            <div className="mt-1 text-[11px] text-red-700 font-medium">RCA ภายใน 24 ชม.</div>
+            <div className="mt-1 text-[11px] text-rose-600/80 dark:text-rose-400/80 font-medium">RCA ภายใน 24 ชม.</div>
           </div>
 
-          <div className="bg-orange-50/80 rounded-xl p-4 border border-orange-200 shadow-sm hover:shadow-md transition">
+          <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-amber-200/80 dark:border-amber-900/50 shadow-xs transition hover:border-amber-400">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-orange-800">สูง (High)</span>
-              <AlertTriangle className="w-4 h-4 text-orange-600" />
+              <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">สูง (High)</span>
+              <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-black text-orange-600">{stats.highCount}</span>
-              <span className="text-xs text-orange-600 font-bold">9-14 คะแนน</span>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.highCount}</span>
+              <span className="text-xs text-amber-500 font-semibold">9-14 คะแนน</span>
             </div>
-            <div className="mt-1 text-[11px] text-orange-700 font-medium">เฝ้าระวังใกล้ชิด</div>
+            <div className="mt-1 text-[11px] text-amber-600/80 dark:text-amber-400/80 font-medium">เฝ้าระวังใกล้ชิด</div>
           </div>
 
-          <div className="bg-amber-50/80 rounded-xl p-4 border border-amber-200 shadow-sm hover:shadow-md transition">
+          <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700/80 shadow-xs transition hover:border-slate-300 dark:hover:border-slate-600">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-amber-800">ปานกลาง (Medium)</span>
-              <Activity className="w-4 h-4 text-amber-600" />
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">ปานกลาง (Medium)</span>
+              <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                <Activity className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-black text-amber-700">{stats.mediumCount}</span>
-              <span className="text-xs text-amber-700 font-bold">4-8 คะแนน</span>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold text-slate-800 dark:text-slate-200">{stats.mediumCount}</span>
+              <span className="text-xs text-slate-500 font-medium">4-8 คะแนน</span>
             </div>
-            <div className="mt-1 text-[11px] text-amber-700 font-medium">ตามแนวทางมาตรฐาน</div>
+            <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">ตามแนวทางมาตรฐาน</div>
           </div>
 
-          <div className="bg-rose-50/80 rounded-xl p-4 border border-rose-200 shadow-sm hover:shadow-md transition">
+          <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-purple-200/80 dark:border-purple-900/50 shadow-xs transition hover:border-purple-400">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-rose-900">Never Events ⚡</span>
-              <ShieldAlert className="w-4 h-4 text-rose-600" />
+              <span className="text-xs font-semibold text-purple-700 dark:text-purple-400">Never Events ⚡</span>
+              <div className="p-1.5 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400">
+                <ShieldAlert className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-black text-rose-700">{stats.neverEventCount}</span>
-              <span className="text-xs text-rose-700 font-bold">Zero Event</span>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold text-purple-700 dark:text-purple-400">{stats.neverEventCount}</span>
+              <span className="text-xs text-purple-500 font-bold">Zero Event</span>
             </div>
-            <div className="mt-1 text-[11px] text-rose-700 font-medium">ห้ามเกิดเด็ดขาด</div>
+            <div className="mt-1 text-[11px] text-purple-600/80 dark:text-purple-400/80 font-medium">ห้ามเกิดเด็ดขาด</div>
           </div>
 
-          <div className="bg-blue-50/80 rounded-xl p-4 border border-blue-200 shadow-sm hover:shadow-md transition">
+          <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-blue-200/80 dark:border-blue-900/50 shadow-xs transition hover:border-blue-400">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-blue-800">ถึงกำหนดทบทวน</span>
-              <Clock className="w-4 h-4 text-blue-600" />
+              <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">ถึงกำหนดทบทวน</span>
+              <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+                <Clock className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-black text-blue-600">{stats.dueSoonCount}</span>
-              <span className="text-xs text-blue-600 font-bold">ใน 30 วัน</span>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.dueSoonCount}</span>
+              <span className="text-xs text-blue-500 font-semibold">ใน 30 วัน</span>
             </div>
-            <div className="mt-1 text-[11px] text-blue-700 font-medium">แจ้งเตือน Due Date</div>
+            <div className="mt-1 text-[11px] text-blue-600/80 dark:text-blue-400/80 font-medium">แจ้งเตือน Due Date</div>
           </div>
         </div>
       )}
 
-      {/* Main Navigation Tabs (Hidden on Print) */}
-      <div className="no-print bg-white rounded-xl border border-slate-200 shadow-sm p-1.5 flex flex-wrap gap-1">
+      {/* Main Navigation Tabs */}
+      <div className="no-print bg-slate-100/80 dark:bg-slate-800/80 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-wrap gap-1">
         <button
           onClick={() => setActiveTab('hospital')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
             activeTab === 'hospital'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/60 dark:border-slate-700/60'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'
           }`}
         >
           <Building className="w-4 h-4" />
-          ทะเบียนความเสี่ยงระดับโรงพยาบาล (Hospital-wide)
+          ระดับโรงพยาบาล (Hospital-wide)
         </button>
 
         <button
           onClick={() => setActiveTab('department')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
             activeTab === 'department'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/60 dark:border-slate-700/60'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'
           }`}
         >
           <Building className="w-4 h-4" />
-          ทะเบียนความเสี่ยงระดับหน่วยงาน (Departmental)
+          ระดับหน่วยงาน (Departmental)
         </button>
 
         <button
           onClick={() => setActiveTab('due')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition relative ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition relative cursor-pointer ${
             activeTab === 'due'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/60 dark:border-slate-700/60'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'
           }`}
         >
           <Clock className="w-4 h-4" />
-          แจ้งเตือนกำหนดทบทวน (Review Due Schedule)
+          แจ้งเตือนกำหนดทบทวน
           {stats?.dueSoonCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-red-500 text-white">
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white">
               {stats.dueSoonCount}
             </span>
           )}
@@ -1074,10 +1086,10 @@ export default function Reports() {
 
         <button
           onClick={() => setActiveTab('matrix')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
             activeTab === 'matrix'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/60 dark:border-slate-700/60'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'
           }`}
         >
           <Grid className="w-4 h-4" />
@@ -1086,14 +1098,14 @@ export default function Reports() {
 
         <button
           onClick={() => setActiveTab('standards')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
             activeTab === 'standards'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/60 dark:border-slate-700/60'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'
           }`}
         >
           <Target className="w-4 h-4" />
-          มาตรฐานสำคัญจำเป็น 9 ด้าน (HA Goals)
+          มาตรฐานสำคัญ 9 ด้าน (HA Goals)
         </button>
       </div>
 
@@ -1144,102 +1156,99 @@ export default function Reports() {
         </div>
       )}
 
-      {/* FILTER TOOLBAR FOR RISK REGISTERS (Hidden on Print) */}
+      {/* FILTER TOOLBAR FOR RISK REGISTERS */}
       {(activeTab === 'hospital' || activeTab === 'department' || activeTab === 'due') && (
-        <div className="no-print bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
+        <div className="no-print bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700/80 shadow-xs space-y-3">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             {/* Search Input */}
             <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="ค้นหารหัส, ชื่อความเสี่ยง, แหล่งที่มา, ผู้รับผิดชอบ, 2P Safety หรือมาตรฐาน..."
+                placeholder="ค้นหารหัส, ชื่อความเสี่ยง, แหล่งที่มา, ผู้รับผิดชอบ, 2P Safety..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
               />
             </div>
 
-            {/* Department selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-600 whitespace-nowrap flex items-center gap-1">
-                <Building className="w-3.5 h-3.5 text-indigo-600" />
-                เลือกหน่วยงาน:
-              </span>
+            {/* Filter Group */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Department selector */}
               <select
                 value={selectedDept}
                 onChange={e => setSelectedDept(e.target.value)}
-                className="px-3 py-2 text-sm rounded-lg border border-indigo-200 bg-indigo-50/50 text-indigo-900 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="px-3 py-2 text-xs font-semibold rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/70 dark:bg-indigo-950/50 text-indigo-900 dark:text-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
               >
-                <option value="all">ทุกหน่วยงาน (All Departments)</option>
+                <option value="all">ทุกหน่วยงาน (All Depts)</option>
                 {departments.map(d => (
                   <option key={d.id} value={d.id}>{d.depart_name}</option>
                 ))}
               </select>
+
+              {/* Source Filter */}
+              <select
+                value={selectedSource}
+                onChange={e => setSelectedSource(e.target.value)}
+                className="px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+              >
+                <option value="all">ทุกแหล่งที่มา</option>
+                <option value="มาตรฐานสำคัญ 9 ด้าน">มาตรฐานสำคัญ 9 ด้าน</option>
+                <option value="รายงานอุบัติการณ์">รายงานอุบัติการณ์</option>
+                <option value="เรื่องที่หน่วยงานให้ความสำคัญ">เรื่องที่หน่วยงานให้ความสำคัญ</option>
+                <option value="ทบทวนเวชระเบียน">ทบทวนเวชระเบียน</option>
+              </select>
+
+              {/* Category Filter */}
+              <select
+                value={selectedCategory}
+                onChange={e => setSelectedCategory(e.target.value)}
+                className="px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+              >
+                <option value="all">ทุกหมวดหมู่</option>
+                <option value="Clinical">Clinical Risk (ทางคลินิก)</option>
+                <option value="Non-Clinical">Non-Clinical Risk (สิ่งแวดล้อม/อาคาร)</option>
+                <option value="Personnel">Personnel Safety (ความปลอดภัยบุคลากร)</option>
+              </select>
+
+              {/* Level Filter */}
+              <select
+                value={selectedRiskLevel}
+                onChange={e => setSelectedRiskLevel(e.target.value)}
+                className="px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+              >
+                <option value="all">ทุกระดับคะแนน</option>
+                <option value="red">🔴 Extreme (วิกฤต 15-25)</option>
+                <option value="orange">🟠 High (สูง 9-14)</option>
+                <option value="yellow">🟡 Medium (ปานกลาง 4-8)</option>
+                <option value="green">🟢 Low (ต่ำ 1-3)</option>
+              </select>
+
+              {/* Status Filter */}
+              <select
+                value={selectedStatus}
+                onChange={e => setSelectedStatus(e.target.value)}
+                className="px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+              >
+                <option value="all">ทุกสถานะ</option>
+                <option value="open">เปิด (Open)</option>
+                <option value="monitoring">เฝ้าระวังต่อเนื่อง (Monitoring)</option>
+                <option value="closed">ปิด (Closed)</option>
+              </select>
+
+              {/* Never Event Toggle */}
+              <button
+                onClick={() => setOnlyNeverEvents(!onlyNeverEvents)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition border cursor-pointer ${
+                  onlyNeverEvents
+                    ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
+                Never Events
+              </button>
             </div>
-
-            {/* Source Filter */}
-            <select
-              value={selectedSource}
-              onChange={e => setSelectedSource(e.target.value)}
-              className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            >
-              <option value="all">ทุกแหล่งที่มา (All Sources)</option>
-              <option value="มาตรฐานสำคัญ 9 ด้าน">มาตรฐานสำคัญ 9 ด้าน</option>
-              <option value="รายงานอุบัติการณ์">รายงานอุบัติการณ์</option>
-              <option value="เรื่องที่หน่วยงานให้ความสำคัญ">เรื่องที่หน่วยงานให้ความสำคัญ</option>
-              <option value="ทบทวนเวชระเบียน">ทบทวนเวชระเบียน</option>
-            </select>
-
-            {/* Category Filter */}
-            <select
-              value={selectedCategory}
-              onChange={e => setSelectedCategory(e.target.value)}
-              className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            >
-              <option value="all">ทุกหมวดหมู่ (All Categories)</option>
-              <option value="Clinical">Clinical Risk (ทางคลินิก)</option>
-              <option value="Non-Clinical">Non-Clinical Risk (สิ่งแวดล้อม/อาคาร)</option>
-              <option value="Personnel">Personnel Safety (ความปลอดภัยบุคลากร)</option>
-            </select>
-
-            {/* Level Filter */}
-            <select
-              value={selectedRiskLevel}
-              onChange={e => setSelectedRiskLevel(e.target.value)}
-              className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            >
-              <option value="all">ทุกระดับคะแนน (All Levels)</option>
-              <option value="red">🔴 Extreme (วิกฤต 15-25)</option>
-              <option value="orange">🟠 High (สูง 9-14)</option>
-              <option value="yellow">🟡 Medium (ปานกลาง 4-8)</option>
-              <option value="green">🟢 Low (ต่ำ 1-3)</option>
-            </select>
-
-            {/* Status Filter */}
-            <select
-              value={selectedStatus}
-              onChange={e => setSelectedStatus(e.target.value)}
-              className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            >
-              <option value="all">ทุกสถานะ</option>
-              <option value="open">เปิด (Open)</option>
-              <option value="monitoring">เฝ้าระวังต่อเนื่อง (Monitoring)</option>
-              <option value="closed">ปิด (Closed)</option>
-            </select>
-
-            {/* Never Event Toggle */}
-            <button
-              onClick={() => setOnlyNeverEvents(!onlyNeverEvents)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition border ${
-                onlyNeverEvents
-                  ? 'bg-rose-600 text-white border-rose-700 shadow-sm'
-                  : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-              }`}
-            >
-              <ShieldAlert className="w-3.5 h-3.5" />
-              Never Events Only
-            </button>
           </div>
         </div>
       )}
