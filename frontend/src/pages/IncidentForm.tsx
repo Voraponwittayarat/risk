@@ -495,9 +495,9 @@ export default function IncidentForm() {
                       <AlertTriangle className="w-3.5 h-3.5" /> คำอธิบายเกณฑ์ความรุนแรงทั่วไป (สรุป)
                     </div>
                     <ul className="space-y-1.5">
-                      <li><span className="font-bold text-slate-700 dark:text-slate-300">1:</span> ยังไม่เกิด / เกิดแล้วแต่ไม่ถึงเป้าหมาย</li>
-                      <li><span className="font-bold text-slate-700 dark:text-slate-300">2:</span> ไม่เกิดความเสียหาย / เสียหายไม่เกิน 5,000฿</li>
-                      <li><span className="font-bold text-slate-700 dark:text-slate-300">3:</span> ต้องบำบัดแก้ไขชั่วคราว / เสียหาย 5,001-10,000฿</li>
+                      <li><span className="font-bold text-slate-700 dark:text-slate-300">1:</span> มีโอกาสเกิดความเสี่ยง ความผิดพลาดเกิดขึ้น แต่ยังไม่ถึงผู้รับบริการ/บุคลากร/ทรัพย์สิน/ระบบงาน</li>
+                      <li><span className="font-bold text-slate-700 dark:text-slate-300">2:</span> ความผิดพลาดเกิดขึ้น ส่งผลถึงผู้รับบริการ/บุคลากร/ทรัพย์สิน/ระบบงาน แต่ยังไม่ก่อให้เกิดอันตราย/ เสียหายไม่เกิน 5,000฿</li>
+                      <li><span className="font-bold text-slate-700 dark:text-slate-300">3:</span> ความผิดพลาดเกิดขึ้น ส่งผลให้เกิดความเสียหายชั่วคราวต้องบำบัดแก้ไข / เสียหาย 5,001-10,000฿</li>
                       <li><span className="font-bold text-slate-700 dark:text-slate-300">4:</span> เสียหายร้ายแรง / ถูกร้องเรียนสื่อภายนอก / เสียหาย 10k-50k฿</li>
                       <li><span className="font-bold text-slate-700 dark:text-slate-300">5:</span> เสียหายถาวร / ฟ้องร้อง / Sentinel Event / เสียหาย &gt;50k฿</li>
                     </ul>

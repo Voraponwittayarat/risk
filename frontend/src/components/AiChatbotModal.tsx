@@ -26,8 +26,10 @@ interface ExtractedJSON {
   riskstore_name: string | null;
   risk_id: string | null;
   level_id: string | null;
+  severity: string | null;
   affected: string[] | null;
   detail: string | null;
+  reply_message?: string;
   clarification_question: string | null;
 }
 
@@ -55,8 +57,10 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
     riskstore_name: null,
     risk_id: null,
     level_id: null,
+    severity: null,
     affected: null,
     detail: null,
+    reply_message: undefined,
     clarification_question: null,
   });
 
@@ -299,7 +303,7 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
 
     try {
       const token = localStorage.getItem('access_token');
-      const res = await fetch('/api/incidents/ai-chat', {
+      const res = await fetch('/incidents/ai-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ messages: newHistory }),
@@ -336,14 +340,31 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
         riskstore_name: aiData.riskstore_name || currentExtraction.riskstore_name,
         risk_id: aiData.risk_id || currentExtraction.risk_id,
         level_id: aiData.level_id || currentExtraction.level_id,
+        severity: aiData.severity || currentExtraction.severity,
         affected: aiData.affected || currentExtraction.affected,
         detail: aiData.detail || currentExtraction.detail,
+        reply_message: aiData.reply_message,
         clarification_question: aiData.clarification_question,
       };
       setCurrentExtraction(merged);
 
       let replyText = '';
-      if (merged.clarification_question) {
+      if (merged.reply_message) {
+        replyText = merged.reply_message;
+        
+        // If data is complete and it's summarizing, add the final call to action
+        if (!merged.clarification_question) {
+          replyText += `\n\nรบกวนตรวจทานความถูกต้อง:\n` +
+            `📅 วันที่: ${merged.date_report}\n` +
+            `⏰ เวลา: ${merged.time_report} น. (เวร${merged.duration_name || ''})\n` +
+            `📍 สถานที่: ${merged.location_name || 'ไม่ระบุ'}\n` +
+            `⚠️ ชื่อความเสี่ยง: ${merged.riskstore_name || 'ไม่ระบุ'}\n` +
+            `🚨 ระดับ: ${merged.level_id || '-'} (ผลกระทบ: ${merged.severity || '-'})\n` +
+            `👥 ผู้ได้รับผลกระทบ: ${merged.affected?.join(', ') || '-'}\n` +
+            `📝 รายละเอียด: "${merged.detail}"\n\n` +
+            `หากข้อมูลถูกต้อง กดปุ่ม **"นำข้อมูลกรอกลงแบบฟอร์ม"** ได้เลยค่ะ!`;
+        }
+      } else if (merged.clarification_question) {
         replyText = merged.clarification_question;
       } else {
         replyText =
@@ -352,7 +373,7 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
           `⏰ เวลา: ${merged.time_report} น. (เวร${merged.duration_name || ''})\n` +
           `📍 สถานที่: ${merged.location_name || 'ไม่ระบุ'}\n` +
           `⚠️ ชื่อความเสี่ยง: ${merged.riskstore_name || 'ไม่ระบุ'}\n` +
-          `🚨 ระดับความรุนแรง: ระดับ ${merged.level_id || '-'}\n` +
+          `🚨 ระดับ: ${merged.level_id || '-'} (ผลกระทบ: ${merged.severity || '-'})\n` +
           `👥 ผู้ได้รับผลกระทบ: ${merged.affected?.join(', ') || '-'}\n` +
           `📝 รายละเอียด: "${merged.detail}"\n\n` +
           `หากข้อมูลถูกต้อง กดปุ่ม **"นำข้อมูลกรอกลงแบบฟอร์ม"** ได้เลยค่ะ!`;
@@ -395,7 +416,7 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
                 น้อง AI ช่วยเขียนรายงานอุบัติการณ์
                 <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
               </h3>
-              <p className="text-[10px] text-purple-100 opacity-90">ระบบวิเคราะห์ข้อมูลอัตโนมัติอัจฉริยะ (Offline NLP Engine)</p>
+              <p className="text-[10px] text-purple-100 opacity-90">ขับเคลื่อนด้วย Gemini AI · วิเคราะห์ภาษาไทยได้ทันที</p>
             </div>
           </div>
           <button 
