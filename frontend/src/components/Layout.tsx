@@ -88,14 +88,14 @@ export default function Layout() {
       groupTitle: 'การบริหารจัดการ & RCA',
       items: [
         { 
-          name: '1. ตรวจสอบ/ยืนยันความเสี่ยง', 
+          name: 'ตรวจสอบ/ยืนยันความเสี่ยง', 
           path: '/incidents/pending', 
           icon: CheckSquare,
           badge: pendingCount > 0 ? `${pendingCount} รอยืนยัน` : 'รอยืนยัน',
           badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
         },
         { 
-          name: '2. ทบทวนความเสี่ยงหน่วยงานคุณ', 
+          name: 'ทบทวนความเสี่ยงหน่วยงานคุณ', 
           path: '/incidents/dept', 
           icon: Building2,
           badge: null
@@ -103,7 +103,7 @@ export default function Layout() {
         // Only show team management if user belongs to a team or is admin
         ...((user?.teamId || user?.role === 'admin' || user?.accessrules === '1' || user?.accessrules === 'admin') ? [
           {
-            name: '3. ทบทวนความเสี่ยงทีมคุณ',
+            name: 'ทบทวนความเสี่ยงทีมคุณ',
             path: '/incidents/team',
             icon: Users,
             badge: 'ทีม'

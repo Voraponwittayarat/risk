@@ -101,36 +101,67 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
     // 1. Date Extraction
     if (text.includes('เมื่อวาน') || text.includes('เมื่อวานนี้')) {
       updated.date_report = format(subDays(new Date(), 1), 'yyyy-MM-dd');
-    } else if (text.includes('วันนี้') || text.includes('เมื่อเช้า') || text.includes('เมื่อกี้') || !updated.date_report) {
-      updated.date_report = format(new Date(), 'yyyy-MM-dd');
+    } else {
+      // Default to today if not already set (เมื่อเช้า, วันนี้, or no prior date)
+      if (!updated.date_report || text.includes('วันนี้') || text.includes('เมื่อเช้า') || text.includes('เมื่อกี้')) {
+        updated.date_report = format(new Date(), 'yyyy-MM-dd');
+      }
     }
 
-    // 2. Time Extraction (e.g. 8.30 น., 08:30, 10.15, 21.00น.)
-    const timeRegex = /(\d{1,2})[.:](\d{2})/g;
-    const match = timeRegex.exec(text);
-    if (match) {
-      const hours = match[1].padStart(2, '0');
-      const minutes = match[2];
-      updated.time_report = `${hours}:${minutes}`;
+    // 2. Time Extraction — Thai word mapping
+    const thaiHourMap: Record<string, string> = {
+      'ตีหนึ่ง': '01', 'ตีสอง': '02', 'ตีสาม': '03', 'ตีสี่': '04', 'ตีห้า': '05',
+      'หกโมงเช้า': '06', 'เจ็ดโมงเช้า': '07', 'แปดโมงเช้า': '08', 'เก้าโมงเช้า': '09',
+      'สิบโมงเช้า': '10', 'สิบเอ็ดโมง': '11', 'เที่ยง': '12',
+      'บ่ายโมง': '13', 'บ่ายสอง': '14', 'บ่ายสาม': '15', 'บ่ายสี่': '16',
+      'ห้าโมงเย็น': '17', 'หกโมงเย็น': '18', 'เจ็ดโมงเย็น': '19',
+      'แปดโมงเย็น': '20', 'เก้าโมงเย็น': '21', 'สิบโมงคืน': '22', 'สิบเอ็ดโมงคืน': '23',
+      'แปดโมง': '08', 'เก้าโมง': '09', 'สิบโมง': '10',
+      'เจ็ดโมง': '07', 'หกโมง': '06',
+    };
+    const thaiMinMap: Record<string, string> = {
+      'ครึ่ง': '30', 'สิบห้า': '15', 'สี่สิบห้า': '45',
+    };
 
-      // 3. Shift (duration) based on time
+    // Try digit-based time first (8.30, 08:30, 21.00)
+    const timeRegex = /(\d{1,2})[.:](\d{2})/g;
+    const numMatch = timeRegex.exec(text);
+    if (numMatch) {
+      const hours = numMatch[1].padStart(2, '0');
+      const minutes = numMatch[2];
+      updated.time_report = `${hours}:${minutes}`;
       const hr = parseInt(hours, 10);
-      if (hr >= 8 && hr < 16) {
-        updated.duration_name = 'เช้า';
-      } else if (hr >= 16 && hr < 24) {
-        updated.duration_name = 'บ่าย';
-      } else {
-        updated.duration_name = 'ดึก';
+      updated.duration_name = hr >= 8 && hr < 16 ? 'เช้า' : hr >= 16 ? 'บ่าย' : 'ดึก';
+    } else {
+      // Try Thai word time mapping
+      let foundThaiHour = '';
+      for (const [word, hr] of Object.entries(thaiHourMap)) {
+        if (text.includes(word)) { foundThaiHour = hr; break; }
       }
-    } else if (text.includes('เวรเช้า') || text.includes('ตอนเช้า')) {
-      updated.duration_name = 'เช้า';
-      if (!updated.time_report) updated.time_report = '08:30';
-    } else if (text.includes('เวรบ่าย') || text.includes('ตอนบ่าย') || text.includes('ตอนเย็น')) {
-      updated.duration_name = 'บ่าย';
-      if (!updated.time_report) updated.time_report = '16:30';
-    } else if (text.includes('เวรดึก') || text.includes('ตอนดึก') || text.includes('กลางคืน')) {
-      updated.duration_name = 'ดึก';
-      if (!updated.time_report) updated.time_report = '01:30';
+      let foundThaiMin = '00';
+      for (const [word, mn] of Object.entries(thaiMinMap)) {
+        if (text.includes(word)) { foundThaiMin = mn; break; }
+      }
+      if (foundThaiHour) {
+        updated.time_report = `${foundThaiHour}:${foundThaiMin}`;
+        const hr = parseInt(foundThaiHour, 10);
+        updated.duration_name = hr >= 8 && hr < 16 ? 'เช้า' : hr >= 16 ? 'บ่าย' : 'ดึก';
+      } else if (text.includes('เวรเช้า') || text.includes('ตอนเช้า') || text.includes('เมื่อเช้า')) {
+        updated.duration_name = 'เช้า';
+        if (!updated.time_report) updated.time_report = '08:00';
+      } else if (text.includes('เวรบ่าย') || text.includes('ตอนบ่าย') || text.includes('ตอนเย็น')) {
+        updated.duration_name = 'บ่าย';
+        if (!updated.time_report) updated.time_report = '13:00';
+      } else if (text.includes('เวรดึก') || text.includes('ตอนดึก') || text.includes('กลางคืน')) {
+        updated.duration_name = 'ดึก';
+        if (!updated.time_report) updated.time_report = '01:00';
+      } else if (!updated.time_report && updated.duration_name === 'เช้า') {
+        updated.time_report = '08:00'; // already know shift, apply safe default
+      } else if (!updated.time_report && updated.duration_name === 'บ่าย') {
+        updated.time_report = '13:00';
+      } else if (!updated.time_report && updated.duration_name === 'ดึก') {
+        updated.time_report = '01:00';
+      }
     }
 
     // 4. Location Matching (from database locations master)
@@ -236,13 +267,15 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
       updated.detail = `${updated.detail}\nข้อมูลเพิ่มเติม: ${text}`;
     }
 
-    // 9. Check missing fields and set clarification question
-    if (!updated.date_report || !updated.time_report) {
-      updated.clarification_question = 'เหตุการณ์นี้เกิดขึ้นเมื่อไรคะ? (กรุณาระบุ วันที่ หรือ เวลาเกิดเหตุ เช่น "เมื่อเช้าตอนแปดโมงครึ่ง" หรือ "วันที่ 9 สิงหาคม เวลา 14:00 น.")';
+    // 9. Check missing fields — separate each case for clear UX
+    if (!updated.date_report) {
+      updated.clarification_question = 'เหตุการณ์นี้เกิดขึ้นวันไหนคะ? (เช่น "วันนี้" "เมื่อวาน" หรือ "วันที่ 9 สิงหาคม")';
+    } else if (!updated.time_report) {
+      updated.clarification_question = 'ขอทราบเวลาที่เกิดเหตุด้วยนะคะ? (เช่น "09.30 น." "แปดโมงเช้า" "เวรเช้า" "บ่ายสอง")';
     } else if (!updated.risk_id) {
-      updated.clarification_question = 'พอจะบอกประเภทหรือลักษณะของความเสี่ยงเพิ่มเติมได้ไหมคะ? (เช่น จ่ายยาผิดพลาด, ลื่นล้ม/ตกเตียง, เครื่องมือแพทย์ชำรุด หรือเรื่องระบุตัวตน)';
+      updated.clarification_question = 'ช่วยบอกประเภทของเหตุการณ์ด้วยได้ไหมคะ? (เช่น ตกเตียง/หกล้ม, จ่ายยาผิด/ยาคลาดเคลื่อน, เครื่องมือชำรุด, สลับตัวผู้ป่วย)';
     } else if (!updated.location_id) {
-      updated.clarification_question = 'เหตุการณ์นี้เกิดขึ้นจุดไหนของโรงพยาบาลคะ? (เช่น ตึกผู้ป่วยใน IPD, ห้องฉุกเฉิน ER, แผนกผู้ป่วยนอก OPD, หรือห้องจ่ายยา)';
+      updated.clarification_question = 'เหตุการณ์นี้เกิดที่จุดไหนของโรงพยาบาลคะ? (เช่น IPD ผู้ป่วยใน, OPD ผู้ป่วยนอก, ER ห้องฉุกเฉิน, ห้องผ่าตัด OR, หรือ ICU)';
     } else {
       updated.clarification_question = null;
     }
