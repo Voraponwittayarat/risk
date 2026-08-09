@@ -1737,11 +1737,11 @@ export default function IncidentDetail() {
                       <option value="I">ระดับ I (เสียชีวิต)</option>
                     </optgroup>
                     <optgroup label="General (ทั่วไป)">
-                      <option value="1">ระดับ 1 (น้อยมาก)</option>
-                      <option value="2">ระดับ 2 (น้อย)</option>
-                      <option value="3">ระดับ 3 (ปานกลาง)</option>
-                      <option value="4">ระดับ 4 (รุนแรง)</option>
-                      <option value="5">ระดับ 5 (รุนแรงสูงสุด)</option>
+                      <option value="1">ระดับ 1 (รุนแรงน้อยมาก)</option>
+                      <option value="2">ระดับ 2 (รุนแรงน้อย)</option>
+                      <option value="3">ระดับ 3 (รุนแรงปานกลาง)</option>
+                      <option value="4">ระดับ 4 (ค่อนข้างรุนแรง)</option>
+                      <option value="5">ระดับ 5 (รุนแรงที่สุด)</option>
                     </optgroup>
                   </select>
                 </div>

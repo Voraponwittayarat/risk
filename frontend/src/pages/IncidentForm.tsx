@@ -480,14 +480,29 @@ export default function IncidentForm() {
                   )}
                   {isGeneral && (
                     <>
-                      <option value="1">ระดับ 1 (น้อยมาก)</option>
-                      <option value="2">ระดับ 2 (น้อย)</option>
-                      <option value="3">ระดับ 3 (ปานกลาง)</option>
-                      <option value="4">ระดับ 4 (รุนแรง)</option>
-                      <option value="5">ระดับ 5 (รุนแรงสูงสุด)</option>
+                      <option value="1">ระดับ 1 (รุนแรงน้อยมาก)</option>
+                      <option value="2">ระดับ 2 (รุนแรงน้อย)</option>
+                      <option value="3">ระดับ 3 (รุนแรงปานกลาง)</option>
+                      <option value="4">ระดับ 4 (ค่อนข้างรุนแรง)</option>
+                      <option value="5">ระดับ 5 (รุนแรงที่สุด)</option>
                     </>
                   )}
                 </select>
+                
+                {isGeneral && (
+                  <div className="mt-2 text-[11px] text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/80 p-3 rounded-lg border border-slate-200 dark:border-slate-700 leading-relaxed animate-in fade-in slide-in-from-top-1 duration-300 shadow-sm">
+                    <div className="font-bold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5" /> คำอธิบายเกณฑ์ความรุนแรงทั่วไป (สรุป)
+                    </div>
+                    <ul className="space-y-1.5">
+                      <li><span className="font-bold text-slate-700 dark:text-slate-300">1:</span> ยังไม่เกิด / เกิดแล้วแต่ไม่ถึงเป้าหมาย</li>
+                      <li><span className="font-bold text-slate-700 dark:text-slate-300">2:</span> ไม่เกิดความเสียหาย / เสียหายไม่เกิน 5,000฿</li>
+                      <li><span className="font-bold text-slate-700 dark:text-slate-300">3:</span> ต้องบำบัดแก้ไขชั่วคราว / เสียหาย 5,001-10,000฿</li>
+                      <li><span className="font-bold text-slate-700 dark:text-slate-300">4:</span> เสียหายร้ายแรง / ถูกร้องเรียนสื่อภายนอก / เสียหาย 10k-50k฿</li>
+                      <li><span className="font-bold text-slate-700 dark:text-slate-300">5:</span> เสียหายถาวร / ฟ้องร้อง / Sentinel Event / เสียหาย &gt;50k฿</li>
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
             
