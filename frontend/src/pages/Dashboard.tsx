@@ -10,6 +10,18 @@ import { useAuth } from '../contexts/AuthContext';
 import { getStatusInfo, getSeverityBadge, isSentinelEvent } from '../utils/statusAdapter';
 import { format } from 'date-fns';
 
+const greetings = [
+  "🌱 ทุกความเสี่ยงที่เรามองเห็น คือโอกาสที่เราจะทำให้โรงพยาบาลปลอดภัยขึ้น",
+  "💚 ขอบคุณที่ช่วยกันมองเห็นความเสี่ยง เพราะการเห็นเร็ว ทำให้เราแก้ได้เร็ว",
+  "🛡️ เราไม่ได้มองหาความผิด เรากำลังมองหาวิธีทำให้ระบบดีขึ้น",
+  "🌱 ทุกการรายงาน คืออีกหนึ่งก้าวของการเรียนรู้และพัฒนา",
+  "🤝 ความปลอดภัยไม่ได้เป็นหน้าที่ของใครคนหนึ่ง แต่เกิดจากการช่วยกันของพวกเราทุกคน",
+  "💡 ความเสี่ยงที่ถูกรายงานวันนี้ อาจช่วยป้องกันเหตุการณ์ในวันพรุ่งนี้",
+  "❤️ ขอบคุณทุกคนที่กล้าบอกสิ่งที่อาจเกิดขึ้น เพราะการพูดออกมาคือการดูแลผู้ป่วย",
+  "🔎 มองเห็นความเสี่ยง ไม่ใช่เรื่องน่ากลัว แต่คือจุดเริ่มต้นของการพัฒนา",
+  "🌤️ วันนี้อาจยังไม่มีเหตุการณ์ แต่เราสามารถเตรียมระบบให้ปลอดภัยกว่าเดิมได้"
+];
+
 const StatCard = ({ title, value, icon: Icon, colorClass, to }: any) => {
   const content = (
     <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer">
@@ -44,6 +56,7 @@ const DetailRow = ({ label, count, colorClass, to }: { label: string; count: num
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const [randomGreeting] = useState(() => greetings[Math.floor(Math.random() * greetings.length)]);
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -107,10 +120,10 @@ export default function Dashboard() {
   }, [selectedFiscalYear]);
 
   const statCards = [
-    { title: 'อุบัติการณ์ทั้งหมด', value: stats.total, icon: Activity, colorClass: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400', to: '/incidents' },
-    { title: 'รอยืนยัน (รายงาน)', value: stats.pending, icon: Clock, colorClass: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400', to: '/incidents' },
-    { title: 'ยืนยันแล้ว / รอแก้ไข', value: stats.confirmed, icon: AlertTriangle, colorClass: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400', to: '/incidents' },
-    { title: 'Sentinel Events (E-I, 3-5)', value: stats.sentinelTotal, icon: ShieldAlert, colorClass: 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400', to: '/incidents' },
+    { title: 'เรื่องทั้งหมดที่ดูแลอยู่', value: stats.total, icon: Activity, colorClass: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400', to: '/incidents' },
+    { title: 'รอการยืนยัน', value: stats.pending, icon: Clock, colorClass: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400', to: '/incidents/pending' },
+    { title: 'กำลังดำเนินการแก้ไข', value: stats.confirmed, icon: AlertTriangle, colorClass: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400', to: '/incidents' },
+    { title: 'เรื่องที่ต้องดูแลพิเศษ', value: stats.sentinelTotal, icon: ShieldAlert, colorClass: 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400', to: '/incidents' },
   ];
 
   return (
@@ -119,11 +132,16 @@ export default function Dashboard() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-red-500 animate-ping"></span>
-            ความเสี่ยงวันนี้ (Daily Risk Surveillance)
+            <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></span>
+            อัปเดตความปลอดภัยประจำวัน (Daily Summary)
           </h1>
+          <div className="mt-2.5 mb-1.5 inline-block">
+            <p className="text-base font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-4 py-2 rounded-lg border border-emerald-100 dark:border-emerald-800/50 shadow-sm transition-all hover:shadow-md">
+              {randomGreeting}
+            </p>
+          </div>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-            ศูนย์เกาะติดสถานการณ์และตัวชี้วัดความปลอดภัยโรงพยาบาล (ผู้ใช้งาน: <span className="font-semibold text-slate-700 dark:text-slate-200">{user?.name || 'ผู้ดูแลระบบ'}</span>)
+            ผู้ใช้งาน: <span className="font-semibold text-slate-700 dark:text-slate-200">{user?.name || 'ผู้ดูแลระบบ'}</span>
           </p>
         </div>
         
@@ -161,8 +179,8 @@ export default function Dashboard() {
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-bold text-slate-800 dark:text-white text-base">📝 ติดตามความเสี่ยงที่คุณรายงาน</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">รายการความเสี่ยงทั้งหมดที่คุณส่งเข้าระบบ</p>
+              <h2 className="font-bold text-slate-800 dark:text-white text-base">📝 อัปเดตเรื่องที่คุณแจ้งไว้</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">เรากำลังดูแลเรื่องเหล่านี้ให้คุณอยู่ครับ</p>
             </div>
           </div>
 
@@ -187,10 +205,10 @@ export default function Dashboard() {
           <div className="lg:col-span-4 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl p-6 flex flex-col justify-between shadow-md shadow-blue-500/10 min-h-[180px]">
             <div>
               <div className="flex justify-between items-start">
-                <span className="text-xs font-medium uppercase tracking-wider text-blue-100/90">surveillance report</span>
+                <span className="text-xs font-medium uppercase tracking-wider text-blue-100/90">your contribution</span>
                 <Calendar className="w-5 h-5 text-blue-200/80" />
               </div>
-              <h3 className="text-lg font-bold mt-2 leading-snug">สถิติรายงานของคุณ</h3>
+              <h3 className="text-lg font-bold mt-2 leading-snug">ผลงานดูแลความปลอดภัยของคุณ</h3>
               <p className="text-xs text-blue-100/80 mt-1">ประจำเดือนนี้</p>
             </div>
 
@@ -202,7 +220,7 @@ export default function Dashboard() {
             </div>
 
             <p className="text-[10px] text-blue-200/70 mt-3 pt-3 border-t border-white/10">
-              * ข้อมูลอิงตามเดือนปฏิทินปัจจุบันเพื่อการรายงานคุณภาพระดับส่วนบุคคล
+              * ข้อมูลอัปเดตตามรอบเดือนปัจจุบัน
             </p>
           </div>
 
@@ -220,7 +238,7 @@ export default function Dashboard() {
               >
                 <FileText className="w-8 h-8 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 mb-2 transition-colors" />
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                  ยังไม่มีประวัติการส่งรายงาน
+                  ตอนนี้ยังไม่มีเรื่องแจ้งเข้ามา
                 </span>
                 <span className="text-[11px] text-slate-400 mt-0.5">ในรอบปีงบประมาณ {Number(selectedFiscalYear) + 543}</span>
               </Link>
@@ -303,8 +321,8 @@ export default function Dashboard() {
                 <Activity className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="font-bold text-base tracking-wide">สถานะการดำเนินงานความเสี่ยง (5-Stage Lifecycle)</h2>
-                <p className="text-xs text-blue-100">กระบวนการรายงาน &rarr; ยืนยัน &rarr; แก้ไข &rarr; ปิดเคส</p>
+                <h2 className="font-bold text-base tracking-wide">ความคืบหน้าของงานที่เราดูแล</h2>
+                <p className="text-xs text-blue-100">สรุปให้ฟังว่าตอนนี้แต่ละเรื่องอยู่ขั้นตอนไหนบ้าง</p>
               </div>
             </div>
             <Link to="/incidents" className="text-xs text-white/80 hover:text-white flex items-center gap-1 font-medium">
@@ -313,11 +331,11 @@ export default function Dashboard() {
           </div>
 
           <div className="p-5 space-y-2 flex-1 flex flex-col justify-around">
-            <DetailRow label="1. รอยืนยันความเสี่ยง (รายงานใหม่)" count={stats.pending} colorClass="bg-amber-500" to="/incidents" />
-            <DetailRow label="2. ยืนยันแล้ว / รอแก้ไข (ตรวจสอบแล้ว)" count={stats.confirmed} colorClass="bg-blue-600" to="/incidents" />
-            <DetailRow label="3. อยู่ระหว่างทบทวน / ดำเนินการ RCA" count={stats.reviewing} colorClass="bg-indigo-600" to="/incidents" />
-            <DetailRow label="4. ปิดเคสเรียบร้อย (จำหน่าย)" count={stats.closed} colorClass="bg-emerald-600" to="/incidents" />
-            <DetailRow label="5. ไม่ใช่ความเสี่ยง / ยกเลิก" count={stats.notRisk} colorClass="bg-slate-500" to="/incidents" />
+            <DetailRow label="1. เรื่องใหม่เพิ่งเข้ามา (รอการดูแล)" count={stats.pending} colorClass="bg-amber-500" to="/incidents" />
+            <DetailRow label="2. รับทราบเรื่องแล้ว (กำลังจัดการ)" count={stats.confirmed} colorClass="bg-blue-600" to="/incidents" />
+            <DetailRow label="3. กำลังหาวิธีแก้ไขให้ดีที่สุด" count={stats.reviewing} colorClass="bg-indigo-600" to="/incidents" />
+            <DetailRow label="4. จัดการเรียบร้อยแล้ว (สบายใจได้)" count={stats.closed} colorClass="bg-emerald-600" to="/incidents" />
+            <DetailRow label="5. ตรวจสอบแล้วไม่มีปัญหา (ยกเลิกเรื่อง)" count={stats.notRisk} colorClass="bg-slate-500" to="/incidents" />
           </div>
         </div>
 
@@ -329,28 +347,26 @@ export default function Dashboard() {
                 <AlertOctagon className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="font-bold text-base tracking-wide">เฝ้าระวังอุบัติการณ์ความรุนแรงสูง (Sentinel Alert)</h2>
-                <p className="text-xs text-red-100">เกณฑ์เฝ้าระวังพิเศษที่ต้องทบทวนเชิงลึก (RCA)</p>
+                <h2 className="font-bold text-base tracking-wide">เรื่องสำคัญที่ต้องใส่ใจเป็นพิเศษ</h2>
+                <p className="text-xs text-red-100">เพื่อให้มั่นใจว่าเราจะแก้ปัญหาได้อย่างยั่งยืน</p>
               </div>
             </div>
-            <a 
-              href="http://localhost:3001" 
-              target="_blank" 
-              rel="noopener noreferrer"
+            <Link 
+              to="/rca/list" 
               className="text-xs text-white/90 hover:text-white flex items-center gap-1 font-semibold underline"
             >
-              เปิดโปรแกรม RCA <ExternalLink className="w-3 h-3" />
-            </a>
+              เปิดโปรแกรม RCA <ArrowRight className="w-3 h-3" />
+            </Link>
           </div>
 
           <div className="p-5 space-y-2 flex-1 flex flex-col justify-around">
-            <DetailRow label="ความเสี่ยงทางคลินิก ระดับ E, F, G, H, I (Sentinel)" count={stats.sentinelClinical} colorClass="bg-red-600" to="/incidents" />
-            <DetailRow label="ความเสี่ยงทั่วไป / องค์กร ระดับ 3, 4, 5 (High Impact)" count={stats.sentinelGeneral} colorClass="bg-orange-500" to="/incidents" />
+            <DetailRow label="ด้านการดูแลผู้ป่วย (ระดับ E ขึ้นไป)" count={stats.sentinelClinical} colorClass="bg-red-600" to="/incidents" />
+            <DetailRow label="ด้านระบบและองค์กร (ระดับ 3 ขึ้นไป)" count={stats.sentinelGeneral} colorClass="bg-orange-500" to="/incidents" />
             
             <div className="mt-2 p-4 bg-red-50/50 dark:bg-red-950/20 rounded-xl border border-red-100 dark:border-red-900/30 text-xs text-red-800 dark:text-red-300 flex items-start gap-2">
               <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
               <span>
-                ตามมาตรฐาน HA อุบัติการณ์ระดับ E ขึ้นไป และระดับ 3 ขึ้นไป ต้องได้รับการตอบสนองและตั้งทีมทบทวนหาสาเหตุเชิงลึก (Swiss Cheese RCA) ทันที
+                สำหรับเคสสำคัญเหล่านี้ ทีมของเราจะรีบเข้าไปดูแลและร่วมกันหาวิธีป้องกันไม่ให้เกิดขึ้นซ้ำในอนาคตครับ
               </span>
             </div>
           </div>

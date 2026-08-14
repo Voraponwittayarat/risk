@@ -9,7 +9,6 @@ import {
   Menu,
   X,
   LogOut,
-  ExternalLink,
   FileText,
   FileSearch,
   ShieldAlert,
@@ -130,6 +129,18 @@ export default function Layout() {
           icon: ShieldAlert,
           badge: 'RCA Program',
           badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+        },
+      ]
+    },
+    {
+      groupTitle: 'สถิติรายงาน',
+      items: [
+        { 
+          name: 'สถิติรายงานความเสี่ยงรายบุคคล', 
+          path: '/reporting-stats', 
+          icon: Users,
+          badge: 'รายเดือน',
+          badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold'
         },
       ]
     },
@@ -276,22 +287,18 @@ export default function Layout() {
 
         {/* External Tool & User Profile Footer */}
         <div className="p-3 border-t border-slate-800 bg-slate-900/60 space-y-2.5 overflow-hidden">
-          {/* RCA External Link */}
-          <a
-            href="http://localhost:3001"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Swiss Cheese RCA Program"
+          <NavLink
+            to="/rca/list"
+            title="โปรแกรม RCA"
             className="flex items-center justify-between w-full px-3 py-2.5 text-xs font-semibold text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-800/50 rounded-xl transition-all shadow-sm group whitespace-nowrap overflow-hidden"
           >
             <div className="flex items-center gap-3">
               <div className="shrink-0 w-5 flex items-center justify-center">
                 <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse"></div>
               </div>
-              <span className="opacity-100 lg:opacity-0 lg:group-hover/sidebar:opacity-100 transition-opacity duration-300">Swiss Cheese RCA</span>
+              <span className="opacity-100 lg:opacity-0 lg:group-hover/sidebar:opacity-100 transition-opacity duration-300">โปรแกรม RCA (ภายใน)</span>
             </div>
-            <ExternalLink className="shrink-0 w-3.5 h-3.5 text-indigo-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform opacity-100 lg:opacity-0 lg:group-hover/sidebar:opacity-100" />
-          </a>
+          </NavLink>
           
           {/* User Info Card */}
           <div className="p-2 bg-slate-800/60 rounded-xl border border-slate-750 flex items-center justify-between gap-3 overflow-hidden whitespace-nowrap">
