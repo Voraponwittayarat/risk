@@ -148,13 +148,22 @@ export default function Layout() {
     {
       groupTitle: 'ระบบ & กำหนดสิทธิ์',
       items: [
-        ...((user?.role === 'admin' || user?.accessrules === '1') ? [{
-          name: 'จัดการผู้ใช้งาน',
-          path: '/users',
-          icon: UserCog,
-          badge: 'Admin',
-          badgeColor: 'bg-red-500/20 text-red-300 border border-red-500/30'
-        }] : []),
+        ...((user?.role === 'admin' || user?.accessrules === '1') ? [
+          {
+            name: 'จัดการข้อมูลบุคลากร',
+            path: '/personnel',
+            icon: Users,
+            badge: 'Pre-Reg',
+            badgeColor: 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+          },
+          {
+            name: 'จัดการผู้ใช้งาน',
+            path: '/users',
+            icon: UserCog,
+            badge: 'Admin',
+            badgeColor: 'bg-red-500/20 text-red-300 border border-red-500/30'
+          }
+        ] : []),
         { 
           name: 'ตั้งค่าระบบ', 
           path: '/settings', 

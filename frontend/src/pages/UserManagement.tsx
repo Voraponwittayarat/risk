@@ -197,6 +197,9 @@ export default function UserManagement() {
         setSuccess('สร้างผู้ใช้งานเรียบร้อยแล้ว');
       } else if (editing) {
         await axios.patch(`/users/${editing.id}`, payloadFromForm());
+        if (form.password) {
+          await axios.patch(`/users/${editing.id}/password`, { password: form.password });
+        }
         setSuccess('บันทึกข้อมูลผู้ใช้งานเรียบร้อยแล้ว');
       }
       setEditing(null);
@@ -344,7 +347,11 @@ export default function UserManagement() {
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="ชื่อผู้ใช้" required><input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} required className="form-input" /></Field>
               <Field label="อีเมล" required><input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required className="form-input" /></Field>
-              {editing === 'new' && <Field label="รหัสผ่านเริ่มต้น (อย่างน้อย 8 ตัว)" required><input type="password" minLength={8} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required className="form-input" /></Field>}
+              {editing === 'new' ? (
+                <Field label="รหัสผ่านเริ่มต้น (อย่างน้อย 8 ตัว)" required><input type="password" minLength={8} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required className="form-input" /></Field>
+              ) : (
+                <Field label="เปลี่ยนรหัสผ่าน (เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน)"><input type="password" minLength={8} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="form-input" placeholder="พิมพ์เพื่อตั้งรหัสผ่านใหม่" /></Field>
+              )}
               <Field label="เลขประจำตัวประชาชน 13 หลัก" required><input inputMode="numeric" minLength={13} maxLength={13} value={form.cid} onChange={(event) => setForm({ ...form, cid: event.target.value.replace(/\D/g, '') })} required className="form-input" /></Field>
               <Field label="ชื่อ-นามสกุล" required><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required className="form-input" /></Field>
               <Field label="สิทธิ์การใช้งาน" required><select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as Role })} className="form-input">{metadata.roles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>

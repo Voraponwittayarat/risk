@@ -493,21 +493,22 @@ model NameList {
 }
 
 model user {
-  id                Int     @id @default(autoincrement())
-  username          String  @unique(map: "user_unique_username") @db.VarChar(255)
-  password_hash     String  @db.VarChar(255)
-  cid               String? @db.VarChar(13)
-  email             String  @unique(map: "user_unique_email") @db.VarChar(255)
-  auth_key          String  @db.VarChar(32)
-  confirmed_at      Int?
-  unconfirmed_email String? @db.VarChar(255)
-  blocked_at        Int?
-  registration_ip   String? @db.VarChar(45)
-  role              Int     @default(99) @db.SmallInt
-  created_at        Int
-  updated_at        Int
-  flags             Int     @default(0)
-  last_login_at     Int?
+  id                      Int      @id @default(autoincrement())
+  username                String   @unique(map: "user_unique_username") @db.VarChar(255)
+  password_hash           String   @db.VarChar(255)
+  cid                     String?  @db.VarChar(13)
+  email                   String   @unique(map: "user_unique_email") @db.VarChar(255)
+  auth_key                String   @db.VarChar(32)
+  confirmed_at            Int?
+  unconfirmed_email       String?  @db.VarChar(255)
+  blocked_at              Int?
+  registration_ip         String?  @db.VarChar(45)
+  role                    Int      @default(99) @db.SmallInt
+  created_at              Int
+  updated_at              Int
+  flags                   Int      @default(0)
+  last_login_at           Int?
+  require_password_change Boolean? @default(false)
 }
 
 model riskanalysis {
@@ -598,6 +599,7 @@ model medical_record_review {
   standard_rca_id   String?   @db.VarChar(50)
   created_at        DateTime  @default(now()) @db.Timestamp(0)
   updated_at        DateTime  @default(now()) @db.Timestamp(0)
+  findings          trigger_finding[]
 }
 
 model trigger_finding {
@@ -607,6 +609,7 @@ model trigger_finding {
   trigger_name String   @db.VarChar(255)
   detail       String?  @db.Text
   created_at   DateTime @default(now()) @db.Timestamp(0)
+  review       medical_record_review @relation(fields: [review_id], references: [id], onDelete: Cascade)
 
   @@index([review_id], map: "idx_review_id")
 }
@@ -621,6 +624,10 @@ model rca_case {
   created_by      Int?
   created_at      DateTime  @default(now()) @db.Timestamp(0)
   updated_at      DateTime  @default(now()) @db.Timestamp(0)
+  incidents       rca_incident_item[]
+  swiss_cheeses   rca_swiss_cheese[]
+  cmps            rca_cmp[]
+  reviewers       rca_reviewer[]
 }
 
 model rca_incident_item {
@@ -635,6 +642,7 @@ model rca_incident_item {
   detail           String?   @db.Text
   sort_order       Int?      @default(0)
   created_at       DateTime  @default(now()) @db.Timestamp(0)
+  rca_case         rca_case  @relation(fields: [rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([rca_case_id], map: "idx_rca_case_id")
   @@index([incident_id], map: "idx_incident_id")
@@ -646,6 +654,7 @@ model rca_swiss_cheese {
   layer       String   @db.VarChar(50)
   hole        String   @db.Text
   created_at  DateTime @default(now()) @db.Timestamp(0)
+  rca_case    rca_case @relation(fields: [rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([rca_case_id], map: "idx_swiss_rca_case_id")
 }
@@ -661,6 +670,7 @@ model rca_cmp {
   due_date          DateTime? @db.Date
   sort_order        Int?      @default(0)
   created_at        DateTime  @default(now()) @db.Timestamp(0)
+  rca_case          rca_case  @relation(fields: [rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([rca_case_id], map: "idx_cmp_rca_case_id")
 }
@@ -672,6 +682,7 @@ model rca_reviewer {
   position    String? @db.VarChar(100)
   department  String? @db.VarChar(100)
   sort_order  Int?    @default(0)
+  rca_case    rca_case @relation(fields: [rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([rca_case_id], map: "idx_rev_rca_case_id")
 }
@@ -699,6 +710,12 @@ model standard_rca_case {
   created_by               Int?
   created_at               DateTime  @default(now()) @db.Timestamp(0)
   updated_at               DateTime  @default(now()) @db.Timestamp(0)
+  timelines                standard_rca_timeline[]
+  whys                     standard_rca_why[]
+  fishbones                standard_rca_fishbone[]
+  process_analyses         standard_rca_process_analysis[]
+  capas                    standard_rca_capa[]
+  review_sessions          standard_rca_review_session[]
 }
 
 model standard_rca_timeline {
@@ -711,6 +728,7 @@ model standard_rca_timeline {
   tag                  String?   @db.VarChar(50)
   sort_order           Int?      @default(0)
   created_at           DateTime  @default(now()) @db.Timestamp(0)
+  standard_rca_case    standard_rca_case @relation(fields: [standard_rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([standard_rca_case_id], map: "idx_std_timeline_case_id")
 }
@@ -723,6 +741,7 @@ model standard_rca_why {
   answer               String   @db.Text
   sort_order           Int?     @default(0)
   created_at           DateTime @default(now()) @db.Timestamp(0)
+  standard_rca_case    standard_rca_case @relation(fields: [standard_rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([standard_rca_case_id], map: "idx_std_why_case_id")
 }
@@ -735,6 +754,7 @@ model standard_rca_fishbone {
   sub_factor           String?  @db.Text
   sort_order           Int?     @default(0)
   created_at           DateTime @default(now()) @db.Timestamp(0)
+  standard_rca_case    standard_rca_case @relation(fields: [standard_rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([standard_rca_case_id], map: "idx_std_fish_case_id")
 }
@@ -752,6 +772,7 @@ model standard_rca_process_analysis {
   corrective_action    String?  @db.Text
   sort_order           Int?     @default(0)
   created_at           DateTime @default(now()) @db.Timestamp(0)
+  standard_rca_case    standard_rca_case @relation(fields: [standard_rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([standard_rca_case_id], map: "idx_std_process_case_id")
 }
@@ -767,6 +788,7 @@ model standard_rca_capa {
   evidence             String?   @db.Text
   sort_order           Int?      @default(0)
   created_at           DateTime  @default(now()) @db.Timestamp(0)
+  standard_rca_case    standard_rca_case @relation(fields: [standard_rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([standard_rca_case_id], map: "idx_std_capa_case_id")
 }
@@ -779,6 +801,7 @@ model standard_rca_review_session {
   notes                String?   @db.Text
   sort_order           Int?      @default(0)
   created_at           DateTime  @default(now()) @db.Timestamp(0)
+  standard_rca_case    standard_rca_case @relation(fields: [standard_rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([standard_rca_case_id], map: "idx_std_session_case_id")
 }

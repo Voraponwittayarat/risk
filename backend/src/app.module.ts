@@ -8,6 +8,7 @@ import { TriggerToolModule } from './modules/trigger-tool/trigger-tool.module';
 import { RcaModule } from './modules/rca/rca.module';
 import { UsersModule } from './modules/users/users.module';
 import { RiskTopicsModule } from './modules/risk-topics/risk-topics.module';
+import { MembersModule } from './modules/members/members.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { RiskTopicsModule } from './modules/risk-topics/risk-topics.module';
     RcaModule,
     UsersModule,
     RiskTopicsModule,
+    MembersModule,
   ],
   controllers: [],
   providers: [],

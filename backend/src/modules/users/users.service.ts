@@ -283,7 +283,8 @@ export class UsersService {
         password_hash: passwordHash,
         auth_key: randomBytes(16).toString('hex'),
         updated_at: Math.floor(Date.now() / 1000),
-      },
+        require_password_change: true,
+      } as any,
     });
     return { message: 'ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว' };
   }

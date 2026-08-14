@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, LockKeyhole, UserRound } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { WangChaoHospitalLogo } from '../components/WangChaoLogo';
@@ -22,8 +22,12 @@ export default function Login() {
     }
     setIsSubmitting(true);
     try {
-      await login(username.trim(), password);
-      navigate('/', { replace: true });
+      const user = await login(username.trim(), password);
+      if (user && user.require_password_change) {
+        navigate('/change-password', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     } catch (requestError: any) {
       setError(requestError.response?.data?.message || 'ไม่สามารถเข้าสู่ระบบได้ กรุณาลองอีกครั้ง');
     } finally {
@@ -103,9 +107,15 @@ export default function Login() {
               {isSubmitting ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}
             </button>
 
-            <p className="text-center text-xs text-slate-400">
-              หากลืมรหัสผ่าน กรุณาติดต่อผู้ดูแลระบบเพื่อกำหนดรหัสผ่านใหม่
-            </p>
+            <div className="mt-4 flex flex-col items-center gap-3">
+              <Link to="/forgot-password" className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 transition-colors">
+                ลืมรหัสผ่าน?
+              </Link>
+              <div className="h-px w-full max-w-[200px] bg-slate-200 dark:bg-slate-800"></div>
+              <Link to="/register" className="text-sm font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300 transition-colors">
+                ลงทะเบียนบัญชีใหม่
+              </Link>
+            </div>
           </form>
         </div>
       </div>

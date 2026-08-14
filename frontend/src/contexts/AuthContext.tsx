@@ -15,6 +15,7 @@ export interface User {
   priority?: string;
   departmentGroup?: number;
   teamId?: number;
+  require_password_change?: boolean;
 }
 
 interface AuthContextType {
@@ -92,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const response = await axios.post('/auth/login', { username, password });
     setToken(response.data.access_token);
     setUser(response.data.user);
+    return response.data.user;
   };
 
   const logout = () => setToken(null);

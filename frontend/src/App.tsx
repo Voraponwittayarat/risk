@@ -11,16 +11,23 @@ import Settings from './pages/Settings';
 import UserManagement from './pages/UserManagement';
 import RiskTopicManagement from './pages/RiskTopicManagement';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ChangePassword from './pages/ChangePassword';
 import TriggerToolReview from './pages/TriggerToolReview';
 import RcaList from './pages/rca/RcaList';
 import ConciseRcaForm from './pages/rca/ConciseRcaForm';
 import StandardRcaForm from './pages/rca/StandardRcaForm';
+import PersonnelManagement from './pages/PersonnelManagement';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+  if (user?.require_password_change) {
+    return <Navigate to="/change-password" replace />;
   }
   return <>{children}</>;
 }
@@ -37,6 +44,9 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/change-password" element={<ChangePassword />} />
           
           <Route path="/" element={
             <ProtectedRoute>
@@ -64,6 +74,7 @@ function App() {
             <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />
             <Route path="users" element={<AdminRoute><UserManagement /></AdminRoute>} />
+            <Route path="personnel" element={<AdminRoute><PersonnelManagement /></AdminRoute>} />
             <Route path="risk-topics" element={<AdminRoute><RiskTopicManagement /></AdminRoute>} />
           </Route>
         </Routes>

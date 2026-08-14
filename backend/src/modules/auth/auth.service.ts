@@ -1,7 +1,9 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
+import * as nodemailer from 'nodemailer';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -83,6 +85,7 @@ export class AuthService {
       rmStatus: member.rm_status,
       teamId: member.team_id,
       role,
+      require_password_change: (dbUser as any).require_password_change || false,
     };
 
     return {
@@ -98,7 +101,145 @@ export class AuthService {
         rmStatus: member.rm_status,
         priority: member.priority,
         teamId: member.team_id,
+        require_password_change: (dbUser as any).require_password_change || false,
       }
     };
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { email }
+    });
+
+    if (!user) {
+      throw new NotFoundException('ไม่พบอีเมลนี้ในระบบ');
+    }
+
+    // Generate random password (e.g. 8 characters)
+    const tempPassword = Math.random().toString(36).slice(-8);
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(tempPassword, saltRounds);
+    
+    // Send email
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.SMTP_USER,
+      to: email,
+      subject: 'รหัสผ่านชั่วคราวสำหรับเข้าสู่ระบบ',
+      text: `สวัสดี,\n\nมีการร้องขอรหัสผ่านใหม่สำหรับบัญชีของคุณ\nรหัสผ่านชั่วคราวของคุณคือ: ${tempPassword}\n\nกรุณาเข้าสู่ระบบด้วยรหัสผ่านนี้และระบบจะให้คุณเปลี่ยนรหัสผ่านใหม่ทันที\n\nหากคุณไม่ได้เป็นผู้ขอรหัสผ่านใหม่ กรุณาติดต่อผู้ดูแลระบบ`,
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+
+      // Save to db, updating password_hash and require_password_change flag
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          password_hash: hashedPassword,
+          require_password_change: true
+        } as any
+      });
+
+      return { message: 'รหัสผ่านชั่วคราวถูกส่งไปยังอีเมลของคุณแล้ว' };
+    } catch (error) {
+      console.error('Error sending email:', error);
+      throw new BadRequestException('ไม่สามารถส่งอีเมลได้ กรุณาตรวจสอบการตั้งค่า SMTP (ระบบยังคงใช้รหัสผ่านเดิม)');
+    }
+  }
+
+  async changePassword(userId: number, currentPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new NotFoundException('ไม่พบบัญชีผู้ใช้');
+    }
+
+    const hashToCompare = user.password_hash.replace(/^\$2y\$/, '$2a$');
+    const isPasswordValid = await bcrypt.compare(currentPassword, hashToCompare);
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('รหัสผ่านปัจจุบันไม่ถูกต้อง');
+    }
+
+    const saltRounds = 10;
+    const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+    
+    // Convert the hash back to Yii2 compatible format if necessary
+    // Yii2 uses $2y$ prefix
+    const yii2HashedPassword = hashedNewPassword.replace(/^\$2a\$/, '$2y$');
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password_hash: yii2HashedPassword,
+        require_password_change: false
+      } as any
+    });
+
+    return { message: 'เปลี่ยนรหัสผ่านสำเร็จ' };
+  }
+
+  async register(username: string, password: string, email: string, cid: string) {
+    const member = await this.prisma.member.findFirst({
+      where: { cid: cid.trim() },
+    });
+
+    if (!member) {
+      throw new BadRequestException('ไม่มีเลขรหัสของคุณในระบบกรุณาติดต่อผู้ดูแลระบบ');
+    }
+
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { cid: cid.trim() },
+          { username: username.trim() },
+          { email: email.trim().toLowerCase() }
+        ]
+      }
+    });
+
+    if (existingUser) {
+      if (existingUser.cid === cid.trim()) {
+        throw new ConflictException('เลขบัตรประชาชนนี้มีการลงทะเบียนบัญชีไว้แล้ว');
+      }
+      throw new ConflictException('ชื่อผู้ใช้หรืออีเมลนี้มีผู้ใช้งานแล้ว');
+    }
+
+    const hash = await bcrypt.hash(password, 12);
+    const passwordHash = hash.replace(/^\$2b\$/, '$2y$'); // Yii2 compatible
+    const now = Math.floor(Date.now() / 1000);
+    const crypto = require('crypto');
+
+    // determine role based on member table
+    let role = 99; // staff
+    if (member.accessrules === '1' || member.accessrules === 'admin') role = 1;
+    else if (member.rm_status === '1') role = 10;
+    else if (member.priority === '1') role = 20;
+
+    const user = await this.prisma.user.create({
+      data: {
+        username: username.trim(),
+        password_hash: passwordHash,
+        email: email.trim().toLowerCase(),
+        cid: cid.trim(),
+        auth_key: crypto.randomBytes(16).toString('hex'),
+        confirmed_at: now,
+        role: role,
+        created_at: now,
+        updated_at: now,
+      },
+    });
+
+    return { id: user.id, message: 'ลงทะเบียนสำเร็จ คุณสามารถเข้าสู่ระบบได้ทันที' };
   }
 }
