@@ -1585,4 +1585,787 @@ export class IncidentsService {
     });
     return { success: true, message: `ลบรายงาน #${id} สำเร็จ` };
   }
+
+  async getIndividualMonthlyStats(query?: {
+    department_group_id?: number;
+    department_id?: number;
+    year?: number;
+    year_type?: string;
+  }) {
+    const currentYear = new Date().getFullYear();
+    const targetYear = query?.year || currentYear;
+    const yearType = query?.year_type || 'calendar';
+
+    const deptWhere: any = {};
+    if (query?.department_id) {
+      deptWhere.id = Number(query.department_id);
+    } else if (query?.department_group_id) {
+      deptWhere.depart_group_id = Number(query.department_group_id);
+    }
+
+    const departments = await this.prisma.department.findMany({
+      where: deptWhere,
+      select: { id: true, depart_name: true, depart_group_id: true },
+      orderBy: { depart_name: 'asc' },
+    });
+
+    const deptIds = departments.map((d) => d.id);
+    const deptMap = new Map(departments.map((d) => [d.id, d.depart_name]));
+
+    const [groups, positions] = await Promise.all([
+      this.prisma.departmentgroup.findMany(),
+      this.prisma.position.findMany(),
+    ]);
+
+    const groupMap = new Map(groups.map((g) => [g.id, g.depart_group_name]));
+    const positionMap = new Map(positions.map((p) => [p.id, p.position_name]));
+
+    const memberWhere: any = { status: '1' };
+    if (deptIds.length > 0) {
+      memberWhere.department_id1 = { in: deptIds };
+    }
+
+    const members = await this.prisma.member.findMany({
+      where: memberWhere,
+      select: {
+        id: true,
+        cid: true,
+        member_name: true,
+        department_id1: true,
+        position_id: true,
+        status: true,
+      },
+      orderBy: { member_name: 'asc' },
+    });
+
+    const cids = members.map((m) => m.cid).filter(Boolean);
+    const users = await this.prisma.user.findMany({
+      where: { cid: { in: cids } },
+      select: { id: true, cid: true, username: true },
+    });
+
+    const cidToUserIdMap = new Map(users.map((u) => [u.cid, u.id]));
+    const userIdToMemberMap = new Map<number, typeof members[0]>();
+    members.forEach((m) => {
+      const uId = cidToUserIdMap.get(m.cid);
+      if (uId) {
+        userIdToMemberMap.set(uId, m);
+      }
+    });
+
+    const userIds = Array.from(userIdToMemberMap.keys());
+
+    let startDate: Date;
+    let endDate: Date;
+    if (yearType === 'fiscal') {
+      startDate = new Date(`${targetYear - 1}-10-01T00:00:00.000Z`);
+      endDate = new Date(`${targetYear}-09-30T23:59:59.999Z`);
+    } else {
+      startDate = new Date(`${targetYear}-01-01T00:00:00.000Z`);
+      endDate = new Date(`${targetYear}-12-31T23:59:59.999Z`);
+    }
+
+    const incidents = await this.prisma.riskregister.findMany({
+      where: {
+        date_report: {
+          gte: startDate,
+          lte: endDate,
+        },
+        ...(userIds.length > 0
+          ? {
+              OR: [
+                { created_by: { in: userIds } },
+                ...(deptIds.length > 0
+                  ? [{ department_id: { in: deptIds.map((id) => id.toString()) } }]
+                  : []),
+              ],
+            }
+          : deptIds.length > 0
+          ? { department_id: { in: deptIds.map((id) => id.toString()) } }
+          : {}),
+      },
+      select: {
+        id: true,
+        created_by: true,
+        user_ir: true,
+        date_report: true,
+        department_id: true,
+      },
+    });
+
+    const monthsOrder =
+      yearType === 'fiscal'
+        ? [10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+    const memberStatsMap = new Map<number, any>();
+
+    members.forEach((m) => {
+      const deptName = deptMap.get(m.department_id1) || `แผนก ${m.department_id1}`;
+      const deptObj = departments.find((d) => d.id === m.department_id1);
+      const groupName = deptObj ? groupMap.get(deptObj.depart_group_id || 0) || '-' : '-';
+      const posName = positionMap.get(m.position_id) || 'เจ้าหน้าที่';
+
+      const monthlyCounts: Record<number, number> = {};
+      monthsOrder.forEach((mNum) => {
+        monthlyCounts[mNum] = 0;
+      });
+
+      memberStatsMap.set(m.id, {
+        member_id: m.id,
+        member_name: m.member_name,
+        cid: m.cid,
+        position_name: posName,
+        department_id: m.department_id1,
+        department_name: deptName,
+        department_group_name: groupName,
+        monthly_counts: monthlyCounts,
+        total_count: 0,
+      });
+    });
+
+    let totalIncidents = 0;
+    incidents.forEach((inc) => {
+      totalIncidents++;
+      const rDate = new Date(inc.date_report);
+      const mNum = rDate.getMonth() + 1;
+
+      const m = inc.created_by ? userIdToMemberMap.get(inc.created_by) : null;
+      if (m && memberStatsMap.has(m.id)) {
+        const stat = memberStatsMap.get(m.id);
+        if (stat.monthly_counts[mNum] !== undefined) {
+          stat.monthly_counts[mNum] += 1;
+          stat.total_count += 1;
+        }
+      }
+    });
+
+    const memberStats = Array.from(memberStatsMap.values()).sort(
+      (a, b) => b.total_count - a.total_count || a.member_name.localeCompare(b.member_name, 'th')
+    );
+
+    const earliestRecord = await this.prisma.riskregister.findFirst({
+      orderBy: { date_report: 'asc' },
+      select: { date_report: true },
+    });
+
+    const yearsList: number[] = [];
+    const minYear = earliestRecord?.date_report ? new Date(earliestRecord.date_report).getFullYear() : 2020;
+    for (let y = currentYear; y >= Math.min(minYear, 2020); y--) {
+      yearsList.push(y);
+    }
+
+    return {
+      year: targetYear,
+      year_type: yearType,
+      yearsList,
+      monthsOrder,
+      summary: {
+        totalMembers: members.length,
+        totalIncidents,
+        activeReportersCount: memberStats.filter((m) => m.total_count > 0).length,
+        topReporter: memberStats.length > 0 && memberStats[0].total_count > 0 ? memberStats[0] : null,
+      },
+      memberStats,
+    };
+  }
+
+  async getDepartmentMonthlyStats(query?: {
+    department_group_id?: number;
+    year?: number;
+    year_type?: string;
+  }) {
+    const [latestRecord, earliestRecord] = await Promise.all([
+      this.prisma.riskregister.findFirst({
+        orderBy: { date_report: 'desc' },
+        select: { date_report: true },
+      }),
+      this.prisma.riskregister.findFirst({
+        orderBy: { date_report: 'asc' },
+        select: { date_report: true },
+      }),
+    ]);
+
+    const currentYear = new Date().getFullYear();
+    const maxYear = latestRecord?.date_report ? new Date(latestRecord.date_report).getFullYear() : currentYear;
+    const targetYear = query?.year || maxYear;
+    const yearType = query?.year_type || 'fiscal';
+
+    const deptWhere: any = {};
+    if (query?.department_group_id) {
+      deptWhere.depart_group_id = Number(query.department_group_id);
+    }
+
+    const [departments, groups] = await Promise.all([
+      this.prisma.department.findMany({
+        where: deptWhere,
+        select: { id: true, depart_name: true, depart_group_id: true },
+        orderBy: { depart_name: 'asc' },
+      }),
+      this.prisma.departmentgroup.findMany(),
+    ]);
+
+    const groupMap = new Map(groups.map((g) => [g.id, g.depart_group_name]));
+    const totalDepartmentsCount = departments.length;
+
+    let startDate: Date;
+    let endDate: Date;
+    if (yearType === 'fiscal') {
+      startDate = new Date(`${targetYear - 1}-10-01T00:00:00.000Z`);
+      endDate = new Date(`${targetYear}-09-30T23:59:59.999Z`);
+    } else {
+      startDate = new Date(`${targetYear}-01-01T00:00:00.000Z`);
+      endDate = new Date(`${targetYear}-12-31T23:59:59.999Z`);
+    }
+
+    const deptIds = departments.map((d) => d.id);
+    const deptStringIds = deptIds.map((id) => id.toString());
+
+    const incidents = await this.prisma.riskregister.findMany({
+      where: {
+        date_report: {
+          gte: startDate,
+          lte: endDate,
+        },
+        ...(deptIds.length > 0 ? { department_id: { in: deptStringIds } } : {}),
+      },
+      select: {
+        id: true,
+        date_report: true,
+        department_id: true,
+      },
+    });
+
+    const monthsOrder =
+      yearType === 'fiscal'
+        ? [10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+    const monthNamesMap: Record<number, string> = {
+      1: 'ม.ค.', 2: 'ก.พ.', 3: 'มี.ค.', 4: 'เม.ย.', 5: 'พ.ค.', 6: 'มิ.ย.',
+      7: 'ก.ค.', 8: 'ส.ค.', 9: 'ก.ย.', 10: 'ต.ค.', 11: 'พ.ย.', 12: 'ธ.ค.'
+    };
+
+    const deptStatsMap = new Map<number, any>();
+    departments.forEach((d) => {
+      const monthlyCounts: Record<number, number> = {};
+      monthsOrder.forEach((mNum) => {
+        monthlyCounts[mNum] = 0;
+      });
+
+      deptStatsMap.set(d.id, {
+        department_id: d.id,
+        department_name: d.depart_name,
+        department_group_id: d.depart_group_id,
+        department_group_name: groupMap.get(d.depart_group_id || 0) || 'ทั่วไป',
+        monthly_counts: monthlyCounts,
+        total_incidents: 0,
+        months_with_reports_count: 0,
+      });
+    });
+
+    incidents.forEach((inc) => {
+      const deptIdNum = Number(inc.department_id);
+      const dStat = deptStatsMap.get(deptIdNum);
+      if (dStat) {
+        const rDate = new Date(inc.date_report);
+        const monthNum = rDate.getMonth() + 1;
+        if (dStat.monthly_counts[monthNum] !== undefined) {
+          dStat.monthly_counts[monthNum] += 1;
+          dStat.total_incidents += 1;
+        }
+      }
+    });
+
+    let deptsReportingAtLeastOnceYear = 0;
+    const departmentStatsList = Array.from(deptStatsMap.values()).map((dStat) => {
+      let activeMonths = 0;
+      monthsOrder.forEach((mNum) => {
+        if (dStat.monthly_counts[mNum] > 0) {
+          activeMonths += 1;
+        }
+      });
+      dStat.months_with_reports_count = activeMonths;
+      if (dStat.total_incidents > 0) {
+        deptsReportingAtLeastOnceYear += 1;
+      }
+      return dStat;
+    });
+
+    const monthlyKpiSummary = monthsOrder.map((mNum) => {
+      let reportingDeptsInMonth = 0;
+      let totalIncidentsInMonth = 0;
+
+      departmentStatsList.forEach((dStat) => {
+        const cnt = dStat.monthly_counts[mNum] || 0;
+        if (cnt > 0) {
+          reportingDeptsInMonth += 1;
+        }
+        totalIncidentsInMonth += cnt;
+      });
+
+      const percentage = totalDepartmentsCount > 0
+        ? Number(((reportingDeptsInMonth / totalDepartmentsCount) * 100).toFixed(1))
+        : 0;
+
+      return {
+        monthNumber: mNum,
+        monthName: monthNamesMap[mNum],
+        reportingDeptCount: reportingDeptsInMonth,
+        totalDepartments: totalDepartmentsCount,
+        percentage,
+        totalIncidents: totalIncidentsInMonth,
+      };
+    });
+
+    const yearlyKpiPercentage = totalDepartmentsCount > 0
+      ? Number(((deptsReportingAtLeastOnceYear / totalDepartmentsCount) * 100).toFixed(1))
+      : 0;
+
+    const yearsList: number[] = [];
+    const minYear = earliestRecord?.date_report ? new Date(earliestRecord.date_report).getFullYear() : 2020;
+    for (let y = currentYear; y >= Math.min(minYear, 2020); y--) {
+      yearsList.push(y);
+    }
+
+    return {
+      summary: {
+        totalDepartments: totalDepartmentsCount,
+        reportingDepartmentsTotalYear: deptsReportingAtLeastOnceYear,
+        kpiYearlyPercentage: yearlyKpiPercentage,
+        totalIncidentsYear: incidents.length,
+        year: targetYear,
+        yearType,
+      },
+      yearsList,
+      monthsOrder,
+      monthlyKpiSummary,
+      departmentStats: departmentStatsList,
+    };
+  }
+
+  async getProgramSeverityMatrix(query?: {
+    startDate?: string;
+    endDate?: string;
+    year?: number;
+    year_type?: string;
+  }) {
+    const [latestRecord, earliestRecord] = await Promise.all([
+      this.prisma.riskregister.findFirst({
+        orderBy: { date_report: 'desc' },
+        select: { date_report: true },
+      }),
+      this.prisma.riskregister.findFirst({
+        orderBy: { date_report: 'asc' },
+        select: { date_report: true },
+      }),
+    ]);
+
+    const currentYear = new Date().getFullYear();
+    const maxYear = latestRecord?.date_report ? new Date(latestRecord.date_report).getFullYear() : currentYear;
+    const targetYear = query?.year || maxYear;
+    const yearType = query?.year_type || 'fiscal';
+
+    let startDate: Date;
+    let endDate: Date;
+
+    if (query?.startDate && query?.endDate) {
+      startDate = new Date(query.startDate);
+      endDate = new Date(query.endDate);
+    } else if (yearType === 'fiscal') {
+      startDate = new Date(`${targetYear - 1}-10-01T00:00:00.000Z`);
+      endDate = new Date(`${targetYear}-09-30T23:59:59.999Z`);
+    } else {
+      startDate = new Date(`${targetYear}-01-01T00:00:00.000Z`);
+      endDate = new Date(`${targetYear}-12-31T23:59:59.999Z`);
+    }
+
+    const [programs, riskstores, incidents, rcaCases, standardRcas] = await Promise.all([
+      this.prisma.program.findMany({ select: { program_id: true, program_name: true } }),
+      this.prisma.riskstore.findMany({ select: { id: true, risk_name: true, code: true, program_id: true } }),
+      this.prisma.riskregister.findMany({
+        where: {
+          date_report: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        select: {
+          id: true,
+          id_risk: true,
+          date_report: true,
+          date_edit: true,
+          level_id: true,
+          program_id: true,
+          riskstore_id: true,
+          detail: true,
+          rca_required: true,
+          rca_status: true,
+          rca_case_id: true,
+          standard_rca_id: true,
+          department_id: true,
+        },
+      }),
+      this.prisma.rca_case.findMany({
+        select: { id: true, review_date: true, created_at: true },
+      }),
+      this.prisma.standard_rca_case.findMany({
+        select: { id: true, review_date: true, created_at: true },
+      }),
+      this.prisma.riskregister.findFirst({
+        orderBy: { date_report: 'asc' },
+        select: { date_report: true },
+      }),
+    ]);
+
+    const programMap = new Map<number, string>();
+    programs.forEach((p) => programMap.set(p.program_id, p.program_name));
+
+    const riskstoreMap = new Map<number, any>();
+    riskstores.forEach((rs) => riskstoreMap.set(rs.id, rs));
+
+    const rcaCaseMap = new Map<string, any>();
+    rcaCases.forEach((rc) => rcaCaseMap.set(rc.id, rc));
+
+    const stdRcaCaseMap = new Map<string, any>();
+    standardRcas.forEach((src) => stdRcaCaseMap.set(src.id, src));
+
+    const clinicalLevels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+    const generalLevels = ['1', '2', '3', '4', '5'];
+    const allLevels = [...clinicalLevels, ...generalLevels];
+
+    const matrixMap = new Map<number, any>();
+
+    programs.forEach((p) => {
+      const counts: Record<string, number> = {};
+      allLevels.forEach((lvl) => {
+        counts[lvl] = 0;
+      });
+
+      matrixMap.set(p.program_id, {
+        program_id: p.program_id,
+        program_name: p.program_name,
+        counts,
+        total_clinical: 0,
+        total_general: 0,
+        total_ghi: 0,
+        total_all: 0,
+        rca_durations: [] as number[],
+      });
+    });
+
+    const unassignedCounts: Record<string, number> = {};
+    allLevels.forEach((lvl) => {
+      unassignedCounts[lvl] = 0;
+    });
+    matrixMap.set(0, {
+      program_id: 0,
+      program_name: 'ไม่ระบุโปรแกรม',
+      counts: unassignedCounts,
+      total_clinical: 0,
+      total_general: 0,
+      total_ghi: 0,
+      total_all: 0,
+      rca_durations: [] as number[],
+    });
+
+    const ghiIncidentsList: any[] = [];
+
+    incidents.forEach((inc) => {
+      let progId = inc.program_id || 0;
+      if (!progId && inc.riskstore_id) {
+        const rs = riskstoreMap.get(inc.riskstore_id);
+        if (rs && rs.program_id) {
+          progId = rs.program_id;
+        }
+      }
+
+      let pData = matrixMap.get(progId);
+      if (!pData) {
+        pData = matrixMap.get(0);
+      }
+
+      const lvl = (inc.level_id || '').toUpperCase().trim();
+
+      if (pData.counts[lvl] !== undefined) {
+        pData.counts[lvl] += 1;
+      }
+
+      if (clinicalLevels.includes(lvl)) {
+        pData.total_clinical += 1;
+      } else if (generalLevels.includes(lvl)) {
+        pData.total_general += 1;
+      }
+      pData.total_all += 1;
+
+      let rcaDate: Date | null = null;
+      if (inc.standard_rca_id && stdRcaCaseMap.has(inc.standard_rca_id)) {
+        rcaDate = stdRcaCaseMap.get(inc.standard_rca_id).review_date;
+      } else if (inc.rca_case_id && rcaCaseMap.has(inc.rca_case_id)) {
+        rcaDate = rcaCaseMap.get(inc.rca_case_id).review_date;
+      } else if (inc.date_edit) {
+        rcaDate = new Date(inc.date_edit);
+      }
+
+      let rcaDurationDays: number | null = null;
+      if (rcaDate && inc.date_report) {
+        const diffMs = new Date(rcaDate).getTime() - new Date(inc.date_report).getTime();
+        rcaDurationDays = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+        pData.rca_durations.push(rcaDurationDays);
+      }
+
+      if (['G', 'H', 'I'].includes(lvl)) {
+        pData.total_ghi += 1;
+
+        const rsInfo = riskstoreMap.get(inc.riskstore_id);
+        ghiIncidentsList.push({
+          id: inc.id,
+          id_risk: inc.id_risk,
+          date_report: inc.date_report,
+          program_name: pData.program_name,
+          risk_code: rsInfo?.code || '',
+          risk_title: rsInfo?.risk_name || inc.detail || 'อุบัติการณ์ระดับรุนแรง',
+          level_id: lvl,
+          rca_status: inc.rca_status || 'COMPLETED',
+          rca_date: rcaDate,
+          rca_duration_days: rcaDurationDays !== null ? rcaDurationDays : null,
+        });
+      }
+    });
+
+    const matrixList = Array.from(matrixMap.values())
+      .filter((p) => p.total_all > 0)
+      .map((p) => {
+        const avgRcaDays = p.rca_durations.length > 0
+          ? Number((p.rca_durations.reduce((a: number, b: number) => a + b, 0) / p.rca_durations.length).toFixed(1))
+          : null;
+        return {
+          program_id: p.program_id,
+          program_name: p.program_name,
+          counts: p.counts,
+          total_clinical: p.total_clinical,
+          total_general: p.total_general,
+          total_ghi: p.total_ghi,
+          total_all: p.total_all,
+          avg_rca_days: avgRcaDays,
+        };
+      })
+      .sort((a, b) => b.total_all - a.total_all);
+
+    const totalIncidents = incidents.length;
+    const totalGHI = ghiIncidentsList.length;
+
+    const yearsList: number[] = [];
+    const minYear = earliestRecord?.date_report ? new Date(earliestRecord.date_report).getFullYear() : 2020;
+    for (let y = currentYear; y >= Math.min(minYear, 2020); y--) {
+      yearsList.push(y);
+    }
+
+    return {
+      summary: {
+        totalIncidents,
+        totalGHI,
+        totalClinical: incidents.filter((i) => clinicalLevels.includes((i.level_id || '').toUpperCase())).length,
+        totalGeneral: incidents.filter((i) => generalLevels.includes((i.level_id || '').toUpperCase())).length,
+        ghiPercentage: totalIncidents > 0 ? Number(((totalGHI / totalIncidents) * 100).toFixed(1)) : 0,
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+        year: targetYear,
+        yearType,
+      },
+      yearsList,
+      ghiIncidentsList,
+      matrix: matrixList,
+    };
+  }
+
+  async getDepartmentStaffReportingStats(query?: {
+    department_group_id?: number;
+    year?: number;
+    year_type?: string;
+  }) {
+    const [latestRecord, earliestRecord] = await Promise.all([
+      this.prisma.riskregister.findFirst({
+        orderBy: { date_report: 'desc' },
+        select: { date_report: true },
+      }),
+      this.prisma.riskregister.findFirst({
+        orderBy: { date_report: 'asc' },
+        select: { date_report: true },
+      }),
+    ]);
+
+    const currentYear = new Date().getFullYear();
+    const maxYear = latestRecord?.date_report ? new Date(latestRecord.date_report).getFullYear() : currentYear;
+    const targetYear = query?.year || maxYear;
+    const yearType = query?.year_type || 'fiscal';
+
+    const deptWhere: any = {};
+    if (query?.department_group_id) {
+      deptWhere.depart_group_id = Number(query.department_group_id);
+    }
+
+    const [departments, groups, members] = await Promise.all([
+      this.prisma.department.findMany({
+        where: deptWhere,
+        select: { id: true, depart_name: true, depart_group_id: true },
+        orderBy: { depart_name: 'asc' },
+      }),
+      this.prisma.departmentgroup.findMany(),
+      this.prisma.member.findMany({
+        where: { status: '1' },
+        select: { id: true, cid: true, department_id1: true },
+      }),
+    ]);
+
+    const groupMap = new Map(groups.map((g) => [g.id, g.depart_group_name]));
+
+    const deptMembersMap = new Map<number, typeof members>();
+    departments.forEach((d) => deptMembersMap.set(d.id, []));
+    members.forEach((m) => {
+      if (m.department_id1 && deptMembersMap.has(m.department_id1)) {
+        deptMembersMap.get(m.department_id1)!.push(m);
+      }
+    });
+
+    const cids = members.map((m) => m.cid).filter(Boolean);
+    const users = await this.prisma.user.findMany({
+      where: { cid: { in: cids } },
+      select: { id: true, cid: true },
+    });
+
+    const cidToUserIdMap = new Map(users.map((u) => [u.cid, u.id]));
+    const userIdToDeptIdMap = new Map<number, number>();
+    members.forEach((m) => {
+      const uId = cidToUserIdMap.get(m.cid);
+      if (uId && m.department_id1) {
+        userIdToDeptIdMap.set(uId, m.department_id1);
+      }
+    });
+
+    let startDate: Date;
+    let endDate: Date;
+    if (yearType === 'fiscal') {
+      startDate = new Date(`${targetYear - 1}-10-01T00:00:00.000Z`);
+      endDate = new Date(`${targetYear}-09-30T23:59:59.999Z`);
+    } else {
+      startDate = new Date(`${targetYear}-01-01T00:00:00.000Z`);
+      endDate = new Date(`${targetYear}-12-31T23:59:59.999Z`);
+    }
+
+    const incidents = await this.prisma.riskregister.findMany({
+      where: {
+        date_report: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: {
+        id: true,
+        created_by: true,
+        user_ir: true,
+        date_report: true,
+        department_id: true,
+      },
+    });
+
+    const monthsOrder =
+      yearType === 'fiscal'
+        ? [10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+    const monthNamesMap: Record<number, string> = {
+      1: 'ม.ค.', 2: 'ก.พ.', 3: 'มี.ค.', 4: 'เม.ย.', 5: 'พ.ค.', 6: 'มิ.ย.',
+      7: 'ก.ค.', 8: 'ส.ค.', 9: 'ก.ย.', 10: 'ต.ค.', 11: 'พ.ย.', 12: 'ธ.ค.'
+    };
+
+    const deptMonthlyReporters = new Map<number, Record<number, Set<number>>>();
+
+    departments.forEach((d) => {
+      const monthSets: Record<number, Set<number>> = {};
+      monthsOrder.forEach((mNum) => {
+        monthSets[mNum] = new Set<number>();
+      });
+      deptMonthlyReporters.set(d.id, monthSets);
+    });
+
+    incidents.forEach((inc) => {
+      const rDate = new Date(inc.date_report);
+      const mNum = rDate.getMonth() + 1;
+
+      let authorDeptId = 0;
+      let authorId = inc.created_by || inc.user_ir || 0;
+
+      if (authorId && userIdToDeptIdMap.has(authorId)) {
+        authorDeptId = userIdToDeptIdMap.get(authorId)!;
+      } else if (inc.department_id) {
+        authorDeptId = Number(inc.department_id);
+      }
+
+      if (authorDeptId && deptMonthlyReporters.has(authorDeptId)) {
+        const monthSets = deptMonthlyReporters.get(authorDeptId)!;
+        if (monthSets[mNum]) {
+          monthSets[mNum].add(authorId || inc.id);
+        }
+      }
+    });
+
+    let totalHospitalStaff = 0;
+
+    const departmentRows = departments.map((d) => {
+      const staffList = deptMembersMap.get(d.id) || [];
+      const totalStaff = staffList.length;
+      totalHospitalStaff += totalStaff;
+
+      const monthSets = deptMonthlyReporters.get(d.id)!;
+      const monthlyCounts: Record<number, number> = {};
+
+      monthsOrder.forEach((mNum) => {
+        monthlyCounts[mNum] = monthSets[mNum] ? monthSets[mNum].size : 0;
+      });
+
+      return {
+        department_id: d.id,
+        department_name: d.depart_name,
+        department_group_id: d.depart_group_id,
+        department_group_name: groupMap.get(d.depart_group_id || 0) || 'ทั่วไป',
+        total_staff: totalStaff,
+        monthly_counts: monthlyCounts,
+      };
+    });
+
+    const monthlyStaffTotals: Record<number, number> = {};
+    const monthlyStaffPercentages: Record<number, string> = {};
+
+    monthsOrder.forEach((mNum) => {
+      let sumReporters = 0;
+      departmentRows.forEach((row) => {
+        sumReporters += row.monthly_counts[mNum] || 0;
+      });
+      monthlyStaffTotals[mNum] = sumReporters;
+      const pct = totalHospitalStaff > 0 ? ((sumReporters / totalHospitalStaff) * 100).toFixed(2) : '0.00';
+      monthlyStaffPercentages[mNum] = pct + '%';
+    });
+
+    const yearsList: number[] = [];
+    const minYear = earliestRecord?.date_report ? new Date(earliestRecord.date_report).getFullYear() : 2020;
+    for (let y = currentYear; y >= Math.min(minYear, 2020); y--) {
+      yearsList.push(y);
+    }
+
+    return {
+      summary: {
+        totalHospitalStaff,
+        year: targetYear,
+        yearType,
+      },
+      yearsList,
+      monthsOrder,
+      monthNamesMap,
+      departmentRows,
+      monthlyStaffTotals,
+      monthlyStaffPercentages,
+    };
+  }
 }
+

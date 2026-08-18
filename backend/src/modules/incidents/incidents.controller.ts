@@ -49,6 +49,67 @@ export class IncidentsController {
     return this.incidentsService.getReportAnalytics(query);
   }
 
+  @Get('reports/individual-monthly-stats')
+  @ApiOperation({ summary: 'Retrieve monthly risk reporting stats per individual person by department/group' })
+  getIndividualMonthlyStats(
+    @Query('department_group_id') department_group_id?: string,
+    @Query('department_id') department_id?: string,
+    @Query('year') year?: string,
+    @Query('year_type') year_type?: string,
+  ) {
+    return this.incidentsService.getIndividualMonthlyStats({
+      department_group_id: department_group_id ? Number(department_group_id) : undefined,
+      department_id: department_id ? Number(department_id) : undefined,
+      year: year ? Number(year) : undefined,
+      year_type: year_type || 'calendar',
+    });
+  }
+
+  @Get('reports/department-monthly-stats')
+  @ApiOperation({ summary: 'Retrieve KPI percentage of risk reporting across all departments monthly and yearly' })
+  getDepartmentMonthlyStats(
+    @Query('department_group_id') department_group_id?: string,
+    @Query('year') year?: string,
+    @Query('year_type') year_type?: string,
+  ) {
+    return this.incidentsService.getDepartmentMonthlyStats({
+      department_group_id: department_group_id ? Number(department_group_id) : undefined,
+      year: year ? Number(year) : undefined,
+      year_type: year_type || 'fiscal',
+    });
+  }
+
+  @Get('reports/program-severity-matrix')
+  @ApiOperation({ summary: 'Retrieve REP1_14 Program Severity Matrix with GHI extraction and RCA timings' })
+  getProgramSeverityMatrix(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('year') year?: string,
+    @Query('year_type') year_type?: string,
+  ) {
+    return this.incidentsService.getProgramSeverityMatrix({
+      startDate,
+      endDate,
+      year: year ? Number(year) : undefined,
+      year_type: year_type || 'fiscal',
+    });
+  }
+
+  @Get('reports/department-staff-stats')
+  @ApiOperation({ summary: 'Retrieve count of reporting staff members per department monthly (Excel format)' })
+  getDepartmentStaffReportingStats(
+    @Query('department_group_id') department_group_id?: string,
+    @Query('year') year?: string,
+    @Query('year_type') year_type?: string,
+  ) {
+    return this.incidentsService.getDepartmentStaffReportingStats({
+      department_group_id: department_group_id ? Number(department_group_id) : undefined,
+      year: year ? Number(year) : undefined,
+      year_type: year_type || 'fiscal',
+    });
+  }
+
+
   @Get('risk-register/summary')
   @ApiOperation({ summary: 'Retrieve enterprise Risk Register master profile and scores' })
   getRiskRegister(@Query() query: any) {

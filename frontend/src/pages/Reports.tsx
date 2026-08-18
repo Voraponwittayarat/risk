@@ -392,6 +392,7 @@ export default function Reports() {
   const [recentIncidents, setRecentIncidents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+
   // Filters
   const [selectedDept, setSelectedDept] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -527,6 +528,7 @@ export default function Reports() {
   useEffect(() => {
     fetchRiskAnalysisData();
   }, [activeTab, selectedDept]);
+
 
   // Open Create Modal with default scope matching tab
   const handleOpenCreateModal = () => {

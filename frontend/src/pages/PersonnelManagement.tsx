@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Pencil, Plus, RefreshCw, Search, ShieldCheck, UserCheck, UserRoundX, UsersRound, X } from 'lucide-react';
+import { Pencil, Plus, RefreshCw, Search, UsersRound, X } from 'lucide-react';
 
 interface Member {
   id: number;
@@ -256,7 +256,7 @@ export default function PersonnelManagement() {
       </div>
 
       {editing && (
-        <Modal title={editing === 'new' ? 'เพิ่มบุคลากรใหม่' : `แก้ไขข้อมูล ${editing === 'new' ? '' : editing.name}`} onClose={() => setEditing(null)}>
+        <Modal title={editing === 'new' ? 'เพิ่มบุคลากรใหม่' : `แก้ไขข้อมูล ${typeof editing === 'object' ? editing.name : ''}`} onClose={() => setEditing(null)}>
           <form onSubmit={saveMember} className="space-y-5 p-6">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="เลขประจำตัวประชาชน 13 หลัก" required><input inputMode="numeric" minLength={13} maxLength={13} value={form.cid} onChange={(event) => setForm({ ...form, cid: event.target.value.replace(/\D/g, '') })} required className="form-input" disabled={editing !== 'new'} title={editing !== 'new' ? 'ไม่สามารถเปลี่ยนเลขบัตรได้' : ''} /></Field>

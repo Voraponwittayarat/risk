@@ -13,4 +13,12 @@ export class DepartmentsController {
   findAll() {
     return this.departmentsService.findAll();
   }
+
+  @Get('groups')
+  @ApiOperation({ summary: 'Retrieve a list of all department groups (กลุ่มงาน)' })
+  @ApiResponse({ status: 200, description: 'Successful retrieval of department groups.' })
+  findGroups() {
+    return this.departmentsService.findGroups();
+  }
 }
+

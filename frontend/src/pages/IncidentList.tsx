@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { 
   Search, Plus, AlertTriangle, 
   ChevronLeft, ChevronRight, Eye,
-  Layers, Shield, ShieldAlert, X, CheckSquare, Square
+  Layers, Shield, ShieldAlert, ShieldCheck, X, CheckSquare, Square
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getStatusInfo, getSeverityBadge, isSentinelEvent } from '../utils/statusAdapter';
@@ -614,11 +614,11 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
                           {/* View Detail Link */}
                           <Link
                             to={`/incidents/${inc.id}`}
-                            title="ดูรายละเอียดเหตุการณ์ / ยืนยันความเสี่ยง"
+                            title="จัดการความเสี่ยง"
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-600 hover:text-white dark:bg-blue-950/50 dark:hover:bg-blue-600 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 font-bold text-xs shadow-2xs transition-all"
                           >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>รายละเอียดเหตุการณ์</span>
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>จัดการความเสี่ยง</span>
                           </Link>
 
                           {/* In-App RCA Trigger */}

@@ -19,6 +19,7 @@ import RcaList from './pages/rca/RcaList';
 import ConciseRcaForm from './pages/rca/ConciseRcaForm';
 import StandardRcaForm from './pages/rca/StandardRcaForm';
 import PersonnelManagement from './pages/PersonnelManagement';
+import IndividualReportStats from './pages/IndividualReportStats';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -72,6 +73,8 @@ function App() {
             <Route path="rca/standard/:id" element={<StandardRcaForm />} />
 
             <Route path="reports" element={<Reports />} />
+            <Route path="reporting-stats" element={<IndividualReportStats />} />
+            <Route path="individual-stats" element={<Navigate to="/reporting-stats" replace />} />
             <Route path="settings" element={<Settings />} />
             <Route path="users" element={<AdminRoute><UserManagement /></AdminRoute>} />
             <Route path="personnel" element={<AdminRoute><PersonnelManagement /></AdminRoute>} />

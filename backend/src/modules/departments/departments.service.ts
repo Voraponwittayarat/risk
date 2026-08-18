@@ -12,4 +12,13 @@ export class DepartmentsService {
       },
     });
   }
+
+  async findGroups() {
+    return this.prisma.departmentgroup.findMany({
+      orderBy: {
+        depart_group_name: 'asc',
+      },
+    });
+  }
 }
+

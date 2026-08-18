@@ -133,14 +133,14 @@ export default function Layout() {
       ]
     },
     {
-      groupTitle: 'สถิติรายงาน',
+      groupTitle: 'สถิติรายงาน & ตัวชี้วัด',
       items: [
         { 
-          name: 'สถิติรายงานความเสี่ยงรายบุคคล', 
+          name: 'สถิติตัวชี้วัด & รายงานความเสี่ยง', 
           path: '/reporting-stats', 
-          icon: Users,
-          badge: 'รายเดือน',
-          badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold'
+          icon: BarChart3,
+          badge: 'KPI',
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
         },
       ]
     },
