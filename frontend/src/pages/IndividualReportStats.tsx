@@ -3,13 +3,19 @@ import axios from 'axios';
 import { 
   Users, Building, Filter, Calendar, Clock, Search, X, 
   Printer, Download, RefreshCw, FileText, UserCheck, Award, 
-  User, Activity, Sparkles, Building2, CheckCircle2, AlertCircle, Target, TrendingUp, BarChart2, ShieldCheck, ShieldAlert, Layers, TableGrid
+  User, Activity, Sparkles, Building2, CheckCircle2, AlertCircle, Target, TrendingUp, BarChart2, ShieldCheck, ShieldAlert, Layers, TableGrid, Eye, ExternalLink, MessageSquare, Info
 } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function IndividualReportStats() {
   // Main Tab State: staff_report | program_matrix | dept_kpi | individual
-  const [activeTab, setActiveTab] = useState<'staff_report' | 'program_matrix' | 'dept_kpi' | 'individual'>('staff_report');
+  const [activeTab, setActiveTab] = useState<'staff_report' | 'program_matrix' | 'dept_kpi' | 'individual'>('program_matrix');
+
+  // Matrix Grouping Mode inside REP1_14: 'risk_title' | 'program'
+  const [matrixGroupMode, setMatrixGroupMode] = useState<'risk_title' | 'program'>('risk_title');
+
+  // Selected Risk Title Item for Drill-down Modal
+  const [selectedRiskModalItem, setSelectedRiskModalItem] = useState<any | null>(null);
 
   // Master Data States
   const [departments, setDepartments] = useState<any[]>([]);
@@ -212,7 +218,6 @@ export default function IndividualReportStats() {
       csvContent += `"${idx + 1}","${d.department_name || ''}",${d.total_staff || 0},${monthValues.join(',')}\n`;
     });
 
-    // Add totals row
     const totals = monthsOrder.map((mNum: number) => staffStatsData.monthlyStaffTotals?.[mNum] || 0);
     const pcts = monthsOrder.map((mNum: number) => staffStatsData.monthlyStaffPercentages?.[mNum] || '0.00%');
     csvContent += `,"รวม",${staffStatsData.summary?.totalHospitalStaff || 0},${totals.join(',')}\n`;
@@ -266,29 +271,37 @@ export default function IndividualReportStats() {
     document.body.removeChild(link);
   };
 
-  // Export CSV for REP1_14 Program Severity Matrix
+  // Export CSV for REP1_14 Program & Risk Title Matrix
   const handleExportMatrixCsv = () => {
-    if (!matrixData?.matrix) return;
+    const dataSource = matrixGroupMode === 'risk_title' ? matrixData?.riskTitleMatrix : matrixData?.matrix;
+    if (!dataSource) return;
 
-    const filtered = matrixData.matrix.filter((m: any) => {
+    const filtered = dataSource.filter((m: any) => {
       if (!matrixSearchQuery.trim()) return true;
       const q = matrixSearchQuery.toLowerCase();
-      return m.program_name?.toLowerCase().includes(q);
+      return (
+        m.risk_title?.toLowerCase().includes(q) ||
+        m.program_name?.toLowerCase().includes(q)
+      );
     });
 
     let csvContent = '\uFEFF';
-    csvContent += `REP1_14 : รายงานจำนวนอุบัติการณ์ความเสี่ยงทั้งหมดแยกตามโปรแกรมและระดับความรุนแรง ประจำปี ${selectedYear + 543} (${selectedYearType === 'fiscal' ? 'ปีงบประมาณ' : 'ปีปฏิทิน'})\n`;
-    csvContent += `ลำดับ,โปรแกรมความเสี่ยง,ระดับ A,ระดับ B,ระดับ C,ระดับ D,ระดับ E,ระดับ F,ระดับ G,ระดับ H,ระดับ I,ระดับ 1,ระดับ 2,ระดับ 3,ระดับ 4,ระดับ 5,รวมความเสี่ยงรุนแรง GHI,เวลาเฉลี่ยทำ RCA (วัน),รวมทั้งหมด\n`;
+    csvContent += `REP1_14 : รายงานจำนวนอุบัติการณ์ความเสี่ยงทั้งหมดจำแนกตาม${matrixGroupMode === 'risk_title' ? 'ชื่อเรื่องความเสี่ยง' : 'โปรแกรม'} ประจำปี ${selectedYear + 543} (${selectedYearType === 'fiscal' ? 'ปีงบประมาณ' : 'ปีปฏิทิน'})\n`;
+    csvContent += `ลำดับ,${matrixGroupMode === 'risk_title' ? 'ชื่อเรื่องความเสี่ยง,โปรแกรมความเสี่ยง' : 'โปรแกรมความเสี่ยง'},ระดับ A,ระดับ B,ระดับ C,ระดับ D,ระดับ E,ระดับ F,ระดับ G,ระดับ H,ระดับ I,ระดับ 1,ระดับ 2,ระดับ 3,ระดับ 4,ระดับ 5,รวมความเสี่ยงรุนแรง GHI,เวลาเฉลี่ยทำ RCA (วัน),รวมทั้งหมด\n`;
 
     filtered.forEach((m: any, idx: number) => {
-      csvContent += `"${idx + 1}","${m.program_name || ''}",${m.counts.A || 0},${m.counts.B || 0},${m.counts.C || 0},${m.counts.D || 0},${m.counts.E || 0},${m.counts.F || 0},${m.counts.G || 0},${m.counts.H || 0},${m.counts.I || 0},${m.counts[1] || 0},${m.counts[2] || 0},${m.counts[3] || 0},${m.counts[4] || 0},${m.counts[5] || 0},${m.total_ghi || 0},"${m.avg_rca_days !== null ? m.avg_rca_days + ' วัน' : '-'}",${m.total_all || 0}\n`;
+      const nameCol = matrixGroupMode === 'risk_title'
+        ? `"${m.risk_title || ''}","${m.program_name || ''}"`
+        : `"${m.program_name || ''}"`;
+
+      csvContent += `"${idx + 1}",${nameCol},${m.counts.A || 0},${m.counts.B || 0},${m.counts.C || 0},${m.counts.D || 0},${m.counts.E || 0},${m.counts.F || 0},${m.counts.G || 0},${m.counts.H || 0},${m.counts.I || 0},${m.counts[1] || 0},${m.counts[2] || 0},${m.counts[3] || 0},${m.counts[4] || 0},${m.counts[5] || 0},${m.total_ghi || 0},"${m.avg_rca_days !== null ? m.avg_rca_days + ' วัน' : '-'}",${m.total_all || 0}\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `REP1_14_รายงานความเสี่ยงจำแนกตามโปรแกรม_${selectedYear + 543}.csv`);
+    link.setAttribute('download', `REP1_14_รายงานความเสี่ยง_${matrixGroupMode}_${selectedYear + 543}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -401,6 +414,16 @@ export default function IndividualReportStats() {
     return m.program_name?.toLowerCase().includes(q);
   });
 
+  // Risk Title Matrix Filtered
+  const filteredRiskTitleMatrix = (matrixData?.riskTitleMatrix || []).filter((t: any) => {
+    if (!matrixSearchQuery.trim()) return true;
+    const q = matrixSearchQuery.toLowerCase();
+    return (
+      t.risk_title?.toLowerCase().includes(q) ||
+      t.program_name?.toLowerCase().includes(q)
+    );
+  });
+
   // Individual Stats Filtered
   const filteredMemberStats = (individualStatsData?.memberStats || []).filter((m: any) => {
     if (!individualSearchQuery.trim()) return true;
@@ -437,7 +460,7 @@ export default function IndividualReportStats() {
             <span>สถิติการรายงานของเจ้าหน้าที่ (แยกตามหน่วยงาน)</span>
           </button>
 
-          {/* TAB 2: REP1_14 PROGRAM MATRIX */}
+          {/* TAB 2: REP1_14 PROGRAM & RISK TITLE MATRIX */}
           <button
             onClick={() => setActiveTab('program_matrix')}
             className={`flex-1 lg:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
@@ -447,7 +470,7 @@ export default function IndividualReportStats() {
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>โปรแกรมความเสี่ยง & ระดับ (REP1_14 + GHI/RCA)</span>
+            <span>เรื่องความเสี่ยง & ระดับ (REP1_14 Matrix)</span>
           </button>
 
           {/* TAB 3: DEPARTMENT KPI COVERAGE */}
@@ -528,7 +551,7 @@ export default function IndividualReportStats() {
                   {activeTab === 'staff_report'
                     ? `จำนวนเจ้าหน้าที่ที่รายงานแต่ละเดือน ปี พ.ศ. ${selectedYear + 543}`
                     : activeTab === 'program_matrix'
-                    ? 'REP1_14 : รายงานจำนวนอุบัติการณ์ความเสี่ยงทั้งหมดแยกตามโปรแกรม'
+                    ? 'REP1_14 : รายงานจำนวนอุบัติการณ์ความเสี่ยงทั้งหมดแยกตามเรื่องความเสี่ยง'
                     : activeTab === 'dept_kpi'
                     ? 'สถิติตัวชี้วัดร้อยละการรายงานความเสี่ยงครบทุกหน่วยงาน'
                     : 'สถิติตารางการรายงานความเสี่ยงต่อเดือนแยกรายบุคคล'}
@@ -537,7 +560,7 @@ export default function IndividualReportStats() {
                   {activeTab === 'staff_report'
                     ? 'รายงานแสดงจำนวนเจ้าหน้าที่ที่ส่งรายงานในแต่ละเดือน (ไฮไลต์สีเขียวเมื่อส่งครบทุกคน / สีแดงเมื่อไม่มีคนส่ง)'
                     : activeTab === 'program_matrix'
-                    ? 'จำแนกตามโปรแกรมความเสี่ยง ระดับความรุนแรง A-I, 1-5 พร้อมไฮไลต์ G, H, I และระยะเวลาทำ RCA'
+                    ? 'จำแนกตามชื่อเรื่องความเสี่ยงและระดับความรุนแรง A-I, 1-5 พร้อมคลิกดูตารางสรุปเรื่องและผลการทบทวน'
                     : activeTab === 'dept_kpi'
                     ? 'แสดงร้อยละความครอบคลุมการรายงานความเสี่ยงรายปีและรายเดือน พร้อมจำนวนอุบัติการณ์ต่อเดือนแยกรายหน่วยงาน'
                     : 'สกัดข้อมูลสถิติการส่งรายงานอุบัติการณ์และความเสี่ยงรายบุคคลต่อเดือน'}
@@ -626,12 +649,12 @@ export default function IndividualReportStats() {
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
                 <Search className="w-3.5 h-3.5 text-rose-600" />
-                ค้นหาโปรแกรมความเสี่ยง
+                ค้นหาเรื่องความเสี่ยง
               </label>
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="พิมพ์ค้นหาชื่อโปรแกรม..."
+                  placeholder="พิมพ์ค้นหาชื่อเรื่องความเสี่ยง..."
                   value={matrixSearchQuery}
                   onChange={(e) => setMatrixSearchQuery(e.target.value)}
                   className="w-full px-3.5 py-2.5 pl-9 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -649,7 +672,7 @@ export default function IndividualReportStats() {
             </div>
           )}
 
-          {/* Department Filter (Only for Individual Tab) or Search */}
+          {/* Search Input for Staff / Individual */}
           {activeTab === 'staff_report' ? (
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
@@ -788,7 +811,6 @@ export default function IndividualReportStats() {
                   ) : (
                     filteredStaffRows.map((d: any, idx: number) => {
                       const totalStaff = d.total_staff || 0;
-                      // Alternate row colors like Excel (Light Yellow & Light Blue)
                       const rowBgClass =
                         idx % 2 === 0
                           ? 'bg-[#FEFCE8] dark:bg-slate-900/60'
@@ -819,10 +841,10 @@ export default function IndividualReportStats() {
                                 key={mNum}
                                 className={`px-2.5 py-3 text-center border-r border-slate-200 dark:border-slate-800 transition-colors ${
                                   isZero
-                                    ? 'bg-red-600 text-white font-extrabold' // RED for ZERO
+                                    ? 'bg-red-600 text-white font-extrabold'
                                     : isFull
-                                    ? 'bg-emerald-500 text-white font-extrabold' // GREEN for FULL
-                                    : 'font-semibold text-slate-900 dark:text-white' // NORMAL
+                                    ? 'bg-emerald-500 text-white font-extrabold'
+                                    : 'font-semibold text-slate-900 dark:text-white'
                                 }`}
                               >
                                 {count}
@@ -838,7 +860,6 @@ export default function IndividualReportStats() {
                 {/* Footer Rows Matching Excel Exactly */}
                 {filteredStaffRows.length > 0 && (
                   <tfoot className="font-extrabold border-t-2 border-slate-300 dark:border-slate-700">
-                    {/* TOTAL ROW (Peach / Soft Orange) */}
                     <tr className="bg-[#FDBA74] text-slate-950 dark:bg-amber-950 dark:text-white border-b border-amber-300">
                       <td colSpan={2} className="px-4 py-3 text-center border-r border-amber-300 font-extrabold text-sm">
                         รวม
@@ -858,7 +879,6 @@ export default function IndividualReportStats() {
                       })}
                     </tr>
 
-                    {/* PERCENTAGE ROW (Lighter Peach / Orange) */}
                     <tr className="bg-[#FED7AA] text-slate-900 dark:bg-amber-900 dark:text-amber-100">
                       <td colSpan={2} className="px-4 py-2.5 text-center border-r border-amber-300 font-extrabold text-xs">
                         ร้อยละ
@@ -885,7 +905,7 @@ export default function IndividualReportStats() {
         </div>
       )}
 
-      {/* TAB 2: PROGRAM SEVERITY MATRIX (REP1_14) + GHI HIGHLIGHT & RCA TIME */}
+      {/* TAB 2: PROGRAM & RISK TITLE MATRIX (REP1_14) + DRILL-DOWN MODAL */}
       {activeTab === 'program_matrix' && (
         <div className="space-y-6">
           {/* Top Summary Cards */}
@@ -1065,22 +1085,46 @@ export default function IndividualReportStats() {
             )}
           </div>
 
-          {/* MAIN REP1_14 PROGRAM SEVERITY MATRIX TABLE */}
+          {/* MAIN REP1_14 MATRIX TABLE WITH MODE TOGGLE (RISK TITLE / PROGRAM) */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-slate-50/70 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="px-6 py-4 bg-slate-50/70 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
                   <BarChart2 className="w-5 h-5 text-indigo-600" />
-                  ตารางรายงานจำนวนอุบัติการณ์ความเสี่ยงทั้งหมดแยกตามโปรแกรม (REP1_14 Matrix)
+                  ตารางรายงานจำนวนอุบัติการณ์ความเสี่ยงทั้งหมด (REP1_14 Matrix)
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  จำแนกตามโปรแกรมความเสี่ยงและระดับความรุนแรง (ความเสี่ยงทางคลินิก A-I & ความเสี่ยงทั่วไป 1-5)
+                  {matrixGroupMode === 'risk_title'
+                    ? 'แสดงตารางแยกตามชื่อเรื่องความเสี่ยง พร้อมคลิกปุ่มดูตารางสรุปเรื่องและผลการทบทวน'
+                    : 'แสดงตารางจำแนกตามโปรแกรมความเสี่ยงหลัก'}
                 </p>
               </div>
 
-              <span className="text-xs font-semibold px-3 py-1 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-full border border-indigo-200 dark:border-indigo-800">
-                พบ {filteredMatrix.length} โปรแกรม
-              </span>
+              {/* Mode Switcher Toggle */}
+              <div className="flex items-center gap-2 bg-slate-200/80 dark:bg-slate-800 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setMatrixGroupMode('risk_title')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    matrixGroupMode === 'risk_title'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  📌 ชื่อเรื่องความเสี่ยง (Risk Topics)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMatrixGroupMode('program')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    matrixGroupMode === 'program'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  📁 โปรแกรมความเสี่ยง (Programs)
+                </button>
+              </div>
             </div>
 
             {loadingMatrix ? (
@@ -1101,13 +1145,15 @@ export default function IndividualReportStats() {
                         ความเสี่ยงทั่วไป (General Risk)
                       </th>
                       <th colSpan={3} className="px-3 py-2 text-center bg-rose-100/60 dark:bg-rose-950/40 text-rose-950 dark:text-rose-200">
-                        สรุปรวม & RCA
+                        สรุปรวม & ผลทบทวน
                       </th>
                     </tr>
 
                     <tr>
                       <th className="px-3 py-3 text-center w-[45px] border-r border-slate-200 dark:border-slate-700">#</th>
-                      <th className="px-4 py-3 min-w-[260px] border-r border-slate-200 dark:border-slate-700">โปรแกรมความเสี่ยง</th>
+                      <th className="px-4 py-3 min-w-[280px] border-r border-slate-200 dark:border-slate-700">
+                        {matrixGroupMode === 'risk_title' ? 'ชื่อเรื่องความเสี่ยง (Risk Incident Topic)' : 'โปรแกรมความเสี่ยง'}
+                      </th>
 
                       <th className="px-2.5 py-3 text-center w-[40px] border-r border-slate-200 dark:border-slate-700">A</th>
                       <th className="px-2.5 py-3 text-center w-[40px] border-r border-slate-200 dark:border-slate-700">B</th>
@@ -1134,37 +1180,54 @@ export default function IndividualReportStats() {
                         เวลาทำ RCA
                       </th>
 
-                      <th className="px-3 py-3 text-center w-[85px] bg-slate-200/80 dark:bg-slate-800 text-slate-950 dark:text-white font-black">
-                        รวมทั้งหมด
+                      <th className="px-3 py-3 text-center w-[120px] bg-slate-200/80 dark:bg-slate-800 text-slate-950 dark:text-white font-black">
+                        {matrixGroupMode === 'risk_title' ? 'ผลการทบทวน' : 'รวมทั้งหมด'}
                       </th>
                     </tr>
                   </thead>
 
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {filteredMatrix.length === 0 ? (
+                    {(matrixGroupMode === 'risk_title' ? filteredRiskTitleMatrix : filteredMatrix).length === 0 ? (
                       <tr>
                         <td colSpan={19} className="px-6 py-12 text-center text-slate-400 text-sm">
-                          ไม่พบข้อมูลอุบัติการณ์ตามเงื่อนไขการค้นหานี้
+                          ไม่พบข้อมูลรายการในเงื่อนไขการค้นหานี้
                         </td>
                       </tr>
                     ) : (
-                      filteredMatrix.map((m: any, idx: number) => {
-                        const hasGhi = m.total_ghi > 0;
+                      (matrixGroupMode === 'risk_title' ? filteredRiskTitleMatrix : filteredMatrix).map((item: any, idx: number) => {
+                        const hasGhi = item.total_ghi > 0;
 
                         return (
-                          <tr key={m.program_id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                          <tr key={item.riskstore_id || item.program_id || idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                             <td className="px-3 py-3 text-center font-mono text-slate-400 border-r border-slate-100 dark:border-slate-800">
                               {idx + 1}
                             </td>
 
-                            <td className="px-4 py-3 font-bold text-slate-900 dark:text-white border-r border-slate-100 dark:border-slate-800">
-                              {m.program_name}
+                            {/* Risk Title & Program Name Column */}
+                            <td className="px-4 py-3 border-r border-slate-100 dark:border-slate-800">
+                              {matrixGroupMode === 'risk_title' ? (
+                                <div className="space-y-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedRiskModalItem(item)}
+                                    className="font-extrabold text-slate-900 dark:text-white hover:text-rose-600 dark:hover:text-rose-400 text-left transition cursor-pointer flex items-start gap-1.5 group"
+                                  >
+                                    <span className="group-hover:underline">{item.risk_title}</span>
+                                    <ExternalLink className="w-3.5 h-3.5 text-rose-500 opacity-70 group-hover:opacity-100 shrink-0 mt-0.5" />
+                                  </button>
+                                  <p className="text-[11px] font-medium text-slate-400">
+                                    โปรแกรม: {item.program_name}
+                                  </p>
+                                </div>
+                              ) : (
+                                <span className="font-bold text-slate-900 dark:text-white">{item.program_name}</span>
+                              )}
                             </td>
 
                             {['A', 'B', 'C', 'D', 'E', 'F'].map((lvl) => (
                               <td key={lvl} className="px-2 py-3 text-center border-r border-slate-100 dark:border-slate-800">
-                                {m.counts[lvl] > 0 ? (
-                                  <span className="font-semibold text-slate-800 dark:text-slate-200">{m.counts[lvl]}</span>
+                                {item.counts[lvl] > 0 ? (
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200">{item.counts[lvl]}</span>
                                 ) : (
                                   <span className="text-slate-300 dark:text-slate-600 font-mono">-</span>
                                 )}
@@ -1173,9 +1236,9 @@ export default function IndividualReportStats() {
 
                             {['G', 'H', 'I'].map((lvl) => (
                               <td key={lvl} className="px-2 py-3 text-center bg-rose-50/50 dark:bg-rose-950/30 border-r border-slate-100 dark:border-slate-800 font-black">
-                                {m.counts[lvl] > 0 ? (
+                                {item.counts[lvl] > 0 ? (
                                   <span className="inline-block px-1.5 py-0.5 rounded bg-rose-600 text-white font-extrabold text-[11px] shadow-2xs">
-                                    {m.counts[lvl]}
+                                    {item.counts[lvl]}
                                   </span>
                                 ) : (
                                   <span className="text-slate-300 dark:text-slate-600 font-mono">-</span>
@@ -1185,8 +1248,8 @@ export default function IndividualReportStats() {
 
                             {['1', '2', '3', '4', '5'].map((lvl) => (
                               <td key={lvl} className="px-2 py-3 text-center border-r border-slate-100 dark:border-slate-800">
-                                {m.counts[lvl] > 0 ? (
-                                  <span className="font-semibold text-slate-800 dark:text-slate-200">{m.counts[lvl]}</span>
+                                {item.counts[lvl] > 0 ? (
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200">{item.counts[lvl]}</span>
                                 ) : (
                                   <span className="text-slate-300 dark:text-slate-600 font-mono">-</span>
                                 )}
@@ -1196,7 +1259,7 @@ export default function IndividualReportStats() {
                             <td className="px-3 py-3 text-center font-black border-r border-slate-100 dark:border-slate-800 bg-rose-50/40 dark:bg-rose-950/20">
                               {hasGhi ? (
                                 <span className="inline-block px-2 py-0.5 rounded bg-rose-100 text-rose-900 dark:bg-rose-900 dark:text-rose-100 font-extrabold">
-                                  {m.total_ghi}
+                                  {item.total_ghi}
                                 </span>
                               ) : (
                                 <span className="text-slate-300 dark:text-slate-600">0</span>
@@ -1204,19 +1267,31 @@ export default function IndividualReportStats() {
                             </td>
 
                             <td className="px-3 py-3 text-center border-r border-slate-100 dark:border-slate-800 font-bold text-indigo-700 dark:text-indigo-300">
-                              {m.avg_rca_days !== null ? (
+                              {item.avg_rca_days !== null ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-[11px]">
-                                  <Clock className="w-3 h-3 text-indigo-500" /> {m.avg_rca_days} วัน
+                                  <Clock className="w-3 h-3 text-indigo-500" /> {item.avg_rca_days} วัน
                                 </span>
                               ) : (
                                 <span className="text-slate-400 font-normal">-</span>
                               )}
                             </td>
 
+                            {/* Drill-down Button or Count */}
                             <td className="px-3 py-3 text-center font-black text-slate-900 dark:text-white bg-slate-100/60 dark:bg-slate-800/60">
-                              <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700">
-                                {m.total_all}
-                              </span>
+                              {matrixGroupMode === 'risk_title' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedRiskModalItem(item)}
+                                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold transition shadow-2xs flex items-center justify-center gap-1 cursor-pointer mx-auto"
+                                >
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  <span>ผลทบทวน ({item.total_all})</span>
+                                </button>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700">
+                                  {item.total_all}
+                                </span>
+                              )}
                             </td>
                           </tr>
                         );
@@ -1224,7 +1299,7 @@ export default function IndividualReportStats() {
                     )}
                   </tbody>
 
-                  {filteredMatrix.length > 0 && (
+                  {(matrixGroupMode === 'risk_title' ? filteredRiskTitleMatrix : filteredMatrix).length > 0 && (
                     <tfoot className="bg-slate-200/80 dark:bg-slate-800/90 font-extrabold border-t-2 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white">
                       <tr>
                         <td colSpan={2} className="px-4 py-3 text-right border-r border-slate-300 dark:border-slate-700 font-black">
@@ -1233,32 +1308,32 @@ export default function IndividualReportStats() {
 
                         {['A', 'B', 'C', 'D', 'E', 'F'].map((lvl) => (
                           <td key={lvl} className="px-2 py-3 text-center border-r border-slate-300 dark:border-slate-700">
-                            {filteredMatrix.reduce((sum: number, m: any) => sum + (m.counts[lvl] || 0), 0)}
+                            {(matrixGroupMode === 'risk_title' ? filteredRiskTitleMatrix : filteredMatrix).reduce((sum: number, m: any) => sum + (m.counts[lvl] || 0), 0)}
                           </td>
                         ))}
 
                         {['G', 'H', 'I'].map((lvl) => (
                           <td key={lvl} className="px-2 py-3 text-center bg-rose-200/70 dark:bg-rose-950 text-rose-950 dark:text-rose-200 border-r border-slate-300 dark:border-slate-700 font-black">
-                            {filteredMatrix.reduce((sum: number, m: any) => sum + (m.counts[lvl] || 0), 0)}
+                            {(matrixGroupMode === 'risk_title' ? filteredRiskTitleMatrix : filteredMatrix).reduce((sum: number, m: any) => sum + (m.counts[lvl] || 0), 0)}
                           </td>
                         ))}
 
                         {['1', '2', '3', '4', '5'].map((lvl) => (
                           <td key={lvl} className="px-2 py-3 text-center border-r border-slate-300 dark:border-slate-700">
-                            {filteredMatrix.reduce((sum: number, m: any) => sum + (m.counts[lvl] || 0), 0)}
+                            {(matrixGroupMode === 'risk_title' ? filteredRiskTitleMatrix : filteredMatrix).reduce((sum: number, m: any) => sum + (m.counts[lvl] || 0), 0)}
                           </td>
                         ))}
 
                         <td className="px-3 py-3 text-center bg-rose-200 dark:bg-rose-900 text-rose-950 dark:text-white border-r border-slate-300 dark:border-slate-700 font-black">
-                          {filteredMatrix.reduce((sum: number, m: any) => sum + (m.total_ghi || 0), 0)}
+                          {(matrixGroupMode === 'risk_title' ? filteredRiskTitleMatrix : filteredMatrix).reduce((sum: number, m: any) => sum + (m.total_ghi || 0), 0)}
                         </td>
 
                         <td className="px-3 py-3 text-center text-slate-500 font-normal border-r border-slate-300 dark:border-slate-700">
                           -
                         </td>
 
-                        <td className="px-3 py-3 text-center bg-blue-600 text-white font-black text-sm">
-                          {filteredMatrix.reduce((sum: number, m: any) => sum + (m.total_all || 0), 0)}
+                        <td className="px-3 py-3 text-center bg-rose-600 text-white font-black text-sm">
+                          {(matrixGroupMode === 'risk_title' ? filteredRiskTitleMatrix : filteredMatrix).reduce((sum: number, m: any) => sum + (m.total_all || 0), 0)}
                         </td>
                       </tr>
                     </tfoot>
@@ -1717,6 +1792,162 @@ export default function IndividualReportStats() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* DRILL-DOWN POPUP MODAL: SUMMARY & REVIEW RESULTS OF RISK TOPIC */}
+      {selectedRiskModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-rose-600 via-rose-700 to-red-800 px-6 py-4 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="p-2 bg-white/20 rounded-xl backdrop-blur-xs">
+                  <ShieldCheck className="w-6 h-6 text-white" />
+                </span>
+                <div>
+                  <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
+                    {selectedRiskModalItem.risk_title}
+                  </h3>
+                  <p className="text-xs text-rose-100/90 mt-0.5">
+                    โปรแกรมความเสี่ยง: {selectedRiskModalItem.program_name} | รวมทั้งหมด {selectedRiskModalItem.total_all} รายการ
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedRiskModalItem(null)}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Badges & Metrics Bar */}
+            <div className="bg-rose-50/80 dark:bg-rose-950/40 px-6 py-3 border-b border-rose-100 dark:border-rose-900/40 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
+              <div className="flex items-center gap-2 font-semibold text-rose-900 dark:text-rose-200">
+                <Info className="w-4 h-4 text-rose-600" />
+                <span>ตารางสรุปอุบัติการณ์และความเสี่ยงเฉพาะเรื่องพร้อมผลการทบทวน & RCA</span>
+              </div>
+
+              <div className="flex items-center gap-3 font-bold">
+                <span className="px-2.5 py-1 rounded-full bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                  ทางคลินิก (A-I): {selectedRiskModalItem.total_clinical} เรื่อง
+                </span>
+                <span className="px-2.5 py-1 rounded-full bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                  ทั่วไป (1-5): {selectedRiskModalItem.total_general} เรื่อง
+                </span>
+                {selectedRiskModalItem.total_ghi > 0 && (
+                  <span className="px-2.5 py-1 rounded-full bg-rose-600 text-white font-extrabold shadow-2xs">
+                    ระดับรุนแรงสูง (GHI): {selectedRiskModalItem.total_ghi} เรื่อง
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Body - Incident Items Table */}
+            <div className="p-6 overflow-y-auto space-y-4">
+              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                      <th className="px-3 py-3 text-center w-[45px]">#</th>
+                      <th className="px-3 py-3 w-[100px]">รหัส IR</th>
+                      <th className="px-3 py-3 w-[110px]">วันที่เกิดเหตุ</th>
+                      <th className="px-4 py-3 min-w-[150px]">หน่วยงานที่รายงาน</th>
+                      <th className="px-3 py-3 text-center w-[90px]">ระดับความรุนแรง</th>
+                      <th className="px-4 py-3 min-w-[220px]">รายละเอียดอุบัติการณ์</th>
+                      <th className="px-4 py-3 min-w-[240px] bg-rose-50/60 dark:bg-rose-950/40 text-rose-950 dark:text-rose-200">
+                        ผลการทบทวน / มาตรการแก้ไข
+                      </th>
+                      <th className="px-3 py-3 text-center w-[120px]">สถานะ RCA</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {!selectedRiskModalItem.incidents || selectedRiskModalItem.incidents.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-8 text-center text-slate-400 text-sm">
+                          ไม่พบรายการอุบัติการณ์ย่อยในเรื่องนี้
+                        </td>
+                      </tr>
+                    ) : (
+                      selectedRiskModalItem.incidents.map((inc: any, idx: number) => {
+                        const levelColor =
+                          ['G', 'H', 'I'].includes(inc.level_id)
+                            ? 'bg-rose-600 text-white font-black'
+                            : ['E', 'F'].includes(inc.level_id)
+                            ? 'bg-amber-500 text-white font-bold'
+                            : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-semibold';
+
+                        return (
+                          <tr key={inc.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                            <td className="px-3 py-3 text-center font-mono text-slate-400">{idx + 1}</td>
+
+                            <td className="px-3 py-3 font-mono font-bold text-slate-800 dark:text-slate-200">
+                              #{inc.id_risk || inc.id}
+                            </td>
+
+                            <td className="px-3 py-3 text-slate-600 dark:text-slate-400 font-medium">
+                              {inc.date_report ? format(new Date(inc.date_report), 'dd/MM/yyyy') : '-'}
+                            </td>
+
+                            <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">
+                              {inc.department_name}
+                            </td>
+
+                            <td className="px-3 py-3 text-center">
+                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs shadow-2xs ${levelColor}`}>
+                                ระดับ {inc.level_id}
+                              </span>
+                            </td>
+
+                            <td className="px-4 py-3 text-slate-700 dark:text-slate-300 leading-relaxed">
+                              {inc.detail}
+                            </td>
+
+                            <td className="px-4 py-3 bg-rose-50/30 dark:bg-rose-950/20 text-slate-900 dark:text-slate-100 font-semibold leading-relaxed">
+                              <div className="flex items-start gap-1.5">
+                                <MessageSquare className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                                <span>{inc.review_result}</span>
+                              </div>
+                            </td>
+
+                            <td className="px-3 py-3 text-center">
+                              <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
+                                {inc.rca_status || 'เสร็จสิ้น'}
+                              </span>
+                              {inc.rca_duration_days !== null && (
+                                <p className="text-[10px] font-bold text-slate-400 mt-1">
+                                  {inc.rca_duration_days === 0 ? 'เสร็จในวันที่แจ้ง' : `ทำ RCA ${inc.rca_duration_days} วัน`}
+                                </p>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-50 dark:bg-slate-800/80 px-6 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between shrink-0">
+              <span className="text-xs text-slate-500">
+                รวมทั้งหมด {selectedRiskModalItem.incidents?.length || 0} รายการอุบัติการณ์
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setSelectedRiskModalItem(null)}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 transition cursor-pointer"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

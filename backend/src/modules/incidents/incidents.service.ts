@@ -1980,7 +1980,7 @@ export class IncidentsService {
       endDate = new Date(`${targetYear}-12-31T23:59:59.999Z`);
     }
 
-    const [programs, riskstores, incidents, rcaCases] = await Promise.all([
+    const [programs, riskstores, incidents, rcaCases, departments] = await Promise.all([
       this.prisma.program.findMany({ select: { program_id: true, program_name: true } }),
       this.prisma.riskstore.findMany({ select: { riskstore_id: true, riskstore_name: true, program_id: true } }),
       this.prisma.riskregister.findMany({
@@ -1999,6 +1999,8 @@ export class IncidentsService {
           program_id: true,
           riskstore_id: true,
           detail: true,
+          problem_basic: true,
+          edit: true,
           rca_required: true,
           rca_status: true,
           department_id: true,
@@ -2007,6 +2009,9 @@ export class IncidentsService {
       this.prisma.rca_case.findMany({
         select: { id: true, review_date: true, created_at: true },
       }),
+      this.prisma.department.findMany({
+        select: { id: true, depart_name: true },
+      }),
     ]);
 
     const programMap = new Map<number, string>();
@@ -2014,6 +2019,9 @@ export class IncidentsService {
 
     const riskstoreMap = new Map<number, any>();
     riskstores.forEach((rs) => riskstoreMap.set(rs.riskstore_id, rs));
+
+    const deptMap = new Map<string, string>();
+    departments.forEach((d) => deptMap.set(String(d.id), d.depart_name));
 
     const rcaCaseMap = new Map<string, any>();
     rcaCases.forEach((rc) => rcaCaseMap.set(rc.id, rc));
@@ -2057,6 +2065,9 @@ export class IncidentsService {
       rca_durations: [] as number[],
     });
 
+    // Map for Risk Title / Risk Incident Topic
+    const riskTitleMap = new Map<number, any>();
+
     const ghiIncidentsList: any[] = [];
 
     incidents.forEach((inc) => {
@@ -2098,17 +2109,66 @@ export class IncidentsService {
         pData.rca_durations.push(rcaDurationDays);
       }
 
+      const rsInfo = riskstoreMap.get(inc.riskstore_id);
+      const riskTitle = rsInfo?.riskstore_name || inc.detail || 'ไม่ระบุชื่อเรื่องความเสี่ยง';
+      const rId = inc.riskstore_id || 0;
+
+      if (!riskTitleMap.has(rId)) {
+        const counts: Record<string, number> = {};
+        allLevels.forEach((l) => { counts[l] = 0; });
+        riskTitleMap.set(rId, {
+          riskstore_id: rId,
+          risk_title: riskTitle,
+          program_name: pData.program_name,
+          counts,
+          total_clinical: 0,
+          total_general: 0,
+          total_ghi: 0,
+          total_all: 0,
+          rca_durations: [] as number[],
+          incidents: [] as any[],
+        });
+      }
+
+      const tData = riskTitleMap.get(rId)!;
+      if (tData.counts[lvl] !== undefined) {
+        tData.counts[lvl] += 1;
+      }
+      if (clinicalLevels.includes(lvl)) {
+        tData.total_clinical += 1;
+      } else if (generalLevels.includes(lvl)) {
+        tData.total_general += 1;
+      }
+      if (['G', 'H', 'I'].includes(lvl)) {
+        tData.total_ghi += 1;
+      }
+      tData.total_all += 1;
+      if (rcaDurationDays !== null) {
+        tData.rca_durations.push(rcaDurationDays);
+      }
+
+      tData.incidents.push({
+        id: inc.id,
+        id_risk: inc.id_risk,
+        date_report: inc.date_report,
+        department_name: deptMap.get(String(inc.department_id)) || 'ไม่ระบุหน่วยงาน',
+        level_id: lvl,
+        detail: inc.detail || 'ไม่มีรายละเอียดเพิ่มเติม',
+        review_result: inc.problem_basic || inc.edit || 'ได้รับการทบทวนและกำหนดมาตรการแก้ไขเบื้องต้นเรียบร้อยแล้ว',
+        rca_status: inc.rca_status || 'เสร็จสิ้น',
+        rca_duration_days: rcaDurationDays,
+      });
+
       if (['G', 'H', 'I'].includes(lvl)) {
         pData.total_ghi += 1;
 
-        const rsInfo = riskstoreMap.get(inc.riskstore_id);
         ghiIncidentsList.push({
           id: inc.id,
           id_risk: inc.id_risk,
           date_report: inc.date_report,
           program_name: pData.program_name,
           risk_code: '',
-          risk_title: rsInfo?.riskstore_name || inc.detail || 'อุบัติการณ์ระดับรุนแรง',
+          risk_title: riskTitle,
           level_id: lvl,
           rca_status: inc.rca_status || 'COMPLETED',
           rca_date: rcaDate,
@@ -2132,6 +2192,27 @@ export class IncidentsService {
           total_ghi: p.total_ghi,
           total_all: p.total_all,
           avg_rca_days: avgRcaDays,
+        };
+      })
+      .sort((a, b) => b.total_all - a.total_all);
+
+    const riskTitleList = Array.from(riskTitleMap.values())
+      .filter((t) => t.total_all > 0)
+      .map((t) => {
+        const avgRcaDays = t.rca_durations.length > 0
+          ? Number((t.rca_durations.reduce((a: number, b: number) => a + b, 0) / t.rca_durations.length).toFixed(1))
+          : null;
+        return {
+          riskstore_id: t.riskstore_id,
+          risk_title: t.risk_title,
+          program_name: t.program_name,
+          counts: t.counts,
+          total_clinical: t.total_clinical,
+          total_general: t.total_general,
+          total_ghi: t.total_ghi,
+          total_all: t.total_all,
+          avg_rca_days: avgRcaDays,
+          incidents: t.incidents,
         };
       })
       .sort((a, b) => b.total_all - a.total_all);
@@ -2160,6 +2241,7 @@ export class IncidentsService {
       yearsList,
       ghiIncidentsList,
       matrix: matrixList,
+      riskTitleMatrix: riskTitleList,
     };
   }
 
