@@ -1980,9 +1980,9 @@ export class IncidentsService {
       endDate = new Date(`${targetYear}-12-31T23:59:59.999Z`);
     }
 
-    const [programs, riskstores, incidents, rcaCases, standardRcas] = await Promise.all([
+    const [programs, riskstores, incidents, rcaCases] = await Promise.all([
       this.prisma.program.findMany({ select: { program_id: true, program_name: true } }),
-      this.prisma.riskstore.findMany({ select: { id: true, risk_name: true, code: true, program_id: true } }),
+      this.prisma.riskstore.findMany({ select: { riskstore_id: true, riskstore_name: true, program_id: true } }),
       this.prisma.riskregister.findMany({
         where: {
           date_report: {
@@ -1994,27 +1994,18 @@ export class IncidentsService {
           id: true,
           id_risk: true,
           date_report: true,
-          date_edit: true,
+          modify_date: true,
           level_id: true,
           program_id: true,
           riskstore_id: true,
           detail: true,
           rca_required: true,
           rca_status: true,
-          rca_case_id: true,
-          standard_rca_id: true,
           department_id: true,
         },
       }),
       this.prisma.rca_case.findMany({
         select: { id: true, review_date: true, created_at: true },
-      }),
-      this.prisma.standard_rca_case.findMany({
-        select: { id: true, review_date: true, created_at: true },
-      }),
-      this.prisma.riskregister.findFirst({
-        orderBy: { date_report: 'asc' },
-        select: { date_report: true },
       }),
     ]);
 
@@ -2022,13 +2013,10 @@ export class IncidentsService {
     programs.forEach((p) => programMap.set(p.program_id, p.program_name));
 
     const riskstoreMap = new Map<number, any>();
-    riskstores.forEach((rs) => riskstoreMap.set(rs.id, rs));
+    riskstores.forEach((rs) => riskstoreMap.set(rs.riskstore_id, rs));
 
     const rcaCaseMap = new Map<string, any>();
     rcaCases.forEach((rc) => rcaCaseMap.set(rc.id, rc));
-
-    const stdRcaCaseMap = new Map<string, any>();
-    standardRcas.forEach((src) => stdRcaCaseMap.set(src.id, src));
 
     const clinicalLevels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
     const generalLevels = ['1', '2', '3', '4', '5'];
@@ -2099,12 +2087,8 @@ export class IncidentsService {
       pData.total_all += 1;
 
       let rcaDate: Date | null = null;
-      if (inc.standard_rca_id && stdRcaCaseMap.has(inc.standard_rca_id)) {
-        rcaDate = stdRcaCaseMap.get(inc.standard_rca_id).review_date;
-      } else if (inc.rca_case_id && rcaCaseMap.has(inc.rca_case_id)) {
-        rcaDate = rcaCaseMap.get(inc.rca_case_id).review_date;
-      } else if (inc.date_edit) {
-        rcaDate = new Date(inc.date_edit);
+      if (inc.modify_date) {
+        rcaDate = new Date(inc.modify_date);
       }
 
       let rcaDurationDays: number | null = null;
@@ -2123,8 +2107,8 @@ export class IncidentsService {
           id_risk: inc.id_risk,
           date_report: inc.date_report,
           program_name: pData.program_name,
-          risk_code: rsInfo?.code || '',
-          risk_title: rsInfo?.risk_name || inc.detail || 'อุบัติการณ์ระดับรุนแรง',
+          risk_code: '',
+          risk_title: rsInfo?.riskstore_name || inc.detail || 'อุบัติการณ์ระดับรุนแรง',
           level_id: lvl,
           rca_status: inc.rca_status || 'COMPLETED',
           rca_date: rcaDate,
