@@ -452,7 +452,7 @@ export default function IndividualReportStats() {
             onClick={() => setActiveTab('staff_report')}
             className={`flex-1 lg:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'staff_report'
-                ? 'bg-gradient-to-r from-fuchsia-600 to-pink-600 text-white shadow-md'
+                ? 'bg-gradient-to-r from-blue-700 via-indigo-800 to-blue-900 text-white shadow-md'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -535,9 +535,9 @@ export default function IndividualReportStats() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="p-2 rounded-xl bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400">
+              <span className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
                 {activeTab === 'staff_report' ? (
-                  <Users className="w-6 h-6 text-fuchsia-600" />
+                  <Users className="w-6 h-6 text-blue-600" />
                 ) : activeTab === 'program_matrix' ? (
                   <ShieldAlert className="w-6 h-6 text-rose-600" />
                 ) : activeTab === 'dept_kpi' ? (
@@ -750,51 +750,51 @@ export default function IndividualReportStats() {
       {activeTab === 'staff_report' && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
           {/* Header Banner */}
-          <div className="bg-gradient-to-r from-fuchsia-600 via-pink-600 to-purple-700 px-6 py-4 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 px-6 py-4 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800">
             <div>
               <h2 className="font-extrabold text-white text-base flex items-center gap-2">
-                <Users className="w-5 h-5" />
+                <Users className="w-5 h-5 text-blue-400" />
                 จำนวนเจ้าหน้าที่ที่รายงานแต่ละเดือน ปี พ.ศ. {selectedYear + 543}
               </h2>
-              <p className="text-xs text-fuchsia-100/90 mt-0.5">
+              <p className="text-xs text-slate-300 mt-0.5">
                 สรุปตามหน่วยงาน พร้อมการแสดงสถานะสี (แดง = ไม่มีรายงาน / เขียว = รายงานครบทุกคน)
               </p>
             </div>
 
-            <span className="text-xs font-bold px-3.5 py-1 bg-white/20 text-white rounded-full backdrop-blur-xs border border-white/30">
+            <span className="text-xs font-bold px-3.5 py-1 bg-blue-500/20 text-blue-200 rounded-full backdrop-blur-xs border border-blue-400/30">
               พบ {filteredStaffRows.length} หน่วยงาน (เจ้าหน้าที่รวม {staffStatsData?.summary?.totalHospitalStaff || 0} คน)
             </span>
           </div>
 
           {loadingStaff ? (
             <div className="p-12 text-center text-slate-400 text-sm flex flex-col items-center gap-2">
-              <div className="w-6 h-6 border-3 border-fuchsia-600 border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
               <span>กำลังประมวลผลตารางสถิติเจ้าหน้าที่...</span>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  {/* Row 1: Pink Banner Combined Header */}
-                  <tr className="bg-fuchsia-500 text-white font-extrabold border-b border-fuchsia-600">
-                    <th className="px-3 py-3 text-center w-[45px] border-r border-fuchsia-400/50">ลำดับ</th>
-                    <th className="px-4 py-3 min-w-[220px] border-r border-fuchsia-400/50">หน่วยงาน</th>
-                    <th className="px-3 py-3 text-center min-w-[120px] border-r border-fuchsia-400/50">
+                  {/* Row 1: Minimal Blue Banner Combined Header */}
+                  <tr className="bg-slate-900 text-white font-extrabold border-b border-slate-800">
+                    <th className="px-3 py-3 text-center w-[45px] border-r border-slate-700/60">ลำดับ</th>
+                    <th className="px-4 py-3 min-w-[220px] border-r border-slate-700/60">หน่วยงาน</th>
+                    <th className="px-3 py-3 text-center min-w-[120px] border-r border-slate-700/60">
                       จำนวนเจ้าหน้าที่ทั้งหมด
                     </th>
-                    <th colSpan={12} className="px-3 py-3 text-center bg-fuchsia-600">
+                    <th colSpan={12} className="px-3 py-3 text-center bg-blue-950 text-blue-100 font-extrabold">
                       จำนวนเจ้าหน้าที่ที่รายงานแต่ละเดือน ปี พ.ศ. {selectedYear + 543}
                     </th>
                   </tr>
 
                   {/* Row 2: Month Columns Header */}
-                  <tr className="bg-fuchsia-400/90 dark:bg-fuchsia-950 text-white font-bold border-b border-fuchsia-500">
-                    <th className="px-3 py-2 border-r border-fuchsia-300/40"></th>
-                    <th className="px-4 py-2 border-r border-fuchsia-300/40"></th>
-                    <th className="px-3 py-2 border-r border-fuchsia-300/40"></th>
+                  <tr className="bg-slate-800/90 dark:bg-slate-950 text-slate-100 font-bold border-b border-slate-700">
+                    <th className="px-3 py-2 border-r border-slate-700/50"></th>
+                    <th className="px-4 py-2 border-r border-slate-700/50"></th>
+                    <th className="px-3 py-2 border-r border-slate-700/50"></th>
 
                     {monthsHeaderList.map((m) => (
-                      <th key={m.num} className="px-2.5 py-2.5 text-center min-w-[55px] border-r border-fuchsia-300/40">
+                      <th key={m.num} className="px-2.5 py-2.5 text-center min-w-[55px] border-r border-slate-700/50 text-slate-200">
                         {m.label}
                       </th>
                     ))}
