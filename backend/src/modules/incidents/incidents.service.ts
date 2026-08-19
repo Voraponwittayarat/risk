@@ -2345,16 +2345,67 @@ export class IncidentsService {
       7: 'ก.ค.', 8: 'ส.ค.', 9: 'ก.ย.', 10: 'ต.ค.', 11: 'พ.ย.', 12: 'ธ.ค.'
     };
 
-    const deptMonthlyReporters = new Map<number, Record<number, Set<number>>>();
+    const standard17Depts = [
+      { id: 1, name: 'กลุ่มการแพทย์', keywords: ['องค์กรแพทย์', 'กลุ่มการแพทย์', 'แพทย์'] },
+      { id: 2, name: 'กลุ่มการพยาบาล', keywords: ['กลุ่มการพยาบาล'] },
+      { id: 3, name: 'งานการพยาบาลผู้ป่วยใน (IPD)', keywords: ['ผู้ป่วยใน', 'ipd'] },
+      { id: 4, name: 'งานหน่วยควบคุมการติดเชื้อและงานจ่ายกลาง', keywords: ['จ่ายกลาง', 'ic', 'เครื่องมือแพทย์', 'ติดเชื้อ'] },
+      { id: 5, name: 'งานการพยาบาลผู้ป่วยนอก (OPD)', keywords: ['ผู้ป่วยนอก', 'opd', 'ari'] },
+      { id: 6, name: 'งานการพยาบาลผู้ป่วยอุบัติเหตุฉุกเฉินและนิติเวช (ER)', keywords: ['อุบัติเหตุ', 'ฉุกเฉิน', 'er', 'ศูนย์เปล'] },
+      { id: 7, name: 'กลุ่มงานทันตกรรม', keywords: ['ทันตกรรม', 'dent'] },
+      { id: 8, name: 'กลุ่มงานเภสัชกรรมและคุ้มครองผู้บริโภค', keywords: ['เภสัช', 'ห้องยา', 'rx'] },
+      { id: 9, name: 'กลุ่มงานบริการด้านปฐมภูมิและองค์รวม', keywords: ['ปฐมภูมิ', 'ส่งเสริม'] },
+      { id: 10, name: 'กลุ่มงานสุขภาพจิตและยาเสพติด', keywords: ['สุขภาพจิต', 'ยาเสพติด'] },
+      { id: 11, name: 'กลุ่มงานการแพทย์แผนไทยและการแพทย์ทางเลือก', keywords: ['แผนไทย', 'ทางเลือก', 'ttm'] },
+      { id: 12, name: 'กลุ่มงานเวชกรรมฟื้นฟู', keywords: ['กายภาพ', 'ฟื้นฟู'] },
+      { id: 13, name: 'กลุ่มงานเทคนิคการแพทย์', keywords: ['พยาธิวิทยา', 'lab', 'เทคนิคการแพทย์'] },
+      { id: 14, name: 'กลุ่มงานรังสีวิทยา', keywords: ['เอกซเรย์', 'xray', 'รังสี'] },
+      { id: 15, name: 'กลุ่มงานโภชนศาสตร์', keywords: ['โภชนา', 'โภชนศาสตร์'] },
+      { id: 16, name: 'กลุ่มงานประกันสุขภาพ', keywords: ['ประกัน', 'ศูนย์ประกัน', 'ห้องบัตร', 'บัตร'] },
+      { id: 17, name: 'กลุ่มงานบริหารทั่วไป', keywords: ['บริหาร', 'สารสนเทศ', 'ไอที', 'การเงิน', 'ธุรการ', 'พัสดุ', 'ยานพาหนะ', 'บัญชี'] },
+    ];
 
+    const getStandardUnitIndex = (departName: string): number => {
+      const lower = (departName || '').toLowerCase();
+      for (let i = 0; i < standard17Depts.length; i++) {
+        if (standard17Depts[i].keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
+          return i;
+        }
+      }
+      return 16; // Default to 17th: กลุ่มงานบริหารทั่วไป
+    };
+
+    // Map department.id -> standard unit index
+    const deptIdToStandardIndexMap = new Map<number, number>();
     departments.forEach((d) => {
+      deptIdToStandardIndexMap.set(d.id, getStandardUnitIndex(d.depart_name));
+    });
+
+    // Structure for 17 Standard Units
+    const standardUnitRows = standard17Depts.map((unit) => {
       const monthSets: Record<number, Set<number>> = {};
       monthsOrder.forEach((mNum) => {
         monthSets[mNum] = new Set<number>();
       });
-      deptMonthlyReporters.set(d.id, monthSets);
+
+      return {
+        unit_id: unit.id,
+        department_name: unit.name,
+        total_staff: 0,
+        monthSets,
+        monthly_counts: {} as Record<number, number>,
+      };
     });
 
+    // Accumulate total active members for each standard unit
+    members.forEach((m) => {
+      if (m.department_id1 && deptIdToStandardIndexMap.has(m.department_id1)) {
+        const stdIdx = deptIdToStandardIndexMap.get(m.department_id1)!;
+        standardUnitRows[stdIdx].total_staff += 1;
+      }
+    });
+
+    // Accumulate monthly reporting members for each standard unit
     incidents.forEach((inc) => {
       const rDate = new Date(inc.date_report);
       const mNum = rDate.getMonth() + 1;
@@ -2368,34 +2419,30 @@ export class IncidentsService {
         authorDeptId = Number(inc.department_id);
       }
 
-      if (authorDeptId && deptMonthlyReporters.has(authorDeptId)) {
-        const monthSets = deptMonthlyReporters.get(authorDeptId)!;
-        if (monthSets[mNum]) {
-          monthSets[mNum].add(authorId || inc.id);
+      if (authorDeptId && deptIdToStandardIndexMap.has(authorDeptId)) {
+        const stdIdx = deptIdToStandardIndexMap.get(authorDeptId)!;
+        if (standardUnitRows[stdIdx].monthSets[mNum]) {
+          standardUnitRows[stdIdx].monthSets[mNum].add(authorId || inc.id);
         }
       }
     });
 
     let totalHospitalStaff = 0;
 
-    const departmentRows = departments.map((d) => {
-      const staffList = deptMembersMap.get(d.id) || [];
-      const totalStaff = staffList.length;
-      totalHospitalStaff += totalStaff;
+    const departmentRows = standardUnitRows.map((stdRow) => {
+      totalHospitalStaff += stdRow.total_staff;
 
-      const monthSets = deptMonthlyReporters.get(d.id)!;
       const monthlyCounts: Record<number, number> = {};
-
       monthsOrder.forEach((mNum) => {
-        monthlyCounts[mNum] = monthSets[mNum] ? monthSets[mNum].size : 0;
+        monthlyCounts[mNum] = stdRow.monthSets[mNum] ? stdRow.monthSets[mNum].size : 0;
       });
 
       return {
-        department_id: d.id,
-        department_name: d.depart_name,
-        department_group_id: d.depart_group_id,
-        department_group_name: groupMap.get(d.depart_group_id || 0) || 'ทั่วไป',
-        total_staff: totalStaff,
+        department_id: stdRow.unit_id,
+        department_name: stdRow.department_name,
+        department_group_id: 0,
+        department_group_name: 'หน่วยงานมาตรฐาน',
+        total_staff: stdRow.total_staff,
         monthly_counts: monthlyCounts,
       };
     });
