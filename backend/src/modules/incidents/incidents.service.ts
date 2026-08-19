@@ -2367,6 +2367,16 @@ export class IncidentsService {
 
     const getStandardUnitIndex = (departName: string): number => {
       const lower = (departName || '').toLowerCase();
+      if (lower.includes('แผนไทย') || lower.includes('ทางเลือก') || lower.includes('ttm')) {
+        return 10; // Unit 11: กลุ่มงานการแพทย์แผนไทยและการแพทย์ทางเลือก
+      }
+      if (lower.includes('เทคนิคการแพทย์') || lower.includes('พยาธิวิทยา') || lower.includes('lab')) {
+        return 12; // Unit 13: กลุ่มงานเทคนิคการแพทย์
+      }
+      if (lower.includes('องค์กรแพทย์') || lower.includes('กลุ่มการแพทย์')) {
+        return 0; // Unit 1: กลุ่มการแพทย์
+      }
+
       for (let i = 0; i < standard17Depts.length; i++) {
         if (standard17Depts[i].keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
           return i;
