@@ -393,7 +393,41 @@ export class RcaService {
       },
     });
     if (!stdCase) throw new NotFoundException(`Standard RCA Case #${id} not found`);
-    return stdCase;
+
+    let incidentDetail = '';
+
+    if (stdCase.source_trigger_review_id) {
+      const triggerRev = await this.prisma.medical_record_review.findUnique({
+        where: { id: stdCase.source_trigger_review_id },
+      });
+      if (triggerRev && triggerRev.ae_description) {
+        incidentDetail = triggerRev.ae_description;
+      }
+    }
+
+    if (!incidentDetail && (stdCase.incident_id || stdCase.rm_no)) {
+      const incId = stdCase.incident_id ? Number(stdCase.incident_id) : undefined;
+      const rmNum = stdCase.rm_no ? (Number(stdCase.rm_no) || Number(stdCase.rm_no.replace(/\D/g, '')) || undefined) : undefined;
+
+      const orConditions: any[] = [];
+      if (incId && !isNaN(incId)) orConditions.push({ id: incId });
+      if (rmNum && !isNaN(rmNum)) orConditions.push({ id_risk: rmNum });
+
+      if (orConditions.length > 0) {
+        const riskReg = await this.prisma.riskregister.findFirst({
+          where: { OR: orConditions },
+        });
+        if (riskReg) {
+          incidentDetail = riskReg.detail || riskReg.problem_basic || '';
+        }
+      }
+    }
+
+    return {
+      ...stdCase,
+      what_happened: stdCase.what_happened || incidentDetail,
+      incident_detail_raw: incidentDetail,
+    };
   }
 
   async createStandard(data: CreateStandardRcaDto) {

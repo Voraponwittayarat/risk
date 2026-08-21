@@ -683,6 +683,28 @@ export default function StandardRcaForm() {
               />
             </div>
 
+            {/* รายละเอียดเหตุการณ์ที่เกิดขึ้น (Incident Description / What Happened) */}
+            <div className="md:col-span-12 space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  รายละเอียดเหตุการณ์ที่เกิดขึ้น / ข้อเท็จจริงของความเสี่ยง (Incident Description)
+                </label>
+                {whatHappened && (
+                  <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                    ✓ ดึงข้อมูลรายละเอียดความเสี่ยงมาให้อัตโนมัติ
+                  </span>
+                )}
+              </div>
+              <textarea
+                rows={4}
+                value={whatHappened}
+                onChange={(e) => setWhatHappened(e.target.value)}
+                placeholder="รายละเอียดข้อเท็จจริงของเหตุการณ์ความเสี่ยงที่เกิดขึ้นตามลำดับ..."
+                className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              />
+            </div>
+
             {/* Severity Matrix */}
             <div className="md:col-span-12 space-y-3 pt-2">
               <div className="flex items-center justify-between">
