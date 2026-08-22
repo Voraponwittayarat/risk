@@ -31,7 +31,7 @@ export default function Layout() {
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [myReportedCount, setMyReportedCount] = useState<number>(0);
   const [deptReviewCount, setDeptReviewCount] = useState<number>(0);
-  const [teamReviewCount, setTeamReviewCount] = useState<number>(0);
+
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -49,9 +49,6 @@ export default function Layout() {
         }
         if (res.data?.deptReviewCount !== undefined) {
           setDeptReviewCount(res.data.deptReviewCount);
-        }
-        if (res.data?.teamReviewCount !== undefined) {
-          setTeamReviewCount(res.data.teamReviewCount);
         }
       })
       .catch(console.error);
@@ -113,16 +110,7 @@ export default function Layout() {
           badge: deptReviewCount > 0 ? `${deptReviewCount}` : null,
           badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold'
         },
-        // Only show team management if user belongs to a team or is admin
-        ...((user?.teamId || user?.role === 'admin' || user?.accessrules === '1' || user?.accessrules === 'admin') ? [
-          {
-            name: 'ทบทวนความเสี่ยงทีมคุณ',
-            path: '/incidents/team',
-            icon: Users,
-            badge: teamReviewCount > 0 ? `${teamReviewCount}` : null,
-            badgeColor: 'bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold'
-          }
-        ] : []),
+
         { 
           name: 'ศูนย์จัดการ RCA (3 Tiers)', 
           path: '/rca/list', 
@@ -311,7 +299,7 @@ export default function Layout() {
                   {user?.name || 'ผู้ดูแลระบบ (Admin)'}
                 </p>
                 <p className="text-[11px] text-slate-400 truncate">
-                  แผนก: {user?.department_id ? `หน่วยที่ ${user.department_id}` : 'ทุกหน่วยงาน'}
+                  แผนก: {user?.department_name || (user?.department_id ? `หน่วยที่ ${user.department_id}` : 'ทุกหน่วยงาน')}
                 </p>
               </div>
             </div>

@@ -173,7 +173,7 @@ export default function RiskTopicManagement() {
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-rose-100 p-2.5 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"><ShieldAlert className="h-6 w-6" /></div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">จัดการชื่อความเสี่ยง</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">จัดการความเสี่ยงบริบทโรงพยาบาลวังเจ้า</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">เพิ่ม แก้ไข ปิดใช้งาน หรือลบหัวข้อความเสี่ยงในแบบรายงาน</p>
           </div>
         </div>

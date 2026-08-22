@@ -882,6 +882,7 @@ export class IncidentsService {
       status_risk: data.status_risk || 'รายงาน', // Default legacy status: รายงาน (รอยืนยัน)
       department_id: data.department_id ? data.department_id.toString() : (user?.department_id?.toString() || '1'),
       image: data.image || null,
+      nrls_code: data.nrls_code || null,
       register_date: new Date(),
       created_by: user?.id || 1,
       create_date: new Date(),
@@ -918,7 +919,46 @@ export class IncidentsService {
       // Ignore mirror error
     }
 
+    // Trigger Telegram notification for high level risks
+    try {
+      if (['E', 'F', 'G', 'H', 'I', '3', '4', '5'].includes(createData.level_id)) {
+        this.sendTelegramAlert(newIncident).catch(e => console.error('Telegram send error:', e));
+      }
+    } catch (e) {
+      console.error('Error triggering Telegram alert:', e);
+    }
+
     return newIncident;
+  }
+
+  private async sendTelegramAlert(incident: any) {
+    const botApiToken = '8866061704:AAGdyH0MvzUsnzVWrSqh0V5wZLgCO4iJq6Q';
+    // Please put the actual Chat ID (e.g., -100123456789) in .env file or replace it here
+    const chatId = process.env.TELEGRAM_CHAT_ID || 'PUT_YOUR_CHAT_ID_HERE'; 
+    
+    if (chatId === 'PUT_YOUR_CHAT_ID_HERE') {
+      console.warn('Telegram Chat ID is not configured. Please set TELEGRAM_CHAT_ID in .env');
+      return;
+    }
+
+    const message = `🚨 <b>แจ้งเตือนอุบัติการณ์ความเสี่ยงใหม่ (ระดับ ${incident.level_id})</b> 🚨\n\n` +
+      `<b>รหัส:</b> ${incident.id}\n` +
+      `<b>ระดับ:</b> ${incident.level_id}\n` +
+      `<b>วันที่เกิดเหตุ:</b> ${new Date(incident.date_report).toLocaleDateString('th-TH')}\n` +
+      `<b>รายละเอียด:</b> ${incident.detail ? incident.detail.substring(0, 200) : '-'}...\n\n` +
+      `<i>โปรดตรวจสอบในระบบ HRMS</i>`;
+
+    const url = `https://api.telegram.org/bot${botApiToken}/sendMessage`;
+    
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'HTML'
+      })
+    });
   }
 
   async update(id: number, data: any) {

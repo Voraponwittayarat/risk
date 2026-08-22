@@ -5,6 +5,7 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import { AiChatbotModal } from '../components/AiChatbotModal';
+import { StandardRiskSelector } from '../components/StandardRiskSelector';
 
 export default function IncidentForm() {
   const { user } = useAuth();
@@ -47,6 +48,7 @@ export default function IncidentForm() {
     program_id: '',
     type_id: '',
     risk_id: '',
+    nrls_code: '',
     riskstore_text: '', // full riskstore text e.g. "IC/02 วัสดุ..."
     detail: '',
     detail_hosxp: '', // HN / ข้อมูลผู้ป่วย
@@ -359,105 +361,39 @@ export default function IncidentForm() {
               <h3 className="text-[18px] font-bold text-slate-800 dark:text-slate-200">ข้อมูลความเสี่ยง (Risk Details)</h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2" ref={riskComboboxRef}>
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">ชื่อความเสี่ยง (Risk Topic) <span className="text-danger">*</span></label>
-                <div className="relative">
-                  {/* Search Input */}
-                  <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400 pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder={formData.risk_id ? `[${risks.find(r => r.id.toString() === formData.risk_id)?.clear_id || ''}] ${risks.find(r => r.id.toString() === formData.risk_id)?.risk_name || ''}` : 'พิมพ์เพื่อค้นหาชื่อความเสี่ยง...'}
-                      value={riskSearch}
-                      onChange={e => { setRiskSearch(e.target.value); setIsRiskDropdownOpen(true); }}
-                      onFocus={() => setIsRiskDropdownOpen(true)}
-                      className="w-full pl-9 pr-9 py-2.5 bg-bg-light dark:bg-bg-dark border border-border-light dark:border-border-dark rounded-[8px] text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-shadow"
-                    />
-                    {/* Clear / Selected indicator */}
-                    {formData.risk_id && !riskSearch && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFormData(prev => ({ ...prev, risk_id: '', riskstore_text: '', group_id: '', program_id: '', level_id: '' }));
-                          setRiskSearch('');
-                        }}
-                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-danger transition-colors"
-                        title="ล้างการเลือก"
-                      >
-                        ✕
-                      </button>
-                    )}
-                    {riskSearch && (
-                      <button
-                        type="button"
-                        onClick={() => setRiskSearch('')}
-                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 transition-colors"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Selected badge */}
-                  {formData.risk_id && !riskSearch && (() => {
-                    const sel = risks.find(r => r.id.toString() === formData.risk_id);
-                    return sel ? (
-                      <div className="mt-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-semibold flex items-center gap-1.5">
-                        <span className="text-primary">✓</span>
-                        <span>[{sel.clear_id}] {sel.risk_name}</span>
-                      </div>
-                    ) : null;
-                  })()}
-
-                  {/* Dropdown List */}
-                  {isRiskDropdownOpen && (
-                    <div className="absolute z-50 top-full mt-1 w-full bg-white dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-[10px] shadow-xl max-h-64 overflow-y-auto">
-                      {(() => {
-                        const filtered = risks.filter(r => {
-                          if (!riskSearch.trim()) return true;
-                          const q = riskSearch.toLowerCase();
-                          return (
-                            (r.clear_id || '').toLowerCase().includes(q) ||
-                            (r.risk_name || '').toLowerCase().includes(q)
-                          );
-                        });
-                        if (filtered.length === 0) {
-                          return <div className="p-4 text-sm text-slate-400 text-center">ไม่พบความเสี่ยงที่ตรงกับ "{riskSearch}"</div>;
-                        }
-                        return filtered.map(r => (
-                          <button
-                            key={r.id}
-                            type="button"
-                            onClick={() => {
-                              // Simulate the same logic as handleChange for risk_id
-                              setFormData(prev => ({
-                                ...prev,
-                                risk_id: r.id.toString(),
-                                riskstore_text: r.riskstore_full || `${r.clear_id} ${r.risk_name}`,
-                                group_id: r.group_id?.toString() || '',
-                                program_id: r.program_id?.toString() || '',
-                                type_id: r.type_id?.toString() || '',
-                                level_id: '',
-                              }));
-                              setRiskSearch('');
-                              setIsRiskDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors flex items-start gap-2 ${
-                              formData.risk_id === r.id.toString() ? 'bg-primary/10 text-primary font-semibold' : 'text-slate-700 dark:text-slate-200'
-                            }`}
-                          >
-                            <span className="shrink-0 text-xs font-bold text-slate-400 dark:text-slate-500 mt-0.5 w-16">{r.clear_id}</span>
-                            <span className="leading-snug">{r.risk_name}</span>
-                          </button>
-                        ));
-                      })()}
-                    </div>
-                  )}
-                </div>
-                {/* Hidden input for required validation */}
-                <input type="hidden" name="risk_id" value={formData.risk_id} required />
-              </div>
+            <div className="grid grid-cols-1 gap-6">
+              <StandardRiskSelector
+                selectedNrlsCode={formData.nrls_code}
+                selectedLocalRiskId={formData.risk_id ? Number(formData.risk_id) : null}
+                onSelect={(nrlsCode, localRiskId, nrlsRisk) => {
+                  let type_id = formData.type_id;
+                  let riskstore_text = formData.riskstore_text;
+                  
+                  if (localRiskId) {
+                    const selectedLocal = risks.find(r => r.id.toString() === String(localRiskId));
+                    type_id = selectedLocal?.type_id?.toString() || '';
+                    riskstore_text = selectedLocal ? (selectedLocal.riskstore_full || `${selectedLocal.clear_id} ${selectedLocal.risk_name}`) : '';
+                  } else if (nrlsRisk) {
+                    if (nrlsRisk.type && nrlsRisk.type.includes('คลินิก')) {
+                      type_id = '2';
+                    } else {
+                      type_id = '1';
+                    }
+                    riskstore_text = `${nrlsRisk.nrls_code} : ${nrlsRisk.name}`;
+                  }
+                  
+                  setFormData(prev => ({
+                    ...prev,
+                    nrls_code: nrlsCode || '',
+                    risk_id: localRiskId ? String(localRiskId) : '',
+                    type_id: type_id,
+                    riskstore_text: riskstore_text,
+                    level_id: prev.type_id !== type_id ? '' : prev.level_id
+                  }));
+                }}
+              />
+              <input type="hidden" name="nrls_code" value={formData.nrls_code} required />
+              <input type="hidden" name="risk_id" value={formData.risk_id} />
 
               <div className="space-y-2">
                 <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300">

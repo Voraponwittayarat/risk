@@ -11,12 +11,17 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 
+import { TelegramService } from './telegram.service';
+
 @ApiTags('Incidents')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('incidents')
 export class IncidentsController {
-  constructor(private readonly incidentsService: IncidentsService) {}
+  constructor(
+    private readonly incidentsService: IncidentsService,
+    private readonly telegramService: TelegramService
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Retrieve a paginated and filtered list of risk incidents' })
@@ -109,6 +114,28 @@ export class IncidentsController {
     });
   }
 
+
+  @Get('telegram/settings')
+  @Roles('admin')
+  @ApiOperation({ summary: 'Retrieve telegram settings' })
+  getTelegramSettings() {
+    return this.telegramService.getTelegramSettings();
+  }
+
+  @Post('telegram/settings')
+  @Roles('admin')
+  @ApiOperation({ summary: 'Update telegram settings' })
+  updateTelegramSettings(@Body() body: { botToken: string; chatId: string }) {
+    return this.telegramService.updateTelegramSettings(body.botToken, body.chatId);
+  }
+
+  @Post('telegram/trigger-summary')
+  @Roles('admin')
+  @ApiOperation({ summary: 'Manually trigger telegram summary alert' })
+  async triggerSummaryAlert() {
+    await this.telegramService.sendSummaryAlert();
+    return { success: true };
+  }
 
   @Get('risk-register/summary')
   @ApiOperation({ summary: 'Retrieve enterprise Risk Register master profile and scores' })

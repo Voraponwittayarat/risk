@@ -36,6 +36,7 @@ export class RiskTopicsService {
       typeId: topic.type_id,
       levelId: topic.level_id,
       active: topic.status !== '0',
+      nrlsCode: topic.nrls_code,
       references,
     };
   }

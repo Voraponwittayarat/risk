@@ -10,6 +10,8 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import UserManagement from './pages/UserManagement';
 import RiskTopicManagement from './pages/RiskTopicManagement';
+import NrlsManagement from './pages/NrlsManagement';
+import RiskMapping from './pages/RiskMapping';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
@@ -79,6 +81,8 @@ function App() {
             <Route path="users" element={<AdminRoute><UserManagement /></AdminRoute>} />
             <Route path="personnel" element={<AdminRoute><PersonnelManagement /></AdminRoute>} />
             <Route path="risk-topics" element={<AdminRoute><RiskTopicManagement /></AdminRoute>} />
+            <Route path="nrls-topics" element={<AdminRoute><NrlsManagement /></AdminRoute>} />
+            <Route path="risk-mapping" element={<AdminRoute><RiskMapping /></AdminRoute>} />
           </Route>
         </Routes>
       </Router>

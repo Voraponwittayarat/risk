@@ -8,6 +8,7 @@ export interface User {
   username?: string;
   name: string;
   department_id: number;
+  department_name?: string;
   department_id2?: number;
   role: UserRole;
   accessrules?: string;
@@ -47,6 +48,7 @@ function decodeToken(token: string): User {
     username: payload.username,
     name: payload.name,
     department_id: payload.departmentId,
+    department_name: payload.departmentName,
     department_id2: payload.departmentId2,
     role: payload.role || (payload.accessrules === '1' ? 'admin' : 'staff'),
     accessrules: payload.accessrules,

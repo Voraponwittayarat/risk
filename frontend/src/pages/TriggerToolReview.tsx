@@ -79,7 +79,7 @@ export default function TriggerToolReview() {
   // New Review Form Modal State
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [formReviewer, setFormReviewer] = useState(user?.name || '');
-  const [formDept, setFormDept] = useState(user?.department_id ? `หน่วยที่ ${user.department_id}` : 'กลุ่มงานการพยาบาล');
+  const [formDept, setFormDept] = useState(user?.department_name || (user?.department_id ? `หน่วยที่ ${user.department_id}` : 'กลุ่มงานการพยาบาล'));
   const [formHn, setFormHn] = useState('');
   const [formAn, setFormAn] = useState('');
   const [formAdmitDate, setFormAdmitDate] = useState('');

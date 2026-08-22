@@ -31,7 +31,7 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
   const [holes, setHoles] = useState<SwissCheeseHole[]>([]);
   const [cmpProblem, setCmpProblem] = useState('');
   const [correctiveAction, setCorrectiveAction] = useState('');
-  const [responsibleUnit, setResponsibleUnit] = useState(incident.department_id ? `หน่วยที่ ${incident.department_id}` : '');
+  const [responsibleUnit, setResponsibleUnit] = useState(incident.department_name || (incident.department_id ? `หน่วยที่ ${incident.department_id}` : ''));
   const [reviewerName, setReviewerName] = useState(user?.name || '');
   const [saving, setSaving] = useState(false);
 
@@ -147,7 +147,7 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
                 รหัสอุบัติการณ์: #{incident.id} | ระดับความรุนแรง: {incident.level_id || 'C'}
               </div>
               <div className="text-xs text-slate-500">
-                แผนก: {incident.department_id ? `หน่วยที่ ${incident.department_id}` : '-'}
+                แผนก: {incident.department_name || (incident.department_id ? `หน่วยที่ ${incident.department_id}` : '-')}
               </div>
             </div>
 

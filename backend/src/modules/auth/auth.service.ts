@@ -53,12 +53,14 @@ export class AuthService {
 
     // 4. Find Department Group to determine scope
     let departmentGroup: number | null = null;
+    let departmentName: string | null = null;
     if (member.department_id1) {
       const dept = await this.prisma.department.findUnique({
         where: { id: member.department_id1 }
       });
       if (dept) {
         departmentGroup = dept.depart_group_id;
+        departmentName = dept.depart_name;
       }
     }
 
@@ -78,6 +80,7 @@ export class AuthService {
       cid: member.cid,
       name: member.member_name,
       departmentId: member.department_id1,
+      departmentName: departmentName,
       departmentId2: member.department_id2,
       departmentGroup: departmentGroup,
       priority: member.priority,

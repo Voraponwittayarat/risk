@@ -9,9 +9,12 @@ import { RcaModule } from './modules/rca/rca.module';
 import { UsersModule } from './modules/users/users.module';
 import { RiskTopicsModule } from './modules/risk-topics/risk-topics.module';
 import { MembersModule } from './modules/members/members.module';
+import { NrlsRiskstoreModule } from './modules/nrls-riskstore/nrls-riskstore.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     PrismaModule,
     IncidentsModule,
     DepartmentsModule,
@@ -22,6 +25,7 @@ import { MembersModule } from './modules/members/members.module';
     UsersModule,
     RiskTopicsModule,
     MembersModule,
+    NrlsRiskstoreModule,
   ],
   controllers: [],
   providers: [],

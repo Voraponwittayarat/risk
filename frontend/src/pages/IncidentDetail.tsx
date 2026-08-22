@@ -37,7 +37,7 @@ export default function IncidentDetail() {
 
   // Forward / Co-Review State
   const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
-  const [forwardTargetType, setForwardTargetType] = useState<'team' | 'department'>('team');
+  const [forwardTargetType, setForwardTargetType] = useState<'team' | 'department'>('department');
   const [forwardTeamId, setForwardTeamId] = useState('1');
   const [forwardDeptId, setForwardDeptId] = useState('');
   const [forwardNote, setForwardNote] = useState('');
@@ -786,17 +786,7 @@ export default function IncidentDetail() {
 
                 {incident.status_risk !== 'จำหน่าย' && (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setForwardTargetType('team');
-                        setIsForwardModalOpen(true);
-                      }}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/60 border border-purple-200 dark:border-purple-800 rounded-xl font-semibold text-sm shadow-xs transition-all cursor-pointer"
-                    >
-                      <Share2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                      ส่งต่อทีมนำร่วมทบทวน
-                    </button>
+                    
                     <button
                       type="button"
                       onClick={() => {
@@ -1534,59 +1524,9 @@ export default function IncidentDetail() {
 
             {/* Modal Form */}
             <form onSubmit={handleForwardSubmit} className="space-y-4">
-              {/* Type Switcher */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                  🎯 รูปแบบการส่งต่อ:
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setForwardTargetType('team')}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      forwardTargetType === 'team'
-                        ? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-950/60 dark:border-purple-500 dark:text-purple-300 shadow-xs'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-900/50 dark:border-slate-700 dark:text-slate-400'
-                    }`}
-                  >
-                    <span>🛡️ ส่งต่อให้ทีมนำ (Lead Team)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setForwardTargetType('department')}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      forwardTargetType === 'department'
-                        ? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-950/60 dark:border-purple-500 dark:text-purple-300 shadow-xs'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-900/50 dark:border-slate-700 dark:text-slate-400'
-                    }`}
-                  >
-                    <span>🏢 ส่งต่อหน่วยงาน (Department)</span>
-                  </button>
-                </div>
-              </div>
-
+              {/* Type Switcher Removed */}
               {/* Destination Dropdown */}
-              {forwardTargetType === 'team' ? (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                    🛡️ เลือกทีมนำปลายทาง:
-                  </label>
-                  <select
-                    value={forwardTeamId}
-                    onChange={(e) => setForwardTeamId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-                  >
-                    <option value="">-- เลือกทีมนำ --</option>
-                    {programsList.map((p: any) => (
-                      <option key={p.program_id} value={p.program_id}>
-                        {p.program_name}
-                      </option>
-                    ))}
-                  </select>
-
-                </div>
-              ) : (
+              
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
                     🏢 เลือกหน่วยงานปลายทาง:
@@ -1605,7 +1545,7 @@ export default function IncidentDetail() {
                     ))}
                   </select>
                 </div>
-              )}
+              
 
               {/* Consultation Memo Note */}
               <div className="space-y-1.5">

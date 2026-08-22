@@ -1,0 +1,275 @@
+import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
+import { Search, ChevronDown, Info, X } from 'lucide-react';
+
+interface StandardRiskSelectorProps {
+  onSelect: (nrlsCode: string | null, localRiskId: number | null, nrlsRisk?: any) => void;
+  selectedNrlsCode?: string | null;
+  selectedLocalRiskId?: number | null;
+}
+
+export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({ 
+  onSelect, 
+  selectedNrlsCode
+}) => {
+  const [standardRisks, setStandardRisks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // States for Standard Risk selection
+  const [isNrlsDropdownOpen, setIsNrlsDropdownOpen] = useState(false);
+  const [nrlsSearch, setNrlsSearch] = useState('');
+  const [selectedNrls, setSelectedNrls] = useState<any | null>(null);
+
+  // States for Local Risk selection
+  const [isLocalDropdownOpen, setIsLocalDropdownOpen] = useState(false);
+  const [localSearch, setLocalSearch] = useState('');
+  const [selectedLocal, setSelectedLocal] = useState<any | null>(null);
+
+  const nrlsRef = useRef<HTMLDivElement>(null);
+  const localRef = useRef<HTMLDivElement>(null);
+
+  // Modal state
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+
+  useEffect(() => {
+    fetchStandardRisks();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (nrlsRef.current && !nrlsRef.current.contains(e.target as Node)) {
+        setIsNrlsDropdownOpen(false);
+      }
+      if (localRef.current && !localRef.current.contains(e.target as Node)) {
+        setIsLocalDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchStandardRisks = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:3000/nrls-riskstore', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setStandardRisks(response.data);
+
+      if (selectedNrlsCode) {
+        const found = response.data.find((r: any) => r.nrls_code === selectedNrlsCode);
+        if (found) setSelectedNrls(found);
+      }
+    } catch (err) {
+      console.error('Failed to load NRLS riskstore', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredNrls = standardRisks.filter(r => 
+    r.nrls_code.toLowerCase().includes(nrlsSearch.toLowerCase()) ||
+    r.name.toLowerCase().includes(nrlsSearch.toLowerCase())
+  );
+
+  const filteredLocal = selectedNrls?.local_risks?.filter((lr: any) => 
+    lr.riskstore_name?.toLowerCase().includes(localSearch.toLowerCase())
+  ) || [];
+
+  const handleNrlsSelect = (risk: any) => {
+    setSelectedNrls(risk);
+    setSelectedLocal(null);
+    setIsNrlsDropdownOpen(false);
+    onSelect(risk.nrls_code, null, risk);
+  };
+
+  const handleLocalSelect = (localRisk: any) => {
+    setSelectedLocal(localRisk);
+    setIsLocalDropdownOpen(false);
+    onSelect(selectedNrls?.nrls_code, localRisk.riskstore_id, selectedNrls);
+  };
+
+  if (loading) {
+    return <div className="animate-pulse bg-gray-100 h-20 rounded-md"></div>;
+  }
+
+  return (
+    <div className="space-y-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+      
+      {/* 1. Standard Risk Selection */}
+      <div className="relative" ref={nrlsRef}>
+        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
+          เป็นอุบัติการณ์เรื่องใด** :
+        </label>
+        
+        <div className="flex gap-2 items-center">
+          <div 
+            onClick={() => setIsNrlsDropdownOpen(true)}
+            className="flex-1 min-h-[42px] px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer flex items-center justify-between"
+          >
+            <span className="text-sm truncate">
+              {selectedNrls ? `${selectedNrls.nrls_code} : ${selectedNrls.name}` : 'เลือกอุบัติการณ์มาตรฐาน...'}
+            </span>
+            <ChevronDown className="w-4 h-4 text-slate-400" />
+          </div>
+
+          {selectedNrls && (
+            <button 
+              type="button"
+              onClick={() => setShowDetailsModal(true)}
+              className="p-2.5 bg-blue-50 text-blue-600 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors"
+              title="แสดงรายละเอียด"
+            >
+              <Info className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+
+        {isNrlsDropdownOpen && (
+          <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-60 overflow-hidden flex flex-col">
+            <div className="p-2 border-b border-slate-100 dark:border-slate-700">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="ค้นหารหัส หรือ ชื่อความเสี่ยง..."
+                  value={nrlsSearch}
+                  onChange={(e) => setNrlsSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border-none rounded-md outline-none"
+                />
+              </div>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {filteredNrls.map((risk) => (
+                <div 
+                  key={risk.nrls_code}
+                  onClick={() => handleNrlsSelect(risk)}
+                  className="px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border-b border-slate-50 dark:border-slate-700/50"
+                >
+                  <span className="font-semibold text-blue-600 dark:text-blue-400">{risk.nrls_code}</span> : {risk.name}
+                </div>
+              ))}
+              {filteredNrls.length === 0 && (
+                <div className="px-3 py-4 text-sm text-center text-slate-500">ไม่พบข้อมูล</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 2. Local Risk Selection (only shown if nrls is selected) */}
+      {selectedNrls && (
+        <div className="relative" ref={localRef}>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
+            เป็นอุบัติการณ์เรื่องย่อยภายใน รพ. เรื่องใด <span className="text-slate-400 font-normal">(ไม่บังคับ)</span> :
+          </label>
+          <div 
+            onClick={() => setIsLocalDropdownOpen(true)}
+            className="w-full min-h-[42px] px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer flex items-center justify-between"
+          >
+            <span className="text-sm truncate text-slate-600 dark:text-slate-400">
+              {selectedLocal ? selectedLocal.riskstore_name : (
+                selectedNrls?.local_risks?.length > 0 
+                  ? 'เลือกอุบัติการณ์ย่อย...' 
+                  : 'ไม่มีอุบัติการณ์ย่อยที่แมปกับรหัสนี้'
+              )}
+            </span>
+            <ChevronDown className="w-4 h-4 text-slate-400" />
+          </div>
+
+          {isLocalDropdownOpen && selectedNrls?.local_risks?.length > 0 && (
+            <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-60 overflow-hidden flex flex-col">
+              <div className="p-2 border-b border-slate-100 dark:border-slate-700">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาอุบัติการณ์ย่อย..."
+                    value={localSearch}
+                    onChange={(e) => setLocalSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border-none rounded-md outline-none"
+                  />
+                </div>
+              </div>
+              <div className="overflow-y-auto flex-1">
+                {filteredLocal.map((lr: any) => (
+                  <div 
+                    key={lr.riskstore_id}
+                    onClick={() => handleLocalSelect(lr)}
+                    className="px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border-b border-slate-50 dark:border-slate-700/50"
+                  >
+                    {lr.riskstore_name}
+                  </div>
+                ))}
+                {filteredLocal.length === 0 && (
+                  <div className="px-3 py-4 text-sm text-center text-slate-500">ไม่พบข้อมูล</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Details Modal */}
+      {showDetailsModal && selectedNrls && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+              <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Info className="w-5 h-5 text-blue-500" />
+                รายละเอียดรหัส {selectedNrls.nrls_code}
+              </h3>
+              <button onClick={() => setShowDetailsModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto max-h-[60vh] space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">ชื่ออุบัติการณ์</label>
+                <p className="mt-1 font-medium text-slate-800 dark:text-slate-200">{selectedNrls.name}</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">กลุ่ม</label>
+                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{selectedNrls.group || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">หมวด</label>
+                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{selectedNrls.category || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">ประเภท</label>
+                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{selectedNrls.type || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">ประเภทย่อย</label>
+                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{selectedNrls.sub_type || '-'}</p>
+                </div>
+              </div>
+
+              {selectedNrls.definition && (
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">นิยาม / คำอธิบาย</label>
+                  <div className="mt-1 text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-700">
+                    {selectedNrls.definition}
+                  </div>
+                </div>
+              )}
+
+              {selectedNrls.remark && (
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">หมายเหตุ</label>
+                  <div className="mt-1 text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                    {selectedNrls.remark}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

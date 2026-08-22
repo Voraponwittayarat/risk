@@ -298,47 +298,49 @@ model riskgroup {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model riskregister {
-  id                   Int       @default(autoincrement())
-  id_risk              Int       @default(0)
-  date_report          DateTime  @db.Date
-  time_report          DateTime  @db.Time(0)
-  duration_id          Int?
-  location_id          Int?
-  user_ir_type         String    @db.VarChar(50)
-  user_ir              Int?
-  program_id           Int?
-  level_id             String    @db.VarChar(2)
-  riskstore_id         Int
-  detail               String?   @db.Text
-  detail_hosxp         String?   @db.Text
-  affected             String?   @db.VarChar(50)
-  edit                 String?   @db.VarChar(10)
-  problem_basic        String?   @db.Text
-  image                String?   @db.Text
-  inform_id            Int
-  status_risk          String?   @db.VarChar(100)
-  created_by           Int?
-  department_id        String    @db.VarChar(3)
-  updated_by           Int?
-  create_date          DateTime? @db.DateTime(0)
-  modify_date          DateTime? @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
-  send_date            DateTime? @db.DateTime(0)
-  send_use             String?   @db.VarChar(150)
-  register_date        DateTime  @db.Date
-  note                 String?   @db.VarChar(255)
-  refer_type           String?   @db.VarChar(1)
-  sendto_team_id       Int?
-  sendto_department_id String?   @db.VarChar(3)
-  sendto_member_cid    String?   @db.VarChar(13)
-  repeat_code          String?   @db.VarChar(3)
-  link_key             String?   @db.VarChar(100)
-  url                  String?   @db.Text
-  is_sec41             Boolean?  @default(false)
-  is_potential_harm    Boolean?  @default(false)
-  rca_required         Boolean?  @default(false)
-  rca_criteria_match   String?   @db.VarChar(100)
-  rca_status           String?   @default("NONE") @db.VarChar(50)
-  rca_case_id          String?   @db.VarChar(50)
+  id                      Int             @default(autoincrement())
+  id_risk                 Int             @default(0)
+  date_report             DateTime        @db.Date
+  time_report             DateTime        @db.Time(0)
+  duration_id             Int?
+  location_id             Int?
+  user_ir_type            String          @db.VarChar(50)
+  user_ir                 Int?
+  program_id              Int?
+  level_id                String          @db.VarChar(2)
+  riskstore_id            Int
+  detail                  String?         @db.Text
+  detail_hosxp            String?         @db.Text
+  affected                String?         @db.VarChar(50)
+  edit                    String?         @db.VarChar(10)
+  problem_basic           String?         @db.Text
+  image                   String?         @db.Text
+  inform_id               Int
+  status_risk             String?         @db.VarChar(100)
+  created_by              Int?
+  department_id           String          @db.VarChar(3)
+  updated_by              Int?
+  create_date             DateTime?       @db.DateTime(0)
+  modify_date             DateTime?       @default(dbgenerated("('0000-00-00 00:00:00')")) @db.Timestamp(0)
+  send_date               DateTime?       @db.DateTime(0)
+  send_use                String?         @db.VarChar(150)
+  register_date           DateTime        @db.Date
+  note                    String?         @db.VarChar(255)
+  refer_type              String?         @db.VarChar(1)
+  sendto_team_id          Int?
+  sendto_department_id    String?         @db.VarChar(3)
+  sendto_member_cid       String?         @db.VarChar(13)
+  repeat_code             String?         @db.VarChar(3)
+  link_key                String?         @db.VarChar(100)
+  url                     String?         @db.Text
+  is_sec41                Boolean?        @default(false)
+  is_potential_harm       Boolean?        @default(false)
+  rca_required            Boolean?        @default(false)
+  rca_criteria_match      String?         @db.VarChar(100)
+  rca_status              String?         @default("NONE") @db.VarChar(50)
+  rca_case_id             String?         @db.VarChar(50)
+  nrls_code String? @db.VarChar(50)
+  nrls_standard NRLS_riskstore? @relation(fields: [nrls_code], references: [nrls_code])
 
   @@id([id, id_risk])
 }
@@ -461,20 +463,22 @@ model risks {
 }
 
 model riskstore {
-  riskstore_id   Int       @id @default(autoincrement())
-  riskstore_name String    @db.VarChar(200)
-  inform_id      Int?
-  type_id        Int?
-  program_id     Int?
-  level_id       Int?
-  group_id       Int?
-  team_id        Int?
-  member_cid     String?   @db.VarChar(13)
-  status         String?   @db.VarChar(1)
-  create_date    DateTime? @db.DateTime(0)
-  modify_date    DateTime? @db.Timestamp(0)
-  created_by     Int?
-  updated_by     Int?
+  riskstore_id            Int             @id @default(autoincrement())
+  riskstore_name          String          @db.VarChar(200)
+  inform_id               Int?
+  type_id                 Int?
+  program_id              Int?
+  level_id                Int?
+  group_id                Int?
+  team_id                 Int?
+  member_cid              String?         @db.VarChar(13)
+  status                  String?         @db.VarChar(1)
+  create_date             DateTime?       @db.DateTime(0)
+  modify_date             DateTime?       @db.Timestamp(0)
+  created_by              Int?
+  updated_by              Int?
+  nrls_code String? @db.VarChar(50)
+  nrls_standard NRLS_riskstore? @relation(fields: [nrls_code], references: [nrls_code])
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
@@ -581,49 +585,49 @@ model trigger_tool_master {
 }
 
 model medical_record_review {
-  id                Int       @id @default(autoincrement())
-  review_date       DateTime  @default(now()) @db.DateTime(0)
-  reviewer_name     String    @db.VarChar(255)
-  department        String    @db.VarChar(100)
-  hn                String    @db.VarChar(50)
-  an                String?   @db.VarChar(50)
-  admit_date        DateTime? @db.Date
-  discharge_date    DateTime? @db.Date
-  diagnosis         String?   @db.Text
-  has_trigger       Boolean?  @default(false)
-  has_adverse_event Boolean?  @default(false)
-  has_error         Boolean?  @default(false)
-  severity_level    String?   @db.VarChar(10)
-  preventability    String?   @db.VarChar(50)
-  ae_description    String?   @db.Text
-  standard_rca_id   String?   @db.VarChar(50)
-  created_at        DateTime  @default(now()) @db.Timestamp(0)
-  updated_at        DateTime  @default(now()) @db.Timestamp(0)
+  id                Int               @id @default(autoincrement())
+  review_date       DateTime          @default(now()) @db.DateTime(0)
+  reviewer_name     String            @db.VarChar(255)
+  department        String            @db.VarChar(100)
+  hn                String            @db.VarChar(50)
+  an                String?           @db.VarChar(50)
+  admit_date        DateTime?         @db.Date
+  discharge_date    DateTime?         @db.Date
+  diagnosis         String?           @db.Text
+  has_trigger       Boolean?          @default(false)
+  has_adverse_event Boolean?          @default(false)
+  has_error         Boolean?          @default(false)
+  severity_level    String?           @db.VarChar(10)
+  preventability    String?           @db.VarChar(50)
+  ae_description    String?           @db.Text
+  standard_rca_id   String?           @db.VarChar(50)
+  created_at        DateTime          @default(now()) @db.Timestamp(0)
+  updated_at        DateTime          @default(now()) @db.Timestamp(0)
   findings          trigger_finding[]
 }
 
 model trigger_finding {
-  id           Int      @id @default(autoincrement())
+  id           Int                   @id @default(autoincrement())
   review_id    Int
   trigger_id   Int
-  trigger_name String   @db.VarChar(255)
-  detail       String?  @db.Text
-  created_at   DateTime @default(now()) @db.Timestamp(0)
+  trigger_name String                @db.VarChar(255)
+  detail       String?               @db.Text
+  created_at   DateTime              @default(now()) @db.Timestamp(0)
   review       medical_record_review @relation(fields: [review_id], references: [id], onDelete: Cascade)
 
   @@index([review_id], map: "idx_review_id")
 }
 
 model rca_case {
-  id              String    @id @db.VarChar(50)
-  topic           String    @db.VarChar(255)
-  rca_type        String?   @default("mini") @db.VarChar(20)
-  review_date     DateTime  @db.DateTime(0)
-  incident_date   DateTime? @db.DateTime(0)
-  incident_detail String?   @db.Text
+  id              String              @id @db.VarChar(50)
+  topic           String              @db.VarChar(255)
+  rca_type        String?             @default("mini") @db.VarChar(20)
+  review_date     DateTime            @db.DateTime(0)
+  incident_date   DateTime?           @db.DateTime(0)
+  incident_detail String?             @db.Text
   created_by      Int?
-  created_at      DateTime  @default(now()) @db.Timestamp(0)
-  updated_at      DateTime  @default(now()) @db.Timestamp(0)
+  created_at      DateTime            @default(now()) @db.Timestamp(0)
+  updated_at      DateTime            @default(now()) @db.Timestamp(0)
   incidents       rca_incident_item[]
   swiss_cheeses   rca_swiss_cheese[]
   cmps            rca_cmp[]
@@ -676,40 +680,40 @@ model rca_cmp {
 }
 
 model rca_reviewer {
-  id          Int     @id @default(autoincrement())
-  rca_case_id String  @db.VarChar(50)
-  name        String  @db.VarChar(255)
-  position    String? @db.VarChar(100)
-  department  String? @db.VarChar(100)
-  sort_order  Int?    @default(0)
+  id          Int      @id @default(autoincrement())
+  rca_case_id String   @db.VarChar(50)
+  name        String   @db.VarChar(255)
+  position    String?  @db.VarChar(100)
+  department  String?  @db.VarChar(100)
+  sort_order  Int?     @default(0)
   rca_case    rca_case @relation(fields: [rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([rca_case_id], map: "idx_rev_rca_case_id")
 }
 
 model standard_rca_case {
-  id                       String    @id @db.VarChar(50)
-  rm_no                    String?   @db.VarChar(50)
-  rca_type                 String?   @default("full") @db.VarChar(20)
+  id                       String                          @id @db.VarChar(50)
+  rm_no                    String?                         @db.VarChar(50)
+  rca_type                 String?                         @default("full") @db.VarChar(20)
   incident_id              Int?
   incident_id_risk         Int?
   source_trigger_review_id Int?
-  topic                    String    @db.VarChar(255)
-  incident_date            DateTime? @db.DateTime(0)
-  rca_team                 String?   @db.VarChar(255)
-  severity                 String?   @db.VarChar(10)
-  is_not_risk              Boolean?  @default(false)
-  what_happened            String?   @db.Text
-  actual_impact            String?   @db.Text
-  potential_impact         String?   @db.Text
-  info_interview           Boolean?  @default(false)
-  info_cctv                Boolean?  @default(false)
-  info_document            Boolean?  @default(false)
-  info_inspection          Boolean?  @default(false)
-  status                   String?   @default("pending") @db.VarChar(50)
+  topic                    String                          @db.VarChar(255)
+  incident_date            DateTime?                       @db.DateTime(0)
+  rca_team                 String?                         @db.VarChar(255)
+  severity                 String?                         @db.VarChar(10)
+  is_not_risk              Boolean?                        @default(false)
+  what_happened            String?                         @db.Text
+  actual_impact            String?                         @db.Text
+  potential_impact         String?                         @db.Text
+  info_interview           Boolean?                        @default(false)
+  info_cctv                Boolean?                        @default(false)
+  info_document            Boolean?                        @default(false)
+  info_inspection          Boolean?                        @default(false)
+  status                   String?                         @default("pending") @db.VarChar(50)
   created_by               Int?
-  created_at               DateTime  @default(now()) @db.Timestamp(0)
-  updated_at               DateTime  @default(now()) @db.Timestamp(0)
+  created_at               DateTime                        @default(now()) @db.Timestamp(0)
+  updated_at               DateTime                        @default(now()) @db.Timestamp(0)
   timelines                standard_rca_timeline[]
   whys                     standard_rca_why[]
   fishbones                standard_rca_fishbone[]
@@ -719,89 +723,102 @@ model standard_rca_case {
 }
 
 model standard_rca_timeline {
-  id                   Int       @id @default(autoincrement())
-  standard_rca_case_id String    @db.VarChar(50)
-  event_time           String    @db.VarChar(100)
-  event_date           DateTime? @db.Date
-  event_description    String    @db.Text
-  is_critical_point    Boolean?  @default(false)
-  tag                  String?   @db.VarChar(50)
-  sort_order           Int?      @default(0)
-  created_at           DateTime  @default(now()) @db.Timestamp(0)
+  id                   Int               @id @default(autoincrement())
+  standard_rca_case_id String            @db.VarChar(50)
+  event_time           String            @db.VarChar(100)
+  event_date           DateTime?         @db.Date
+  event_description    String            @db.Text
+  is_critical_point    Boolean?          @default(false)
+  tag                  String?           @db.VarChar(50)
+  sort_order           Int?              @default(0)
+  created_at           DateTime          @default(now()) @db.Timestamp(0)
   standard_rca_case    standard_rca_case @relation(fields: [standard_rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([standard_rca_case_id], map: "idx_std_timeline_case_id")
 }
 
 model standard_rca_why {
-  id                   Int      @id @default(autoincrement())
-  standard_rca_case_id String   @db.VarChar(50)
+  id                   Int               @id @default(autoincrement())
+  standard_rca_case_id String            @db.VarChar(50)
   level                Int
-  question             String?  @db.Text
-  answer               String   @db.Text
-  sort_order           Int?     @default(0)
-  created_at           DateTime @default(now()) @db.Timestamp(0)
+  question             String?           @db.Text
+  answer               String            @db.Text
+  sort_order           Int?              @default(0)
+  created_at           DateTime          @default(now()) @db.Timestamp(0)
   standard_rca_case    standard_rca_case @relation(fields: [standard_rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([standard_rca_case_id], map: "idx_std_why_case_id")
 }
 
 model standard_rca_fishbone {
-  id                   Int      @id @default(autoincrement())
-  standard_rca_case_id String   @db.VarChar(50)
-  category             String   @db.VarChar(50)
-  factor               String   @db.Text
-  sub_factor           String?  @db.Text
-  sort_order           Int?     @default(0)
-  created_at           DateTime @default(now()) @db.Timestamp(0)
+  id                   Int               @id @default(autoincrement())
+  standard_rca_case_id String            @db.VarChar(50)
+  category             String            @db.VarChar(50)
+  factor               String            @db.Text
+  sub_factor           String?           @db.Text
+  sort_order           Int?              @default(0)
+  created_at           DateTime          @default(now()) @db.Timestamp(0)
   standard_rca_case    standard_rca_case @relation(fields: [standard_rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([standard_rca_case_id], map: "idx_std_fish_case_id")
 }
 
 model standard_rca_process_analysis {
-  id                   Int      @id @default(autoincrement())
-  standard_rca_case_id String   @db.VarChar(50)
-  process_key          String   @db.VarChar(100)
-  problem              String?  @db.Text
-  tier1_personnel      String?  @db.Text
-  tier2_teamwork       String?  @db.Text
-  tier3_environment    String?  @db.Text
-  tier4_policy         String?  @db.Text
-  tier5_external       String?  @db.Text
-  corrective_action    String?  @db.Text
-  sort_order           Int?     @default(0)
-  created_at           DateTime @default(now()) @db.Timestamp(0)
+  id                   Int               @id @default(autoincrement())
+  standard_rca_case_id String            @db.VarChar(50)
+  process_key          String            @db.VarChar(100)
+  problem              String?           @db.Text
+  tier1_personnel      String?           @db.Text
+  tier2_teamwork       String?           @db.Text
+  tier3_environment    String?           @db.Text
+  tier4_policy         String?           @db.Text
+  tier5_external       String?           @db.Text
+  corrective_action    String?           @db.Text
+  sort_order           Int?              @default(0)
+  created_at           DateTime          @default(now()) @db.Timestamp(0)
   standard_rca_case    standard_rca_case @relation(fields: [standard_rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([standard_rca_case_id], map: "idx_std_process_case_id")
 }
 
 model standard_rca_capa {
-  id                   Int       @id @default(autoincrement())
-  standard_rca_case_id String    @db.VarChar(50)
-  action               String    @db.Text
-  type                 String    @db.VarChar(50)
-  responsible          String    @db.VarChar(255)
-  due_date             DateTime? @db.Date
-  status               String?   @default("pending") @db.VarChar(50)
-  evidence             String?   @db.Text
-  sort_order           Int?      @default(0)
-  created_at           DateTime  @default(now()) @db.Timestamp(0)
+  id                   Int               @id @default(autoincrement())
+  standard_rca_case_id String            @db.VarChar(50)
+  action               String            @db.Text
+  type                 String            @db.VarChar(50)
+  responsible          String            @db.VarChar(255)
+  due_date             DateTime?         @db.Date
+  status               String?           @default("pending") @db.VarChar(50)
+  evidence             String?           @db.Text
+  sort_order           Int?              @default(0)
+  created_at           DateTime          @default(now()) @db.Timestamp(0)
   standard_rca_case    standard_rca_case @relation(fields: [standard_rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([standard_rca_case_id], map: "idx_std_capa_case_id")
 }
 
 model standard_rca_review_session {
-  id                   Int       @id @default(autoincrement())
-  standard_rca_case_id String    @db.VarChar(50)
-  reviewers            String?   @db.Text
-  review_date_time     DateTime? @db.DateTime(0)
-  notes                String?   @db.Text
-  sort_order           Int?      @default(0)
-  created_at           DateTime  @default(now()) @db.Timestamp(0)
+  id                   Int               @id @default(autoincrement())
+  standard_rca_case_id String            @db.VarChar(50)
+  reviewers            String?           @db.Text
+  review_date_time     DateTime?         @db.DateTime(0)
+  notes                String?           @db.Text
+  sort_order           Int?              @default(0)
+  created_at           DateTime          @default(now()) @db.Timestamp(0)
   standard_rca_case    standard_rca_case @relation(fields: [standard_rca_case_id], references: [id], onDelete: Cascade)
 
   @@index([standard_rca_case_id], map: "idx_std_session_case_id")
+}
+
+model NRLS_riskstore {
+  nrls_code     String         @id @db.VarChar(50)
+  name          String         @db.Text
+  group         String?        @db.VarChar(100)
+  category      String?        @db.VarChar(200)
+  type          String?        @db.VarChar(200)
+  sub_type      String?        @db.VarChar(200)
+  definition    String?        @db.Text
+  remark        String?        @db.Text
+  local_risks   riskstore[]
+  riskregisters riskregister[]
 }
