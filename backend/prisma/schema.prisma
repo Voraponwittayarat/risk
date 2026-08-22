@@ -15,14 +15,16 @@ model act {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model department {
-  id              Int       @id @default(autoincrement())
-  depart_name_eng String?   @db.VarChar(50)
-  depart_name     String    @db.VarChar(150)
-  depart_group_id Int?
-  create_date     DateTime? @db.DateTime(0)
-  modify_date     DateTime? @db.Timestamp(0)
-  created_by      Int?
-  updated_by      Int?
+  id               Int       @id @default(autoincrement())
+  depart_name_eng  String?   @db.VarChar(50)
+  depart_name      String    @db.VarChar(150)
+  depart_group_id  Int?
+  telegram_token   String?   @db.VarChar(255)
+  telegram_chat_id String?   @db.VarChar(100)
+  create_date      DateTime? @db.DateTime(0)
+  modify_date      DateTime? @db.Timestamp(0)
+  created_by       Int?
+  updated_by       Int?
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -220,6 +222,7 @@ model program {
   modify_date  DateTime? @db.Timestamp(0)
   created_by   Int?
   updated_by   Int?
+  nrls_risks   NRLS_riskstore[]
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -819,6 +822,8 @@ model NRLS_riskstore {
   sub_type      String?        @db.VarChar(200)
   definition    String?        @db.Text
   remark        String?        @db.Text
+  program_id    Int?
+  program       program?       @relation(fields: [program_id], references: [program_id])
   local_risks   riskstore[]
   riskregisters riskregister[]
 }

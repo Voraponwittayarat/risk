@@ -52,8 +52,8 @@ export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:3000/nrls-riskstore', {
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await axios.get('/nrls-riskstore', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       setStandardRisks(response.data);
 
@@ -67,6 +67,17 @@ export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (standardRisks.length > 0 && selectedNrlsCode) {
+      const found = standardRisks.find((r: any) => r.nrls_code === selectedNrlsCode);
+      if (found) {
+        setSelectedNrls(found);
+      }
+    } else if (!selectedNrlsCode) {
+      setSelectedNrls(null);
+    }
+  }, [selectedNrlsCode, standardRisks]);
 
   const filteredNrls = standardRisks.filter(r => 
     r.nrls_code.toLowerCase().includes(nrlsSearch.toLowerCase()) ||

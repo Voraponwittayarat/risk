@@ -22,6 +22,7 @@ interface IncidentItem {
   risk_name?: string;
   level_id?: string;
   department_id?: string;
+  department_name?: string;
   detail?: string;
   date_risk?: string;
 }

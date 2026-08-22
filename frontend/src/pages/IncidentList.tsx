@@ -3,7 +3,7 @@ import axios from 'axios';
 import { format } from 'date-fns';
 import { 
   Search, Plus, AlertTriangle, 
-  ChevronLeft, ChevronRight, Eye,
+  ChevronLeft, ChevronRight,
   Layers, Shield, ShieldAlert, ShieldCheck, X, CheckSquare, Square
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';

@@ -112,6 +112,14 @@ export default function Settings() {
               <LinkIcon className="h-5 w-5" />
               ตั้งค่า Mapping ความเสี่ยง
             </Link>
+            <Link to="/programs" className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700">
+              <BookOpen className="h-5 w-5" />
+              จัดการโปรแกรมความเสี่ยง
+            </Link>
+            <Link to="/telegram-settings" className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-5 py-3 font-semibold text-white hover:bg-sky-700">
+              <Send className="h-5 w-5" />
+              ตั้งค่า Telegram แจ้งเตือนรายหน่วยงาน
+            </Link>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900 mt-6">

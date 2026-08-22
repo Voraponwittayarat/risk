@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Search, Link as LinkIcon, Check, X, Save, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,12 +7,14 @@ import Swal from 'sweetalert2';
 export default function RiskMapping() {
   const [nrlsRisks, setNrlsRisks] = useState<any[]>([]);
   const [localRisks, setLocalRisks] = useState<any[]>([]);
+  const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'mapped', 'unmapped'
   
   const [mappingModal, setMappingModal] = useState<any>(null); // holds the nrls risk being mapped
   const [selectedLocalIds, setSelectedLocalIds] = useState<number[]>([]);
+  const [selectedProgramId, setSelectedProgramId] = useState<number | ''>('');
   const [modalSearch, setModalSearch] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -25,11 +27,14 @@ export default function RiskMapping() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [nrlsRes, localRes] = await Promise.all([
+      const [nrlsRes, localRes, progRes] = await Promise.all([
         axios.get('http://localhost:3000/nrls-riskstore', { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get('http://localhost:3000/risk-topics', { headers: { Authorization: `Bearer ${token}` } })
+        axios.get('http://localhost:3000/risk-topics', { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get('http://localhost:3000/programs', { headers: { Authorization: `Bearer ${token}` } })
       ]);
       setNrlsRisks(nrlsRes.data);
+      setLocalRisks(localRes.data);
+      setPrograms(progRes.data);
       setLocalRisks(localRes.data);
     } catch (err) {
       console.error(err);
@@ -42,6 +47,7 @@ export default function RiskMapping() {
     setMappingModal(nrlsRisk);
     const mappedIds = nrlsRisk.local_risks.map((lr: any) => lr.riskstore_id);
     setSelectedLocalIds(mappedIds);
+    setSelectedProgramId(nrlsRisk.program_id || '');
     setModalSearch('');
   };
 
@@ -55,7 +61,8 @@ export default function RiskMapping() {
     try {
       setSaving(true);
       await axios.patch(`http://localhost:3000/nrls-riskstore/${mappingModal.nrls_code}/mapping`, {
-        riskstore_ids: selectedLocalIds
+        riskstore_ids: selectedLocalIds,
+        program_id: selectedProgramId === '' ? null : selectedProgramId
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -137,6 +144,7 @@ export default function RiskMapping() {
                   <th className="px-4 py-3 font-semibold w-1/3">ชื่อความเสี่ยง NRLS</th>
                   <th className="px-4 py-3 font-semibold w-24 text-center">สถานะ</th>
                   <th className="px-4 py-3 font-semibold">ความเสี่ยงบริบทโรงพยาบาลที่เชื่อมโยง (Local Risks)</th>
+                  <th className="px-4 py-3 font-semibold w-48">โปรแกรมความเสี่ยง</th>
                   <th className="px-4 py-3 font-semibold w-24 text-center">จัดการ</th>
                 </tr>
               </thead>
@@ -178,6 +186,9 @@ export default function RiskMapping() {
                         <span className="text-slate-400 text-xs">- ยังไม่ได้เชื่อมโยงข้อมูล -</span>
                       )}
                     </td>
+                    <td className="px-4 py-4 align-top text-sm text-slate-700 dark:text-slate-300">
+                      {risk.program?.program_name || <span className="text-slate-400 italic">ยังไม่ระบุ</span>}
+                    </td>
                     <td className="px-4 py-4 align-top text-center">
                       <button onClick={() => openMappingModal(risk)} className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg inline-flex items-center justify-center">
                         <LinkIcon size={16} />
@@ -211,7 +222,24 @@ export default function RiskMapping() {
                 <X size={20} />
               </button>
             </div>
-            <div className="p-4 border-b border-slate-100 dark:border-slate-800">
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  โปรแกรมความเสี่ยงสำหรับ NRLS นี้
+                </label>
+                <select
+                  value={selectedProgramId}
+                  onChange={(e) => setSelectedProgramId(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none dark:text-white focus:border-indigo-500"
+                >
+                  <option value="">-- ไม่ระบุโปรแกรม --</option>
+                  {programs.map(prog => (
+                    <option key={prog.program_id} value={prog.program_id}>
+                      {prog.program_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input

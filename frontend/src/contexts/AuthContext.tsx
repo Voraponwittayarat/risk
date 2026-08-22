@@ -9,6 +9,7 @@ export interface User {
   name: string;
   department_id: number;
   department_name?: string;
+  departmentName?: string;
   department_id2?: number;
   role: UserRole;
   accessrules?: string;

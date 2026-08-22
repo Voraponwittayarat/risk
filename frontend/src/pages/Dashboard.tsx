@@ -3,7 +3,7 @@ import axios from 'axios';
 import { 
   Activity, ShieldAlert, AlertTriangle, TrendingUp, 
   Clock, AlertOctagon, Plus, ArrowRight, ExternalLink, ChevronRight,
-  Calendar, FileText, CheckCircle2, HeartHandshake,
+  FileText, CheckCircle2, HeartHandshake,
   LayoutGrid, PlusCircle, ClipboardList, ShieldCheck, Sparkles, 
   BarChart3, PieChart, Users, UserCheck, FolderKanban, Settings, FileCheck
 } from 'lucide-react';

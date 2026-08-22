@@ -826,7 +826,7 @@ export default function IncidentDetail() {
             </div>
             
             <div className="flex items-center justify-between text-xs py-2 border-b border-slate-200/60 dark:border-slate-800">
-              <span className="text-slate-400">หน่วยงานที่เกิดเหตุ :</span>
+              <span className="text-slate-400">หน่วยงานผู้ค้นพบ/บันทึกรายงาน :</span>
               <span className="font-semibold text-slate-700 dark:text-slate-200">{incident.department_name}</span>
             </div>
 

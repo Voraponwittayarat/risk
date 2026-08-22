@@ -10,6 +10,7 @@ import { UsersModule } from './modules/users/users.module';
 import { RiskTopicsModule } from './modules/risk-topics/risk-topics.module';
 import { MembersModule } from './modules/members/members.module';
 import { NrlsRiskstoreModule } from './modules/nrls-riskstore/nrls-riskstore.module';
+import { ProgramsModule } from './modules/programs/programs.module';
 import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
@@ -26,6 +27,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     RiskTopicsModule,
     MembersModule,
     NrlsRiskstoreModule,
+    ProgramsModule,
   ],
   controllers: [],
   providers: [],

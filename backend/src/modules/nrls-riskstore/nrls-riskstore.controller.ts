@@ -25,7 +25,7 @@ export class NrlsRiskstoreController {
 
   @UseGuards(JwtAuthGuard)
   @Patch(':code/mapping')
-  updateMapping(@Param('code') code: string, @Body() body: { riskstore_ids: number[] }) {
-    return this.nrlsRiskstoreService.updateMapping(code, body.riskstore_ids);
+  updateMapping(@Param('code') code: string, @Body() body: { riskstore_ids: number[], program_id?: number | null }) {
+    return this.nrlsRiskstoreService.updateMapping(code, body.riskstore_ids, body.program_id);
   }
 }

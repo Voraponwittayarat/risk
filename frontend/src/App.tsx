@@ -12,6 +12,8 @@ import UserManagement from './pages/UserManagement';
 import RiskTopicManagement from './pages/RiskTopicManagement';
 import NrlsManagement from './pages/NrlsManagement';
 import RiskMapping from './pages/RiskMapping';
+import ProgramsManagement from './pages/ProgramsManagement';
+import TelegramSettings from './pages/TelegramSettings';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
@@ -83,6 +85,8 @@ function App() {
             <Route path="risk-topics" element={<AdminRoute><RiskTopicManagement /></AdminRoute>} />
             <Route path="nrls-topics" element={<AdminRoute><NrlsManagement /></AdminRoute>} />
             <Route path="risk-mapping" element={<AdminRoute><RiskMapping /></AdminRoute>} />
+            <Route path="programs" element={<AdminRoute><ProgramsManagement /></AdminRoute>} />
+            <Route path="telegram-settings" element={<AdminRoute><TelegramSettings /></AdminRoute>} />
           </Route>
         </Routes>
       </Router>

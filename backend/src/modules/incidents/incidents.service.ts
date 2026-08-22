@@ -921,9 +921,7 @@ export class IncidentsService {
 
     // Trigger Telegram notification for high level risks
     try {
-      if (['E', 'F', 'G', 'H', 'I', '3', '4', '5'].includes(createData.level_id)) {
-        this.sendTelegramAlert(newIncident).catch(e => console.error('Telegram send error:', e));
-      }
+      this.sendTelegramAlert(newIncident).catch(e => console.error('Telegram send error:', e));
     } catch (e) {
       console.error('Error triggering Telegram alert:', e);
     }
@@ -932,9 +930,27 @@ export class IncidentsService {
   }
 
   private async sendTelegramAlert(incident: any) {
-    const botApiToken = '8866061704:AAGdyH0MvzUsnzVWrSqh0V5wZLgCO4iJq6Q';
-    // Please put the actual Chat ID (e.g., -100123456789) in .env file or replace it here
-    const chatId = process.env.TELEGRAM_CHAT_ID || 'PUT_YOUR_CHAT_ID_HERE'; 
+    let botApiToken = '8866061704:AAGdyH0MvzUsnzVWrSqh0V5wZLgCO4iJq6Q';
+    let chatId = process.env.TELEGRAM_CHAT_ID || 'PUT_YOUR_CHAT_ID_HERE'; 
+    let deptName = String(incident.department_id || '-');
+
+    // Try to get department-specific bot configuration
+    if (incident.department_id) {
+      try {
+        const dept = await this.prisma.department.findUnique({
+          where: { id: parseInt(incident.department_id, 10) }
+        });
+        if (dept) {
+          deptName = dept.depart_name;
+          if (dept.telegram_token && dept.telegram_chat_id) {
+            botApiToken = dept.telegram_token;
+            chatId = dept.telegram_chat_id;
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching department telegram settings:', e);
+      }
+    }
     
     if (chatId === 'PUT_YOUR_CHAT_ID_HERE') {
       console.warn('Telegram Chat ID is not configured. Please set TELEGRAM_CHAT_ID in .env');
@@ -945,20 +961,25 @@ export class IncidentsService {
       `<b>รหัส:</b> ${incident.id}\n` +
       `<b>ระดับ:</b> ${incident.level_id}\n` +
       `<b>วันที่เกิดเหตุ:</b> ${new Date(incident.date_report).toLocaleDateString('th-TH')}\n` +
+      `<b>หน่วยงาน:</b> ${deptName}\n` +
       `<b>รายละเอียด:</b> ${incident.detail ? incident.detail.substring(0, 200) : '-'}...\n\n` +
       `<i>โปรดตรวจสอบในระบบ HRMS</i>`;
 
     const url = `https://api.telegram.org/bot${botApiToken}/sendMessage`;
     
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'HTML'
-      })
-    });
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: message,
+          parse_mode: 'HTML'
+        })
+      });
+    } catch (e) {
+      console.error('Error sending telegram:', e);
+    }
   }
 
   async update(id: number, data: any) {
