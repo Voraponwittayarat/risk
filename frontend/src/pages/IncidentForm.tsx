@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   FileText, Bot, Send, Calendar, Clock, MapPin, AlertTriangle, 
-  User, PenTool, CheckCircle, Stethoscope, FileSearch, Upload, 
-  X, Sparkles, BookOpen, ShieldCheck, Check, Info, ArrowRight, RotateCcw
+  User, PenTool, Stethoscope, FileSearch, Upload,
+  X, Sparkles, BookOpen, ShieldCheck, Check, Info, ArrowRight
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -10,6 +10,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import { AiChatbotModal } from '../components/AiChatbotModal';
 import { StandardRiskSelector } from '../components/StandardRiskSelector';
+
+const NRLS_CUTOVER_DATE = '2026-10-01';
 
 interface NrlsSampleTemplate {
   id: string;
@@ -41,7 +43,7 @@ const NRLS_SAMPLE_TEMPLATES: NrlsSampleTemplate[] = [
     title: '1. ความคลาดเคลื่อนทางยา (Medication Error - หยิบยาผิดชนิด)',
     category: 'clinical',
     tag: 'ยาและความปลอดภัยทางยา (PTC)',
-    nrls_code: 'PTC/01',
+    nrls_code: 'CPM205',
     type_id: '2',
     level_id: 'C',
     shift: 'วันราชการ-เวรเช้า',
@@ -61,7 +63,7 @@ const NRLS_SAMPLE_TEMPLATES: NrlsSampleTemplate[] = [
     title: '2. ผู้ป่วยพลัดตกหกล้มขณะรักษาตัวในหอผู้ป่วย (Inpatient Fall)',
     category: 'clinical',
     tag: 'ความปลอดภัยของผู้ป่วย (PT)',
-    nrls_code: 'PT/02',
+    nrls_code: 'CPP405',
     type_id: '2',
     level_id: 'D',
     shift: 'วันราชการ-เวรดึก',
@@ -81,7 +83,7 @@ const NRLS_SAMPLE_TEMPLATES: NrlsSampleTemplate[] = [
     title: '3. การระบุตัวผู้ป่วยผิดพลาดก่อนทำหัตถการ (Near Miss)',
     category: 'clinical',
     tag: 'การระบุตัวผู้ป่วย (PT)',
-    nrls_code: 'PT/01',
+    nrls_code: 'CPP101',
     type_id: '2',
     level_id: 'B',
     shift: 'วันราชการ-เวรเช้า',
@@ -101,7 +103,7 @@ const NRLS_SAMPLE_TEMPLATES: NrlsSampleTemplate[] = [
     title: '4. การติดเชื้อที่แผลผ่าตัดในโรงพยาบาล (Surgical Site Infection - SSI)',
     category: 'clinical',
     tag: 'การควบคุมการติดเชื้อ (IC)',
-    nrls_code: 'IC/01',
+    nrls_code: 'CPS111',
     type_id: '2',
     level_id: 'E',
     shift: 'วันราชการ-เวรบ่าย',
@@ -121,7 +123,7 @@ const NRLS_SAMPLE_TEMPLATES: NrlsSampleTemplate[] = [
     title: '5. ความเสี่ยงด้านกายภาพและอัคคีภัย (Facility & Fire Hazard)',
     category: 'general',
     tag: 'สิ่งแวดล้อมและความปลอดภัย (ENV)',
-    nrls_code: 'EN/16',
+    nrls_code: 'GOS301',
     type_id: '1',
     level_id: '3',
     shift: 'วันหยุดราชการ-เวรเช้า',
@@ -138,7 +140,7 @@ const NRLS_SAMPLE_TEMPLATES: NrlsSampleTemplate[] = [
     title: '6. ระบบสารสนเทศโรงพยาบาล (HOSxP / IT System Outage)',
     category: 'general',
     tag: 'ระบบสารสนเทศ (IM/IT)',
-    nrls_code: 'IM/11',
+    nrls_code: 'GOI107',
     type_id: '1',
     level_id: '3',
     shift: 'วันราชการ-เวรบ่าย',
@@ -163,8 +165,6 @@ export default function IncidentForm() {
   const [, setPrograms] = useState<any[]>([]);
   const [risks, setRisks] = useState<any[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
-
-  const riskComboboxRef = useRef<HTMLDivElement>(null);
 
   // Template Modal State
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
@@ -228,7 +228,8 @@ export default function IncidentForm() {
       nrls_code: tpl.nrls_code,
       type_id: tpl.type_id,
       level_id: tpl.level_id,
-      risk_id: matchedLocal ? String(matchedLocal.id) : prev.risk_id,
+      // Never retain a local mapping from a previously selected NRLS code.
+      risk_id: matchedLocal ? String(matchedLocal.id) : '',
       riskstore_text: matchedLocal ? (matchedLocal.riskstore_full || `${matchedLocal.clear_id} ${matchedLocal.risk_name}`) : `${tpl.nrls_code} : ${tpl.title}`,
       location_group: tpl.location_group || 'LG001',
       location_type: tpl.location_type || 'LT009',
@@ -254,20 +255,36 @@ export default function IncidentForm() {
   const handleApplyAiData = (aiData: any) => {
     setFormData(prev => {
       const selectedRisk = risks.find(r => r.id.toString() === aiData.risk_id);
+      const selectedNrlsCode = String(aiData.nrls_code || '').trim().toUpperCase();
+      const selectedType = selectedRisk?.type_id?.toString()
+        || (selectedNrlsCode.startsWith('C') ? '2' : selectedNrlsCode.startsWith('G') ? '1' : prev.type_id);
+      const typeChanged = Boolean(selectedNrlsCode) && selectedType !== prev.type_id;
+      const suggestedLevel = String(aiData.level_id || '').trim().toUpperCase();
+      const isSuggestedLevelValid = selectedType === '2'
+        ? /^[A-I]$/.test(suggestedLevel)
+        : selectedType === '1'
+          ? /^[1-5]$/.test(suggestedLevel)
+          : /^(?:[A-I]|[1-5])$/.test(suggestedLevel);
+      const riskstoreText = selectedRisk
+        ? (selectedRisk.riskstore_full || `${selectedRisk.clear_id} ${selectedRisk.risk_name}`)
+        : selectedNrlsCode
+          ? `${selectedNrlsCode} : ${aiData.nrls_name || aiData.riskstore_name || 'หัวข้อความเสี่ยงตามมาตรฐาน NRLS'}`
+          : prev.riskstore_text;
       return {
         ...prev,
         date_report: aiData.date_report || prev.date_report,
         time_report: aiData.time_report || prev.time_report,
         shift: aiData.duration_name || prev.shift,
         location_id: aiData.location_id || prev.location_id,
-        risk_id: aiData.risk_id || prev.risk_id,
-        riskstore_text: selectedRisk 
-          ? (selectedRisk.riskstore_full || `${selectedRisk.clear_id} ${selectedRisk.risk_name}`) 
-          : prev.riskstore_text,
+        nrls_code: selectedNrlsCode || prev.nrls_code,
+        risk_id: aiData.risk_id || (selectedNrlsCode ? '' : prev.risk_id),
+        riskstore_text: riskstoreText,
         group_id: selectedRisk ? selectedRisk.group_id?.toString() : prev.group_id,
-        program_id: selectedRisk ? selectedRisk.program_id?.toString() : prev.program_id,
-        type_id: selectedRisk ? selectedRisk.type_id?.toString() : prev.type_id,
-        level_id: aiData.level_id || prev.level_id,
+        program_id: aiData.program_id
+          ? String(aiData.program_id)
+          : selectedRisk ? selectedRisk.program_id?.toString() : prev.program_id,
+        type_id: selectedType,
+        level_id: isSuggestedLevelValid ? suggestedLevel : typeChanged ? '' : prev.level_id,
         detail: aiData.detail || prev.detail,
       };
     });
@@ -390,6 +407,10 @@ export default function IncidentForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.date_report >= NRLS_CUTOVER_DATE && !formData.nrls_code) {
+      alert('เหตุการณ์ตั้งแต่ 1 ตุลาคม 2569 ต้องเลือกความเสี่ยงตามมาตรฐาน NRLS');
+      return;
+    }
     if (!formData.level_id) {
       alert('กรุณาระบุระดับความรุนแรงของอุบัติการณ์ตามเกณฑ์ NRLS');
       return;
@@ -442,7 +463,7 @@ export default function IncidentForm() {
       }
 
       // 2. Format NRLS Affected and Location Data
-      let formattedAffected = formData.affected_receiver;
+      let formattedAffected: string = formData.affected_receiver;
       if (formData.affected_receiver === 'รายบุคคล') {
         const genderMap: Record<string, string> = { M: 'ชาย', W: 'หญิง', O: 'เพศทางเลือก', N: 'ไม่ทราบเพศ' };
         const genderText = genderMap[formData.gender] || formData.gender || 'ไม่ระบุเพศ';
@@ -474,8 +495,7 @@ export default function IncidentForm() {
         department_id: String(user?.department_id || (user as any)?.departmentId || formData.department_id || '1'),
         sendto_department_id: formData.reportToDepartment ? String(formData.reportToDepartment) : null,
         location_id: formData.location_group === 'LG001' ? (formData.location_id ? Number(formData.location_id) : null) : null,
-        program_id: formData.program_id ? Number(formData.program_id) : null,
-        riskstore_id: formData.risk_id ? Number(formData.risk_id) : 1,
+        riskstore_id: formData.risk_id ? Number(formData.risk_id) : null,
         riskstore_text: formData.riskstore_text || '',
         nrls_code: formData.nrls_code || null,
         level_id: formData.level_id,
@@ -494,7 +514,7 @@ export default function IncidentForm() {
       });
 
       alert('✅ บันทึกรายงานความเสี่ยงเข้าสู่ระบบ NRLS เรียบร้อยแล้ว! (สถานะ: รอยืนยัน)');
-      navigate('/incidents');
+      navigate('/my-reported');
     } catch (err: any) {
       console.error(err);
       alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + (err.response?.data?.message || err.message));
@@ -504,8 +524,10 @@ export default function IncidentForm() {
   };
 
   // Determine if selected risk is clinical based on type_id (2 = Clinical, 1 = General)
+  const isNrlsRequired = formData.date_report >= NRLS_CUTOVER_DATE;
   const isClinical = formData.type_id === '2';
   const isGeneral = formData.type_id === '1';
+  const isUnclassifiedLegacy = !isNrlsRequired && !formData.nrls_code && !formData.type_id;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
@@ -870,9 +892,13 @@ export default function IncidentForm() {
             </div>
 
             <div className="grid grid-cols-1 gap-6">
+              <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                เริ่มบังคับใช้ NRLS เต็มรูปแบบตั้งแต่ <strong>1 ตุลาคม 2569</strong> — ข้อมูลก่อนวันนี้ที่ไม่มีรหัสจะเก็บเป็น Legacy โดยไม่บังคับแก้ย้อนหลัง
+              </div>
               <StandardRiskSelector
                 selectedNrlsCode={formData.nrls_code}
                 selectedLocalRiskId={formData.risk_id ? Number(formData.risk_id) : null}
+                required={isNrlsRequired}
                 onSelect={(nrlsCode, localRiskId, nrlsRisk) => {
                   let type_id = formData.type_id;
                   let riskstore_text = formData.riskstore_text;
@@ -882,11 +908,7 @@ export default function IncidentForm() {
                     type_id = selectedLocal?.type_id?.toString() || '';
                     riskstore_text = selectedLocal ? (selectedLocal.riskstore_full || `${selectedLocal.clear_id} ${selectedLocal.risk_name}`) : '';
                   } else if (nrlsRisk) {
-                    if (nrlsRisk.type && nrlsRisk.type.includes('คลินิก')) {
-                      type_id = '2';
-                    } else {
-                      type_id = '1';
-                    }
+                    type_id = String(nrlsRisk.nrls_code || '').startsWith('C') ? '2' : '1';
                     riskstore_text = `${nrlsRisk.nrls_code} : ${nrlsRisk.name}`;
                   }
                   
@@ -895,13 +917,38 @@ export default function IncidentForm() {
                     nrls_code: nrlsCode || '',
                     risk_id: localRiskId ? String(localRiskId) : '',
                     type_id: type_id,
+                    program_id: nrlsRisk?.program_id ? String(nrlsRisk.program_id) : '',
                     riskstore_text: riskstore_text,
                     level_id: prev.type_id !== type_id ? '' : prev.level_id
                   }));
                 }}
               />
-              <input type="hidden" name="nrls_code" value={formData.nrls_code} required />
+              <input type="hidden" name="nrls_code" value={formData.nrls_code} required={formData.date_report >= NRLS_CUTOVER_DATE} />
               <input type="hidden" name="risk_id" value={formData.risk_id} />
+
+              {!isNrlsRequired && !formData.nrls_code && (
+                <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+                  <label className="block text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    ชื่อความเสี่ยงเดิมของโรงพยาบาล (Legacy — ไม่บังคับ)
+                  </label>
+                  <select
+                    name="risk_id"
+                    value={formData.risk_id}
+                    onChange={handleChange}
+                    className="w-full rounded-lg border border-amber-300 bg-white px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-700 dark:bg-slate-900"
+                  >
+                    <option value="">-- ไม่ระบุ / เลือกจากรายการเดิม --</option>
+                    {risks.map((risk) => (
+                      <option key={risk.id} value={risk.id}>
+                        {risk.riskstore_full || `${risk.clear_id || ''} ${risk.risk_name || ''}`.trim()}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs leading-relaxed text-amber-800/80 dark:text-amber-300/80">
+                    ใช้เฉพาะเหตุการณ์ก่อนวันที่เริ่มบังคับ NRLS หากเลือกหัวข้อเดิม ระบบจะกำหนดประเภทความรุนแรงให้โดยอัตโนมัติ
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
@@ -913,10 +960,10 @@ export default function IncidentForm() {
                   required 
                   value={formData.level_id} 
                   onChange={handleChange} 
-                  disabled={!formData.type_id} 
+                  disabled={!formData.type_id && isNrlsRequired}
                   className="w-full px-4 py-2.5 bg-bg-light dark:bg-bg-dark border border-border-light dark:border-border-dark rounded-[8px] text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-shadow font-semibold text-danger disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  <option value="">{formData.type_id ? '-- เลือกระดับความรุนแรงตามมาตรฐาน NRLS --' : '-- กรุณาเลือกอุบัติการณ์มาตรฐานด้านบนก่อน --'}</option>
+                  <option value="">{formData.type_id || isUnclassifiedLegacy ? '-- เลือกระดับความรุนแรง --' : '-- กรุณาเลือกอุบัติการณ์มาตรฐานด้านบนก่อน --'}</option>
                   {isClinical && (
                     <>
                       <option value="A">ระดับ A (เกิดที่นี่: มีโอกาสเกิดเหตุการณ์/พบได้เอง ปรับแก้ไขได้ ไม่กระทบผู้ป่วย)</option>
@@ -937,6 +984,20 @@ export default function IncidentForm() {
                       <option value="3">ระดับ 3 (ผลกระทบด้านการเงิน 100,001 - 500,000 บาท หรือ ล่าช้า 3 - 4.5 เดือน ดำเนินงานสำเร็จ 71-80%)</option>
                       <option value="4">ระดับ 4 (ผลกระทบด้านการเงิน 500,001 - 10,000,000 บาท หรือ ล่าช้า 4.5 - 6 เดือน ดำเนินงานสำเร็จ 60-70%)</option>
                       <option value="5">ระดับ 5 (ผลกระทบด้านการเงิน &gt; 10,000,000 บาท เสียหายร้ายแรง ล่าช้า &gt; 6 เดือน ดำเนินงานสำเร็จ &lt; 60%)</option>
+                    </>
+                  )}
+                  {isUnclassifiedLegacy && (
+                    <>
+                      <optgroup label="ด้านคลินิก (Clinical)">
+                        {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].map((level) => (
+                          <option key={level} value={level}>ระดับ {level}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="ด้านทั่วไป (General)">
+                        {[1, 2, 3, 4, 5].map((level) => (
+                          <option key={level} value={String(level)}>ระดับ {level}</option>
+                        ))}
+                      </optgroup>
                     </>
                   )}
                 </select>
@@ -962,12 +1023,12 @@ export default function IncidentForm() {
                       <Stethoscope className="w-3.5 h-3.5" /> คำอธิบายเกณฑ์ความรุนแรงด้านคลินิก (Clinical Matrix)
                     </div>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                      <div><span className="font-bold text-slate-700 dark:text-slate-300">A:</span> เกิดเหตุการณ์ แต่ยังไม่ถึงผู้ป่วย</div>
-                      <div><span className="font-bold text-slate-700 dark:text-slate-300">B:</span> ถึงผู้ป่วย แต่ไม่เกิดอันตราย</div>
-                      <div><span className="font-bold text-slate-700 dark:text-slate-300">C:</span> ถึงผู้ป่วย ไม่เกิดอันตราย แต่ต้องเฝ้าระวังเพิ่ม</div>
-                      <div><span className="font-bold text-slate-700 dark:text-slate-300">D:</span> ถึงผู้ป่วย เกิดอันตรายชั่วคราว ต้องรักษาเพิ่ม</div>
-                      <div><span className="font-bold text-slate-700 dark:text-slate-300">E:</span> อันตรายชั่วคราว ต้องนอน รพ. / รักษานานขึ้น</div>
-                      <div><span className="font-bold text-slate-700 dark:text-slate-300">F:</span> อันตรายชั่วคราว ต้องเยียวยานานกว่าปกติ</div>
+                      <div><span className="font-bold text-slate-700 dark:text-slate-300">A:</span> มีโอกาสเกิดความคลาดเคลื่อน แต่ยังไม่เกิดเหตุ</div>
+                      <div><span className="font-bold text-slate-700 dark:text-slate-300">B:</span> เกิดความคลาดเคลื่อน แต่ยังไม่ถึงผู้ป่วย</div>
+                      <div><span className="font-bold text-slate-700 dark:text-slate-300">C:</span> ถึงผู้ป่วย แต่ไม่เกิดอันตราย</div>
+                      <div><span className="font-bold text-slate-700 dark:text-slate-300">D:</span> ถึงผู้ป่วย ต้องเฝ้าระวังหรือดูแลเพิ่ม</div>
+                      <div><span className="font-bold text-slate-700 dark:text-slate-300">E:</span> อันตรายชั่วคราว ต้องรักษาเพิ่ม</div>
+                      <div><span className="font-bold text-slate-700 dark:text-slate-300">F:</span> อันตรายชั่วคราว ต้องนอน รพ. หรือนานขึ้น</div>
                       <div><span className="font-bold text-slate-700 dark:text-slate-300">G:</span> เกิดอันตรายถาวร / พิการ</div>
                       <div><span className="font-bold text-slate-700 dark:text-slate-300">H:</span> วิกฤต ต้องช่วยชีวิต (CPR)</div>
                       <div className="col-span-2"><span className="font-bold text-slate-700 dark:text-slate-300">I:</span> ผู้ป่วยเสียชีวิต (Sentinel Event)</div>
@@ -1220,7 +1281,7 @@ export default function IncidentForm() {
 
               {/* Previews Grid */}
               {imagePreviews.length > 0 && (
-                <div className="grid grid-cols-3 gap-4 pt-2">
+                <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-3">
                   {imagePreviews.map((url, index) => (
                     <div key={index} className="relative group aspect-square rounded-xl overflow-hidden border border-border-light dark:border-border-dark bg-slate-100 dark:bg-slate-900 shadow-sm transition-all duration-200 hover:shadow-md">
                       <img src={url} alt={`preview-${index}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />

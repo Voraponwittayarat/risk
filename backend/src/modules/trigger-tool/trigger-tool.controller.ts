@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, ParseIntPipe, Request, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { TriggerToolService, CreateTriggerMasterDto, UpdateTriggerMasterDto, CreateMedicalRecordReviewDto } from './trigger-tool.service';
+import { TriggerToolService, CreateTriggerMasterDto, UpdateTriggerMasterDto, CreateMedicalRecordReviewDto, ConfirmMedicalRecordRiskDto } from './trigger-tool.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @ApiTags('Trigger Tools')
 @Controller('trigger-tools')
+@UseGuards(JwtAuthGuard)
 export class TriggerToolController {
   constructor(private readonly triggerToolService: TriggerToolService) {}
 
@@ -60,15 +62,25 @@ export class TriggerToolController {
   }
 
   @Post('reviews')
-  @ApiOperation({ summary: 'Create medical record review' })
-  createReview(@Body() data: CreateMedicalRecordReviewDto) {
-    return this.triggerToolService.createReview(data);
+  @ApiOperation({ summary: 'Create a confirmed medical record review and one linked incident report' })
+  createReview(@Body() data: CreateMedicalRecordReviewDto, @Request() req: any) {
+    return this.triggerToolService.createReview(data, req.user);
   }
 
   @Patch('reviews/:id')
   @ApiOperation({ summary: 'Update medical record review' })
   updateReview(@Param('id', ParseIntPipe) id: number, @Body() data: Partial<CreateMedicalRecordReviewDto>) {
     return this.triggerToolService.updateReview(id, data);
+  }
+
+  @Post('reviews/:id/confirm-risk')
+  @ApiOperation({ summary: 'Confirm a legacy medical record review and create one linked incident' })
+  confirmReviewRisk(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() data: ConfirmMedicalRecordRiskDto,
+    @Request() req: any,
+  ) {
+    return this.triggerToolService.confirmReviewRisk(id, data, req.user);
   }
 
   @Delete('reviews/:id')
@@ -79,7 +91,7 @@ export class TriggerToolController {
 
   @Post('reviews/:id/forward-to-rca')
   @ApiOperation({ summary: 'Forward finding to Standard RCA' })
-  forwardToRca(@Param('id', ParseIntPipe) id: number) {
-    return this.triggerToolService.forwardToRca(id);
+  forwardToRca(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    return this.triggerToolService.forwardToRca(id, req.user);
   }
 }

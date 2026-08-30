@@ -24,6 +24,8 @@ import ConciseRcaForm from './pages/rca/ConciseRcaForm';
 import StandardRcaForm from './pages/rca/StandardRcaForm';
 import PersonnelManagement from './pages/PersonnelManagement';
 import IndividualReportStats from './pages/IndividualReportStats';
+import TeamRiskWorkspace from './pages/TeamRiskWorkspace';
+import CapaWorkspace from './pages/CapaWorkspace';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -37,9 +39,32 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function LoginRoute() {
+  const { isAuthenticated, user } = useAuth();
+  if (isAuthenticated) {
+    return <Navigate to={user?.require_password_change ? '/change-password' : '/dashboard'} replace />;
+  }
+  return <Login />;
+}
+
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAdmin } = useAuth();
   if (!isAdmin) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
+function IncidentManagerRoute({ children }: { children: React.ReactNode }) {
+  const { user, isAdmin } = useAuth();
+  const canManage = isAdmin
+    || user?.role === 'rm_committee'
+    || user?.role === 'head';
+  if (!canManage) return <Navigate to="/incidents/dept" replace />;
+  return <>{children}</>;
+}
+
+function TeamRoute({ children }: { children: React.ReactNode }) {
+  const { user, isAdmin } = useAuth();
+  if (!isAdmin && !user?.teamId) return <Navigate to="/incidents/dept" replace />;
   return <>{children}</>;
 }
 
@@ -48,7 +73,7 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={<LoginRoute />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/change-password" element={<ChangePassword />} />
@@ -61,12 +86,12 @@ function App() {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="incidents" element={<Navigate to="/incidents/dept" replace />} />
-            <Route path="incidents/pending" element={<IncidentList mode="pending" defaultTab="รายงาน" />} />
+            <Route path="incidents/pending" element={<IncidentManagerRoute><IncidentList mode="pending" defaultTab="รายงาน" /></IncidentManagerRoute>} />
             <Route path="incidents/dept" element={<IncidentList mode="dept" />} />
-            <Route path="incidents/team" element={<IncidentList mode="team" />} />
+            <Route path="incidents/team" element={<TeamRoute><TeamRiskWorkspace /></TeamRoute>} />
             <Route path="incidents/new" element={<IncidentForm />} />
             <Route path="incidents/:id" element={<IncidentDetail />} />
-            <Route path="incidents/:id/edit" element={<IncidentForm />} />
+            <Route path="incidents/:id/edit" element={<Navigate to=".." replace />} />
             <Route path="my-reported" element={<MyReportedIncidents />} />
             
             {/* Trigger Tool & RCA Program Routes */}
@@ -75,6 +100,7 @@ function App() {
             <Route path="rca/list" element={<RcaList />} />
             <Route path="rca/concise" element={<ConciseRcaForm />} />
             <Route path="rca/standard/:id" element={<StandardRcaForm />} />
+            <Route path="capa" element={<CapaWorkspace />} />
 
             <Route path="reports" element={<Reports />} />
             <Route path="reporting-stats" element={<IndividualReportStats />} />

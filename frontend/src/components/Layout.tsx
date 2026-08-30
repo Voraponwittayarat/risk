@@ -15,7 +15,8 @@ import {
   CheckSquare,
   Building2,
   Users,
-  UserCog
+  UserCog,
+  ClipboardCheck
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -31,6 +32,7 @@ export default function Layout() {
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [myReportedCount, setMyReportedCount] = useState<number>(0);
   const [deptReviewCount, setDeptReviewCount] = useState<number>(0);
+  const [teamReviewCount, setTeamReviewCount] = useState<number>(0);
 
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -50,6 +52,9 @@ export default function Layout() {
         if (res.data?.deptReviewCount !== undefined) {
           setDeptReviewCount(res.data.deptReviewCount);
         }
+        if (res.data?.teamReviewCount !== undefined) {
+          setTeamReviewCount(res.data.teamReviewCount);
+        }
       })
       .catch(console.error);
   }, []);
@@ -58,6 +63,12 @@ export default function Layout() {
     logout();
     navigate('/login');
   };
+
+  const isAdmin = user?.role === 'admin';
+  const canConfirmIncidents = isAdmin
+    || user?.role === 'rm_committee'
+    || user?.role === 'head';
+  const canUseTeamView = isAdmin || Boolean(user?.teamId);
 
   const navSections = [
     {
@@ -96,13 +107,13 @@ export default function Layout() {
     {
       groupTitle: 'การบริหารจัดการ & RCA',
       items: [
-        { 
-          name: 'ตรวจสอบ/ยืนยันความเสี่ยง', 
-          path: '/incidents/pending', 
+        ...(canConfirmIncidents ? [{
+          name: 'ตรวจสอบ/ยืนยันความเสี่ยง',
+          path: '/incidents/pending',
           icon: CheckSquare,
           badge: pendingCount > 0 ? `${pendingCount} รอยืนยัน` : 'รอยืนยัน',
           badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
-        },
+        }] : []),
         { 
           name: 'ทบทวนความเสี่ยงหน่วยงานคุณ', 
           path: '/incidents/dept', 
@@ -110,6 +121,13 @@ export default function Layout() {
           badge: deptReviewCount > 0 ? `${deptReviewCount}` : null,
           badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold'
         },
+        ...(canUseTeamView ? [{
+          name: 'ภาพรวมความเสี่ยงของทีม',
+          path: '/incidents/team',
+          icon: Users,
+          badge: teamReviewCount > 0 ? `${teamReviewCount}` : null,
+          badgeColor: 'bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold'
+        }] : []),
 
         { 
           name: 'ศูนย์จัดการ RCA (3 Tiers)', 
@@ -117,6 +135,13 @@ export default function Layout() {
           icon: ShieldAlert,
           badge: 'RCA Program',
           badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+        },
+        {
+          name: 'ติดตาม CAPA แบบปิดวงจร',
+          path: '/capa',
+          icon: ClipboardCheck,
+          badge: 'SLA',
+          badgeColor: 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
         },
       ]
     },
@@ -147,7 +172,7 @@ export default function Layout() {
     {
       groupTitle: 'ระบบ & กำหนดสิทธิ์',
       items: [
-        ...((user?.role === 'admin' || user?.accessrules === '1') ? [
+        ...(isAdmin ? [
           {
             name: 'จัดการข้อมูลบุคลากร',
             path: '/personnel',
@@ -174,7 +199,7 @@ export default function Layout() {
   ];
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden">
+    <div className="flex h-dvh min-h-dvh max-w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden">
       <style>{`
         @media (min-width: 1024px) {
           .sidebar-shell:not(:hover) .sidebar-menu-label,
@@ -316,10 +341,10 @@ export default function Layout() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 w-full lg:ml-[72px] transition-all duration-300">
+      <main className="flex-1 flex flex-col min-w-0 max-w-full w-full lg:ml-[72px] transition-all duration-300">
         {/* Top Navbar */}
-        <header className="h-18 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sm:px-8 z-10 sticky top-0 transition-colors">
-          <div className="flex items-center gap-3">
+        <header className="min-h-16 sm:min-h-18 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 px-3 sm:px-8 z-10 sticky top-0 transition-colors">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             {/* Mobile menu trigger */}
             <button 
               className="lg:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-xl dark:text-slate-300 dark:hover:bg-slate-800 transition-colors"
@@ -330,27 +355,28 @@ export default function Layout() {
             </button>
 
             {/* Hospital Logo & Brand Title */}
-            <div className="flex items-center gap-3">
-              <div className="lg:hidden">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <div className="hidden min-[360px]:block lg:hidden shrink-0">
                 <WangChaoHospitalLogo size={42} className="w-10 h-10 sm:w-11 sm:h-11" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
-                    ระบบบริหารความเสี่ยงโรงพยาบาลวังเจ้า
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <h1 className="min-w-0 truncate text-sm sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
+                    <span className="sm:hidden">RiskHRMS รพ.วังเจ้า</span>
+                    <span className="hidden sm:inline">ระบบบริหารความเสี่ยงโรงพยาบาลวังเจ้า</span>
                   </h1>
                   <span className="hidden sm:inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                     RiskHRMS
                   </span>
                 </div>
-                <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">
+                <p className="hidden min-[420px]:block truncate text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">
                   Wang Chao Hospital Risk Management System
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
               <span className="text-slate-600 dark:text-slate-300 font-medium">
@@ -358,15 +384,15 @@ export default function Layout() {
               </span>
             </div>
 
-            <div className="w-9 h-9 bg-gradient-to-tr from-emerald-600 to-teal-600 rounded-xl text-white flex items-center justify-center font-bold text-sm shadow-sm uppercase">
+            <div className="hidden min-[340px]:flex w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-tr from-emerald-600 to-teal-600 rounded-xl text-white items-center justify-center font-bold text-sm shadow-sm uppercase">
               {user?.name ? user.name.charAt(0) : 'A'}
             </div>
           </div>
         </header>
         
         {/* Page Viewport */}
-        <div className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950 w-full">
-          <div className="max-w-[1600px] mx-auto">
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-3 sm:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950 w-full">
+          <div className="min-w-0 max-w-[1600px] mx-auto">
             <Outlet />
           </div>
         </div>

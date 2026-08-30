@@ -22,6 +22,7 @@ interface AiData {
   what_happened_summary?: string;
   actual_impact_summary?: string;
   potential_impact_summary?: string;
+  contributing_factors?: Array<{ code: string; detail?: string }>;
   fishbones?: Array<{ category: string; factor: string; sub_factor?: string }>;
   whys?: Array<{ level: number; question: string; answer: string }>;
   cmps?: Array<{ observation: string; hypothesis: string; comment: string }>;
@@ -121,12 +122,16 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
   };
 
   const categoryIcons: Record<string, string> = {
-    man: '👨‍⚕️ Man (บุคลากร)',
-    method: '📋 Method (วิธีปฏิบัติ)',
-    machine: '⚙️ Machine (อุปกรณ์/ระบบ)',
-    material: '📦 Material (เวชภัณฑ์/ยา)',
-    measurement: '📏 Measurement (การวัด/ประเมิน)',
-    environment: '🏥 Environment (สิ่งแวดล้อม)',
+    staff: 'ด้านบุคลากร',
+    patient: 'ด้านผู้ป่วย',
+    nature_of_work: 'ลักษณะงานที่ปฏิบัติ',
+    team: 'ทีมทำงาน',
+    communication: 'การสื่อสาร',
+    supervision_support: 'การกำกับดูแล/การสนับสนุน',
+    policies_protocols: 'นโยบายและระเบียบปฏิบัติ',
+    data_information: 'ข้อมูลและสารสนเทศ',
+    equipment_device: 'อุปกรณ์/เครื่องมือ',
+    environment: 'สิ่งแวดล้อม',
   };
 
   return (
@@ -146,7 +151,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-purple-100 mt-0.5">
-                วิเคราะห์รากเหง้าเชิงระบบ 6M, 5 Whys, 5 Tiers, CMPs, Swiss Cheese และมาตรการ CAPA ตามมาตรฐาน HA
+                วิเคราะห์ปัจจัยร่วม NRLS 2569, 5 Whys, 5 Tiers, CMPs, Swiss Cheese และมาตรการ CAPA ตามมาตรฐาน HA
               </p>
             </div>
           </div>
@@ -192,7 +197,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                   กำลังประมวลผลการวิเคราะห์สาเหตุเชิงลึก...
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  ระบบกำลังสร้างโมเดล 6M, 5 Whys, CMPs, Swiss Cheese และ CAPA จากมาตรฐานความปลอดภัย รพ.วังเจ้า
+                  ระบบกำลังวิเคราะห์ปัจจัยร่วม NRLS 2569, 5 Whys, CMPs, Swiss Cheese และ CAPA จากข้อมูลเหตุการณ์
                 </p>
               </div>
             </div>
@@ -256,7 +261,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                 </div>
               </div>
 
-              {/* 1. Fishbone 6M Section */}
+              {/* 1. NRLS Contributing Factors Section */}
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                 <div
                   className="px-4 py-3 bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between cursor-pointer"
@@ -275,12 +280,12 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                       className="rounded border-slate-300 text-purple-600 focus:ring-purple-500 w-4 h-4"
                     />
                     <div className="flex items-center gap-2">
-                      <span className="text-base">🐟</span>
+                      <span className="text-base">📚</span>
                       <span className="font-semibold text-sm text-slate-800 dark:text-slate-200">
-                        ผังก้างปลา 6M (Fishbone Diagram Analysis)
+                        ปัจจัยร่วม/สาเหตุของความเสี่ยงตาม NRLS 2569
                       </span>
                       <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-medium">
-                        {aiData.fishbones?.length || 0} ปัจจัย
+                        {aiData.contributing_factors?.length || aiData.fishbones?.length || 0} ปัจจัย
                       </span>
                     </div>
                   </div>

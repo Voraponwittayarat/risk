@@ -1,21 +1,34 @@
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import * as dotenv from 'dotenv';
-
-dotenv.config();
-
 import { ValidationPipe } from '@nestjs/common';
-import * as express from 'express';
-import { join, resolve } from 'path';
+import { resolve } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.enableCors(); // Enable CORS for the frontend
+  const configuredOrigins = String(process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  app.enableCors({
+    origin: (origin, callback) => {
+      // Requests without an Origin header include CLI/health-check traffic.
+      if (!origin) return callback(null, true);
+      const isLocalDevelopment = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+      if (configuredOrigins.includes(origin) || (configuredOrigins.length === 0 && isLocalDevelopment)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Origin is not allowed by CORS policy'), false);
+    },
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type'],
+  });
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
 
-  // Ensure upload directory exists and serve it statically
+  // Ensure upload directory exists. Incident attachments are intentionally not
+  // exposed as public static files; they are served by an authenticated endpoint.
   const uploadDir = resolve(process.env.UPLOAD_DIR || './uploads');
   if (!existsSync(uploadDir)) {
     mkdirSync(uploadDir, { recursive: true });
@@ -23,8 +36,6 @@ async function bootstrap() {
   } else {
     console.log(`Using upload directory at: ${uploadDir}`);
   }
-  app.use('/uploads', express.static(uploadDir));
-  app.use('/riskimage', express.static(uploadDir));
 
   const config = new DocumentBuilder()
     .setTitle('Hospital Risk Management API')
@@ -33,7 +44,9 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, documentFactory);
+  if (process.env.NODE_ENV !== 'production' || process.env.SWAGGER_ENABLED === 'true') {
+    SwaggerModule.setup('api', app, documentFactory);
+  }
 
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 }

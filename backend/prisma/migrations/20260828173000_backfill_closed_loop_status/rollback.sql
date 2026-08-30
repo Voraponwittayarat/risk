@@ -1,0 +1,3 @@
+-- Data-only migration: intentionally no automatic rollback.
+-- Restoring lifecycle timestamps/statuses requires the pre-migration P2 backup
+-- so that genuine post-release closures are not erased.

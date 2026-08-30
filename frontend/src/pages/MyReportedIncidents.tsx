@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getStatusInfo, getSeverityBadge, isSentinelEvent } from '../utils/statusAdapter';
+import { getStatusInfo, getSeverityBadge } from '../utils/statusAdapter';
 
 export default function MyReportedIncidents() {
   const { user } = useAuth();
@@ -151,7 +151,7 @@ export default function MyReportedIncidents() {
           <div>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Sentinel Event ที่ตรวจพบ</p>
             <h3 className="text-2xl font-bold text-slate-900 dark:text-white mt-0.5">
-              {(data.incidents?.filter((inc: any) => isSentinelEvent(inc.level_id, inc.riskstore_id)).length || 0).toLocaleString()} เรื่อง
+              {(data.incidents?.filter((inc: any) => Boolean(inc.rca_required)).length || 0).toLocaleString()} เรื่อง
             </h3>
           </div>
         </div>
@@ -206,7 +206,7 @@ export default function MyReportedIncidents() {
                 {filteredIncidents.map((inc: any) => {
                   const statusInfo = getStatusInfo(inc.status_risk);
                   const severity = getSeverityBadge(inc.level_id, inc.riskstore_id);
-                  const isSentinel = isSentinelEvent(inc.level_id, inc.riskstore_id);
+                  const isSentinel = Boolean(inc.rca_required);
                   const isReturnedForEdit = inc.status_risk === 'แก้ไข';
                   return (
                     <tr 

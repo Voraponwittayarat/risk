@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ClipboardCheck,
 } from 'lucide-react';
+import { normalizeContributingFactorSelections } from '../../utils/contributingFactors';
 
 interface OverviewStats {
   total_rca: number;
@@ -23,7 +24,16 @@ interface OverviewStats {
   review_count?: number;
   pending_capas: number;
   completed_capas: number;
+  overdue_capas?: number;
 }
+
+const RCA_STATUS_PRESENTATION: Record<string, { label: string; className: string }> = {
+  PENDING: { label: 'รอศูนย์ RCA รับเรื่อง', className: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300' },
+  REQUIRED: { label: 'รอศูนย์ RCA รับเรื่อง', className: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300' },
+  IN_PROGRESS: { label: 'กำลังทำ RCA', className: 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300' },
+  COMPLETED: { label: 'RCA เสร็จสมบูรณ์', className: 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' },
+  CANCELLED: { label: 'ยกเลิก', className: 'border-slate-300 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300' },
+};
 
 export default function RcaList() {
   const navigate = useNavigate();
@@ -37,6 +47,7 @@ export default function RcaList() {
     review_count: 0,
     pending_capas: 0,
     completed_capas: 0,
+    overdue_capas: 0,
   });
   const [standardCases, setStandardCases] = useState<any[]>([]);
   const [miniConciseCases, setMiniConciseCases] = useState<any[]>([]);
@@ -114,6 +125,10 @@ export default function RcaList() {
   const filteredStandard = safeStandard.filter(
     (c) =>
       (c?.topic || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c?.nrls_code || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c?.nrls_name_snapshot || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c?.status || '').toLowerCase().includes(search.toLowerCase()) ||
+      String(c?.department_id || '').includes(search) ||
       (c?.id || '').toLowerCase().includes(search.toLowerCase()) ||
       (c?.rm_no && c.rm_no.toLowerCase().includes(search.toLowerCase()))
   );
@@ -121,6 +136,10 @@ export default function RcaList() {
   const filteredMiniConcise = safeMiniConcise.filter(
     (c) =>
       (c?.topic || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c?.nrls_code || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c?.nrls_name_snapshot || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c?.status || '').toLowerCase().includes(search.toLowerCase()) ||
+      String(c?.department_id || '').includes(search) ||
       (c?.id || '').toLowerCase().includes(search.toLowerCase())
   );
 
@@ -223,10 +242,11 @@ export default function RcaList() {
             <CheckCircle2 size={20} />
           </div>
           <div>
-            <p className="text-[11px] font-semibold text-slate-500">มาตรการ CAPA ค้าง</p>
+            <p className="text-[11px] font-semibold text-slate-500">CAPA ค้าง / เกินกำหนด</p>
             <h4 className="text-xl font-black text-emerald-600 dark:text-emerald-400 leading-tight">
               {stats.pending_capas} <span className="text-xs font-normal text-slate-400">รายการ</span>
             </h4>
+            <p className="text-[11px] font-bold text-rose-600">เกินกำหนด {stats.overdue_capas || 0}</p>
           </div>
         </div>
       </div>
@@ -263,7 +283,7 @@ export default function RcaList() {
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
-          <ClipboardCheck className="w-4 h-4" /> RCA ทบทวน (4M1E) ({incidentReviews.length})
+          <ClipboardCheck className="w-4 h-4" /> RCA ทบทวน / NRLS Factors ({incidentReviews.length})
         </button>
       </div>
 
@@ -325,14 +345,22 @@ export default function RcaList() {
                     )}
                   </div>
 
-                  <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30">
-                    ความรุนแรง {c.severity || 'G'}
-                  </span>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-black ${
+                      (RCA_STATUS_PRESENTATION[String(c.status || 'PENDING').toUpperCase()] || RCA_STATUS_PRESENTATION.PENDING).className
+                    }`}>
+                      {(RCA_STATUS_PRESENTATION[String(c.status || 'PENDING').toUpperCase()] || RCA_STATUS_PRESENTATION.PENDING).label}
+                    </span>
+                    <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                      ความรุนแรง {c.severity || '-'}
+                    </span>
+                  </div>
                 </div>
 
                 <div>
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors line-clamp-2">
                     {c.topic}
+                    <span className="ml-2 rounded bg-blue-50 px-2 py-0.5 font-mono text-[11px] text-blue-700">{c.nrls_code || 'Legacy NRLS'}</span>
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                     {c.what_happened || c.actual_impact || 'ไม่มีรายละเอียด'}
@@ -342,7 +370,7 @@ export default function RcaList() {
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
                   <div className="flex items-center gap-3">
                     <span>ไทม์ไลน์: {c.timelines?.length || 0} จุด</span>
-                    <span>ก้างปลา: {c.fishbones?.length || 0} ปัจจัย</span>
+                    <span>Contributing factors: {normalizeContributingFactorSelections(c.contributing_factors).length || c.fishbones?.length || 0} ปัจจัย</span>
                     <span>CAPA: {c.capas?.length || 0} ข้อ</span>
                   </div>
 
@@ -392,6 +420,7 @@ export default function RcaList() {
 
                 <h4 className="text-sm font-bold text-slate-900 dark:text-white line-clamp-2">
                   {c.topic}
+                  <span className="ml-2 rounded bg-blue-50 px-2 py-0.5 font-mono text-[11px] text-blue-700">{c.nrls_code || 'Legacy NRLS'}</span>
                 </h4>
 
                 <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
@@ -401,6 +430,9 @@ export default function RcaList() {
                 {/* Swiss cheese & Actions count */}
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
                   <div className="flex items-center gap-3">
+                    {normalizeContributingFactorSelections(c.contributing_factors).length > 0 && (
+                      <span>Contributing factors: {normalizeContributingFactorSelections(c.contributing_factors).length} ปัจจัย</span>
+                    )}
                     <span>ช่องโหว่ Swiss Cheese: {c.swiss_cheeses?.length || 0} จุด</span>
                     <span>มาตรการ CMP: {c.cmps?.length || 0} ข้อ</span>
                   </div>
@@ -415,19 +447,19 @@ export default function RcaList() {
         </div>
       )}
 
-      {/* TAB: RCA ทบทวน (4M1E) */}
+      {/* TAB: Incident reviews with NRLS contributing factors */}
       {activeTab === 'incident_review' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filteredIncidentReviews.length === 0 ? (
             <div className="col-span-2 p-12 text-center rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-400 text-xs">
-              ไม่พบรายการ RCA ทบทวน (4M1E)
+              ไม่พบรายการ RCA ทบทวน
             </div>
           ) : (
             filteredIncidentReviews.map((r) => (
               <div
                 key={r.id}
-                onClick={() => r.risk_id && navigate(`/incidents/${r.risk_id}`)}
-                className="group p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-800 shadow-sm hover:shadow-md transition-all cursor-pointer space-y-3"
+                onClick={() => r.riskregister_id && navigate(`/incidents/${r.riskregister_id}`)}
+                className={`group p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-800 shadow-sm hover:shadow-md transition-all space-y-3 ${r.riskregister_id ? 'cursor-pointer' : 'cursor-default'}`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -435,7 +467,7 @@ export default function RcaList() {
                       RCA-REV-#{r.id}
                     </span>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-300 border border-blue-500/30">
-                      RCA ทบทวน (4M1E)
+                      RCA ทบทวน / NRLS Factors
                     </span>
                   </div>
 
@@ -447,9 +479,12 @@ export default function RcaList() {
                 <div>
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
                     {r.risk_name}
+                    {r.nrls_code && <span className="ml-2 rounded bg-blue-50 px-2 py-0.5 font-mono text-[11px] text-blue-700">{r.nrls_code}</span>}
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-3 leading-relaxed">
-                    {r.cause_problem || 'ไม่มีสาเหตุรากเหง้า'}
+                    {normalizeContributingFactorSelections(r.contributing_factors).length > 0
+                      ? `${normalizeContributingFactorSelections(r.contributing_factors).map((factor) => factor.code).join(', ')}${r.cause_problem ? ` — ${r.cause_problem}` : ''}`
+                      : r.cause_problem || 'ยังไม่ได้ระบุ Contributing factor'}
                   </p>
                 </div>
 

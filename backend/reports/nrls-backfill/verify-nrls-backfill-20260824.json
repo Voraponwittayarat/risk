@@ -1,0 +1,14 @@
+{
+  "run_id": "nrls-backfill-20260824",
+  "total_rows_before": 4796,
+  "total_rows_after": 4796,
+  "composite_rows_before": 4796,
+  "composite_rows_after": 4796,
+  "row_count_unchanged": true,
+  "composite_count_unchanged": true,
+  "backed_up": 4404,
+  "migrated_valid": 4404,
+  "invalid_nrls": 0,
+  "snapshot_mismatch": 0,
+  "audit_count": 4404
+}

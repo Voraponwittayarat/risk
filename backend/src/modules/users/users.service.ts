@@ -9,38 +9,19 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto, UserRole } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-
-type PermissionFields = {
-  userRole: number;
-  accessrules: string | null;
-  rmStatus: string | null;
-  priority: string;
-};
+import { canonicalRole, legacyFieldsForRole } from '../auth/role.utils';
+import { normalizeRmScope } from '../auth/rm-scope.utils';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private permissionsFor(role: UserRole): PermissionFields {
-    switch (role) {
-      case 'admin':
-        return { userRole: 1, accessrules: '1', rmStatus: '1', priority: '1' };
-      case 'rm_committee':
-        return { userRole: 10, accessrules: null, rmStatus: '1', priority: '5' };
-      case 'head':
-        return { userRole: 20, accessrules: null, rmStatus: null, priority: '1' };
-      default:
-        return { userRole: 99, accessrules: null, rmStatus: null, priority: '5' };
-    }
+  private permissionsFor(role: UserRole) {
+    return legacyFieldsForRole(role);
   }
 
   private roleFor(userRole: number, member?: any): UserRole {
-    if (userRole === 1 || member?.accessrules === '1' || member?.accessrules === 'admin') {
-      return 'admin';
-    }
-    if (member?.rm_status === '1') return 'rm_committee';
-    if (member?.priority === '1') return 'head';
-    return 'staff';
+    return canonicalRole(member?.role, userRole);
   }
 
   private async passwordHash(password: string) {
@@ -48,7 +29,8 @@ export class UsersService {
     return hash.replace(/^\$2b\$/, '$2y$');
   }
 
-  private toView(user: any, member: any, departments: Map<number, string>, positions: Map<number, string>) {
+  private toView(user: any, member: any, departments: Map<number, string>, positions: Map<number, string>, teams: Map<number, string>) {
+    const role = this.roleFor(user.role, member);
     return {
       id: user.id,
       username: user.username,
@@ -61,7 +43,9 @@ export class UsersService {
       positionId: member?.position_id ?? null,
       positionName: positions.get(member?.position_id) || null,
       teamId: member?.team_id ?? null,
-      role: this.roleFor(user.role, member),
+      teamName: member?.team_id ? teams.get(member.team_id) || null : null,
+      role,
+      rmScope: normalizeRmScope(role, member?.rm_scope),
       active: user.blocked_at == null,
       lastLoginAt: user.last_login_at,
       createdAt: user.created_at,
@@ -69,15 +53,17 @@ export class UsersService {
   }
 
   async findAll() {
-    const [users, members, departments, positions] = await Promise.all([
+    const [users, members, departments, positions, teams] = await Promise.all([
       this.prisma.user.findMany({ orderBy: { id: 'desc' } }),
       this.prisma.member.findMany(),
       this.prisma.department.findMany(),
       this.prisma.position.findMany(),
+      this.prisma.team.findMany(),
     ]);
     const memberByCid = new Map(members.map((member) => [member.cid, member]));
     const departmentNames = new Map(departments.map((item) => [item.id, item.depart_name]));
     const positionNames = new Map(positions.map((item) => [item.id, item.position_name]));
+    const teamNames = new Map(teams.map((item) => [item.id, item.team_name]));
 
     return users.map((user) =>
       this.toView(
@@ -85,23 +71,31 @@ export class UsersService {
         user.cid ? memberByCid.get(user.cid) : undefined,
         departmentNames,
         positionNames,
+        teamNames,
       ),
     );
   }
 
   async metadata() {
-    const [departments, positions] = await Promise.all([
+    const [departments, positions, teams] = await Promise.all([
       this.prisma.department.findMany({ orderBy: { depart_name: 'asc' } }),
       this.prisma.position.findMany({ orderBy: { position_name: 'asc' } }),
+      this.prisma.team.findMany({ orderBy: { id: 'asc' } }),
     ]);
     return {
       departments: departments.map((item) => ({ id: item.id, name: item.depart_name })),
       positions: positions.map((item) => ({ id: item.id, name: item.position_name })),
+      teams: teams.map((item) => ({ id: item.id, name: item.team_name })),
       roles: [
         { id: 'admin', name: 'ผู้ดูแลระบบ' },
         { id: 'rm_committee', name: 'กรรมการบริหารความเสี่ยง' },
         { id: 'head', name: 'หัวหน้าหน่วยงาน' },
         { id: 'staff', name: 'เจ้าหน้าที่ทั่วไป' },
+      ],
+      rmScopes: [
+        { id: 'department', name: 'เฉพาะหน่วยงานหลักและหน่วยงานรอง' },
+        { id: 'group', name: 'ทุกหน่วยงานในกลุ่มงานเดียวกัน' },
+        { id: 'hospital', name: 'ทุกหน่วยงานทั้งโรงพยาบาล (RM ส่วนกลาง)' },
       ],
     };
   }
@@ -133,6 +127,7 @@ export class UsersService {
     }
 
     const permissions = this.permissionsFor(dto.role);
+    const rmScope = normalizeRmScope(dto.role, dto.rmScope);
     const passwordHash = await this.passwordHash(dto.password);
     const now = Math.floor(Date.now() / 1000);
 
@@ -158,6 +153,8 @@ export class UsersService {
         department_id2: dto.departmentId2 ?? 0,
         position_id: dto.positionId,
         team_id: dto.teamId ?? null,
+        role: dto.role,
+        rm_scope: rmScope,
         priority: permissions.priority,
         accessrules: permissions.accessrules,
         rm_status: permissions.rmStatus,
@@ -207,6 +204,10 @@ export class UsersService {
       ? await this.prisma.member.findFirst({ where: { cid: current.cid } })
       : null;
     const requestedRole = dto.role || this.roleFor(current.role, oldMember);
+    const requestedRmScope = normalizeRmScope(
+      requestedRole,
+      dto.rmScope !== undefined ? dto.rmScope : oldMember?.rm_scope,
+    );
     if (id === actorId && requestedRole !== 'admin') {
       throw new BadRequestException('ไม่สามารถลดสิทธิ์บัญชีที่กำลังใช้งานอยู่ได้');
     }
@@ -239,8 +240,10 @@ export class UsersService {
             ...(dto.departmentId2 !== undefined ? { department_id2: dto.departmentId2 } : {}),
             ...(dto.positionId !== undefined ? { position_id: dto.positionId } : {}),
             ...(dto.teamId !== undefined ? { team_id: dto.teamId } : {}),
+            ...((dto.role !== undefined || dto.rmScope !== undefined) ? { rm_scope: requestedRmScope } : {}),
             ...(dto.role
               ? {
+                  role: requestedRole,
                   priority: permissions.priority,
                   accessrules: permissions.accessrules,
                   rm_status: permissions.rmStatus,
@@ -259,6 +262,8 @@ export class UsersService {
             department_id2: dto.departmentId2 ?? 0,
             position_id: dto.positionId,
             team_id: dto.teamId ?? null,
+            role: requestedRole,
+            rm_scope: requestedRmScope,
             priority: permissions.priority,
             accessrules: permissions.accessrules,
             rm_status: permissions.rmStatus,

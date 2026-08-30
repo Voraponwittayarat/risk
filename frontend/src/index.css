@@ -48,6 +48,14 @@
 body {
   margin: 0;
   min-height: 100vh;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
@@ -59,4 +67,348 @@ body {
 .scrollbar-hide {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
+}
+
+/* Shared formal print system used by every report screen. */
+.official-print-only {
+  display: none;
+}
+
+@media print {
+  html,
+  body,
+  #root {
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  body {
+    margin: 0 !important;
+    color: #111827 !important;
+    font-family: 'Sarabun', 'TH Sarabun New', 'TH Sarabun PSK', sans-serif !important;
+    font-size: 9.5pt !important;
+    line-height: 1.35 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #root > div,
+  main,
+  main > div,
+  main > div > div {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  aside,
+  nav,
+  body > header,
+  main > header,
+  button,
+  .no-print,
+  .print-hide,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .official-print-only {
+    display: block !important;
+  }
+
+  .official-print-header {
+    display: block !important;
+    margin: 0 0 5mm !important;
+    color: #111827 !important;
+    background: #ffffff !important;
+    break-after: avoid-page;
+  }
+
+  .official-print-brand-row {
+    display: grid !important;
+    grid-template-columns: 25mm minmax(0, 1fr) 47mm;
+    align-items: center;
+    gap: 4mm;
+    min-height: 29mm;
+    padding: 0 0 3mm;
+    border-bottom: 1.2mm double #065f46;
+  }
+
+  .official-print-logo {
+    display: block !important;
+    width: 23mm !important;
+    height: 23mm !important;
+    object-fit: contain;
+  }
+
+  .official-print-heading {
+    text-align: center;
+  }
+
+  .official-print-hospital-name {
+    color: #064e3b !important;
+    font-size: 16pt;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .official-print-hospital-name-en {
+    margin-top: 0.5mm;
+    color: #475569 !important;
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+  }
+
+  .official-print-heading h1 {
+    margin: 2mm 0 0 !important;
+    color: #111827 !important;
+    font-size: 13pt !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+  }
+
+  .official-print-heading p {
+    margin: 0.8mm 0 0 !important;
+    color: #475569 !important;
+    font-size: 8pt !important;
+  }
+
+  .official-print-document-box {
+    border: 0.3mm solid #334155;
+    font-size: 7.2pt;
+  }
+
+  .official-print-document-box > div {
+    display: grid;
+    grid-template-columns: 18mm minmax(0, 1fr);
+    border-bottom: 0.2mm solid #94a3b8;
+  }
+
+  .official-print-document-box > div:last-child {
+    border-bottom: 0;
+  }
+
+  .official-print-document-box span,
+  .official-print-document-box strong {
+    padding: 1.1mm 1.4mm;
+    color: #111827 !important;
+  }
+
+  .official-print-document-box span {
+    background: #f1f5f9 !important;
+    border-right: 0.2mm solid #94a3b8;
+    font-weight: 700;
+  }
+
+  .official-print-document-box strong {
+    overflow-wrap: anywhere;
+    font-weight: 700;
+  }
+
+  .official-print-metadata {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 2.5mm 0 0 !important;
+    border: 0.25mm solid #64748b;
+    border-right: 0;
+    background: #ffffff !important;
+  }
+
+  .official-print-metadata > div {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 1.5mm;
+    min-width: 0;
+    padding: 1.5mm 2mm;
+    border-right: 0.25mm solid #64748b;
+  }
+
+  .official-print-metadata > div:nth-child(n + 5) {
+    border-top: 0.25mm solid #64748b;
+  }
+
+  .official-print-metadata dt {
+    color: #475569 !important;
+    font-size: 7.5pt;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .official-print-metadata dd {
+    min-width: 0;
+    margin: 0;
+    color: #111827 !important;
+    font-size: 7.8pt;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  .official-print-document {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 0 10mm !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .official-print-document section,
+  .official-print-document article {
+    box-shadow: none !important;
+  }
+
+  .official-print-document [class*="dark:bg-"] {
+    background-color: #ffffff !important;
+  }
+
+  .official-print-document [class*="dark:text-white"],
+  .official-print-document [class*="dark:text-slate-"] {
+    color: #111827 !important;
+  }
+
+  .official-print-document input:not([type="checkbox"]):not([type="radio"]),
+  .official-print-document textarea,
+  .official-print-document select {
+    border: 0 !important;
+    border-bottom: 0.2mm dotted #64748b !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #111827 !important;
+    box-shadow: none !important;
+  }
+
+  .official-print-document textarea {
+    height: auto;
+    min-height: 8mm;
+    overflow: visible !important;
+    white-space: pre-wrap;
+  }
+
+  .official-print-form section {
+    margin-bottom: 4mm !important;
+    padding: 4mm !important;
+    border-color: #94a3b8 !important;
+    border-radius: 1.5mm !important;
+    background: #ffffff !important;
+  }
+
+  .official-print-form section h2,
+  .official-print-form section h3 {
+    color: #111827 !important;
+  }
+
+  .official-print-report-wide [class*="overflow-x-auto"] {
+    overflow: visible !important;
+  }
+
+  .official-print-report-wide table {
+    width: 100% !important;
+    table-layout: auto !important;
+    font-size: 6.8pt !important;
+  }
+
+  .official-print-report-wide th,
+  .official-print-report-wide td {
+    min-width: 0 !important;
+    padding: 1.2mm 1.4mm !important;
+    border: 0.2mm solid #64748b !important;
+    color: #111827 !important;
+    line-height: 1.2 !important;
+    overflow-wrap: anywhere;
+  }
+
+  .official-print-report-wide th {
+    background: #e2e8f0 !important;
+    font-weight: 800 !important;
+  }
+
+  .official-print-report-wide svg {
+    display: none !important;
+  }
+
+  .official-print-signatures {
+    display: block !important;
+    margin-top: 8mm;
+    padding-top: 3mm;
+    border-top: 0.4mm solid #334155;
+    color: #111827 !important;
+    break-inside: avoid-page;
+  }
+
+  .official-print-signatures h2 {
+    margin: 0 0 10mm !important;
+    color: #111827 !important;
+    font-size: 9.5pt !important;
+    font-weight: 800 !important;
+  }
+
+  .official-print-signature-grid {
+    display: grid !important;
+    gap: 8mm;
+  }
+
+  .official-print-signature-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 1.8mm;
+    text-align: center;
+    color: #111827 !important;
+    font-size: 8pt;
+  }
+
+  .official-print-signature-cell strong {
+    color: #111827 !important;
+    font-weight: 700;
+  }
+
+  .official-print-footer {
+    position: fixed;
+    right: 0;
+    bottom: -10mm;
+    left: 0;
+    display: flex !important;
+    justify-content: space-between;
+    gap: 5mm;
+    padding-top: 1.5mm;
+    border-top: 0.2mm solid #94a3b8;
+    color: #64748b !important;
+    background: #ffffff !important;
+    font-size: 6.8pt;
+  }
+
+  .official-print-page-label {
+    white-space: nowrap;
+  }
+
+  .official-print-page-number::after {
+    content: counter(page);
+  }
+
+  table {
+    border-collapse: collapse !important;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  tr,
+  img,
+  .page-break-inside-avoid {
+    break-inside: avoid-page;
+  }
 }

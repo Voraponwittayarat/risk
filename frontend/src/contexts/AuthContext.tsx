@@ -12,11 +12,10 @@ export interface User {
   departmentName?: string;
   department_id2?: number;
   role: UserRole;
-  accessrules?: string;
-  rmStatus?: string;
-  priority?: string;
   departmentGroup?: number;
   teamId?: number;
+  teamName?: string;
+  rmScope?: 'department' | 'group' | 'hospital' | null;
   require_password_change?: boolean;
 }
 
@@ -51,12 +50,12 @@ function decodeToken(token: string): User {
     department_id: payload.departmentId,
     department_name: payload.departmentName,
     department_id2: payload.departmentId2,
-    role: payload.role || (payload.accessrules === '1' ? 'admin' : 'staff'),
-    accessrules: payload.accessrules,
-    rmStatus: payload.rmStatus,
-    priority: payload.priority,
+    role: payload.role || 'staff',
     departmentGroup: payload.departmentGroup,
     teamId: payload.teamId,
+    teamName: payload.teamName,
+    rmScope: payload.rmScope,
+    require_password_change: Boolean(payload.require_password_change),
   };
 }
 
@@ -94,13 +93,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (username: string, password: string) => {
     const response = await axios.post('/auth/login', { username, password });
-    setToken(response.data.access_token);
-    setUser(response.data.user);
-    return response.data.user;
+    const accessToken = response.data.access_token;
+    if (!accessToken) throw new Error('เซิร์ฟเวอร์ไม่ส่งข้อมูลยืนยันการเข้าสู่ระบบ');
+
+    // Persist authentication synchronously before navigation. This prevents
+    // ProtectedRoute from sending a just-authenticated user back to /login.
+    localStorage.setItem('token', accessToken);
+    axios.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
+    const loggedInUser = response.data.user || decodeToken(accessToken);
+    setToken(accessToken);
+    setUser(loggedInUser);
+    return loggedInUser;
   };
 
   const logout = () => setToken(null);
-  const isAdmin = user?.role === 'admin' || user?.accessrules === '1';
+  const isAdmin = user?.role === 'admin';
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token, isAdmin }}>

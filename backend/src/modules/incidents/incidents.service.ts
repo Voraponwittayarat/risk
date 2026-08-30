@@ -1,29 +1,270 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GetIncidentsQueryDto } from './dto/get-incidents-query.dto';
+import { IncidentRcaPolicyService } from '../rca/incident-rca-policy.service';
+import { isNrlsRequired, NRLS_CUTOVER_DATE, NRLS_CUTOVER_DATE_THAI } from './nrls-cutover-policy';
+import { TeamBatchReviewDto } from './dto/team-batch-review.dto';
+import { serializeContributingFactors } from '../rca/contributing-factor.catalog';
+import {
+  consequenceFromSeverity,
+  currentFiscalYear,
+  elapsedFiscalMonths,
+  fiscalYearPeriod,
+  likelihoodFromAnnualCount,
+  riskLevelFor,
+} from '../../common/risk-matrix-policy';
+import { existsSync } from 'fs';
+import { basename, resolve, sep } from 'path';
+import { CreateIncidentReviewDto } from './dto/create-incident-review.dto';
+import { rankAiRiskCandidates } from './ai-incident-assistant.utils';
 
 @Injectable()
 export class IncidentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly rcaPolicy: IncidentRcaPolicyService,
+  ) {}
 
-  private async buildScopingFilter(user: any, status_risk?: string, scope_type?: string) {
-    // If team scope is requested, enforce team filtering for all roles (including Admin & unauthenticated)
-    if (scope_type === 'team') {
-      if (user?.teamId) {
-        return { sendto_team_id: Number(user.teamId) };
+  private isAdmin(user: any): boolean {
+    return user?.role === 'admin';
+  }
+
+  private isRmCommittee(user: any): boolean {
+    return user?.role === 'rm_committee';
+  }
+
+  private isHead(user: any): boolean {
+    return user?.role === 'head';
+  }
+
+  private getUserId(user: any): number | null {
+    const id = Number(user?.id || user?.userId || user?.sub);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  }
+
+  private resolveTeamScope(user: any, requestedTeamId?: number): number | null {
+    if (this.isAdmin(user)) {
+      const value = Number(requestedTeamId);
+      return Number.isFinite(value) && value > 0 ? value : null;
+    }
+    const teamId = Number(user?.teamId);
+    if (!Number.isFinite(teamId) || teamId <= 0) {
+      throw new ForbiddenException('บัญชีนี้ไม่ได้สังกัดทีมนำ จึงไม่มีสิทธิ์ใช้พื้นที่ทบทวนของทีม');
+    }
+    if (requestedTeamId && Number(requestedTeamId) !== teamId) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เปิดข้อมูลของทีมอื่น');
+    }
+    return teamId;
+  }
+
+  private getUserDepartmentIds(user: any): string[] {
+    return [user?.departmentId, user?.departmentId2]
+      .filter((id) => id !== undefined && id !== null && Number(id) !== 0 && String(id) !== '')
+      .map(String);
+  }
+
+  private async getGroupDepartmentIds(user: any): Promise<string[]> {
+    if (!user?.departmentGroup) return this.getUserDepartmentIds(user);
+    const departments = await this.prisma.department.findMany({
+      where: { depart_group_id: Number(user.departmentGroup) },
+      select: { id: true },
+    });
+    return departments.map((department) => String(department.id));
+  }
+
+  private incidentTouchesDepartments(incident: any, departmentIds: string[]): boolean {
+    return departmentIds.includes(String(incident?.department_id || ''))
+      || departmentIds.includes(String(incident?.sendto_department_id || ''));
+  }
+
+  private isCreator(user: any, incident: any): boolean {
+    const userId = this.getUserId(user);
+    const creatorId = incident?.created_by ?? incident?.user_create ?? incident?.user_ir;
+    return userId !== null && creatorId !== undefined && creatorId !== null && Number(creatorId) === userId;
+  }
+
+  private isTeamRecipient(user: any, incident: any): boolean {
+    return user?.teamId !== undefined
+      && user?.teamId !== null
+      && Number(user.teamId) === Number(incident?.sendto_team_id);
+  }
+
+  private async isInManagementScope(user: any, incident: any): Promise<boolean> {
+    // Management scope belongs to Head/RM accounts. Admin workflow access is
+    // evaluated separately and is always limited to the admin's own departments.
+    if (this.isAdmin(user)) return false;
+
+    if (this.isRmCommittee(user)) {
+      if (user?.rmScope === 'hospital') return true;
+      if (user?.rmScope === 'group') {
+        return this.incidentTouchesDepartments(incident, await this.getGroupDepartmentIds(user));
       }
-      return { sendto_team_id: { not: null } };
+      return this.incidentTouchesDepartments(incident, this.getUserDepartmentIds(user));
     }
 
-    if (!user) return {};
+    if (this.isHead(user)) {
+      const departmentIds = user?.rmScope === 'group'
+        ? await this.getGroupDepartmentIds(user)
+        : this.getUserDepartmentIds(user);
+      return this.incidentTouchesDepartments(incident, departmentIds);
+    }
 
-    const isAdmin = user.accessrules === '1' || user.role === 'admin' || user.accessrules === 'admin';
-    if (isAdmin) return {};
+    return false;
+  }
 
-    const isRmCommittee = user.rmStatus === '1' || user.role === 'rm_committee' || user.accessrules === 'rm_committee';
-    const isHeadOfGroup = user.priority === '1' || user.role === 'head' || user.accessrules === 'head';
+  private isInAdminDepartmentScope(user: any, incident: any): boolean {
+    return this.isAdmin(user)
+      && this.incidentTouchesDepartments(incident, this.getUserDepartmentIds(user));
+  }
+
+  private async isInWorkflowDecisionScope(user: any, incident: any): Promise<boolean> {
+    return this.isInAdminDepartmentScope(user, incident)
+      || await this.isInManagementScope(user, incident);
+  }
+
+  private async getIncidentPermissions(user: any, incident: any) {
+    const status = incident?.status_risk || 'รายงาน';
+    const isClosed = status === 'จำหน่าย' || status === 'ไม่ใช่ความเสี่ยง';
+    const isPendingOrReturned = status === 'รายงาน' || status === 'แก้ไข';
+    const isConfirmedOrReviewing = status === 'ตรวจสอบ' || status === 'ทบทวน';
+    const isDepartmentVisible = !isPendingOrReturned;
+    const managementScope = await this.isInManagementScope(user, incident);
+    const adminDepartmentScope = this.isInAdminDepartmentScope(user, incident);
+    const workflowDecisionScope = managementScope || adminDepartmentScope;
+    const adminAccess = this.isAdmin(user);
+    const creator = this.isCreator(user, incident);
+    const teamRecipient = this.isTeamRecipient(user, incident);
+    const teamScopeVisible = teamRecipient && ['ทบทวน', 'จำหน่าย'].includes(status);
+    const departmentParticipant = this.incidentTouchesDepartments(incident, this.getUserDepartmentIds(user));
+    const canView = adminAccess
+      || managementScope
+      || creator
+      || teamScopeVisible
+      || (isDepartmentVisible && departmentParticipant);
+
+    return {
+      canView,
+      canEdit: !isClosed && (adminAccess || managementScope || (creator && isPendingOrReturned)),
+      canConfirm: isPendingOrReturned && workflowDecisionScope,
+      canReview: !isClosed && isConfirmedOrReviewing && workflowDecisionScope,
+      canTeamReview: !isClosed && status === 'ทบทวน' && teamRecipient,
+      canForward: !isClosed && workflowDecisionScope,
+      canForwardToTeam: !isClosed && status === 'ทบทวน' && workflowDecisionScope,
+      canAssignDepartment: !isClosed && workflowDecisionScope,
+      canClose: status === 'ทบทวน'
+        && managementScope
+        && (['A', 'B', '1'].includes(String(incident?.level_id || '').toUpperCase()) || this.isRmCommittee(user)),
+      canReject: !isClosed
+        && ['รายงาน', 'แก้ไข', 'ตรวจสอบ', 'ทบทวน'].includes(status)
+        && managementScope,
+      canDelete: adminAccess,
+    };
+  }
+
+  private assertPermission(allowed: boolean, message: string): void {
+    if (!allowed) throw new ForbiddenException(message);
+  }
+
+  private getNrlsKind(nrls: any): 'CLINICAL' | 'GENERAL' {
+    const group = String(nrls?.group || '').toUpperCase();
+    const code = String(nrls?.nrls_code || '').toUpperCase();
+    return code.startsWith('C') || group.includes('CLINICAL') || group.includes('คลินิก')
+      ? 'CLINICAL'
+      : 'GENERAL';
+  }
+
+  private async resolveClassification(nrlsCode: string, riskstoreId: number | null | undefined, levelId: string) {
+    const code = String(nrlsCode || '').trim().toUpperCase();
+    if (!code) throw new BadRequestException('กรุณาเลือกความเสี่ยงตามมาตรฐาน NRLS');
+    const nrls = await this.prisma.nRLS_riskstore.findUnique({ where: { nrls_code: code } });
+    if (!nrls) throw new BadRequestException(`ไม่พบรหัส ${code} ในข้อมูลมาตรฐาน NRLS กรุณาเลือกจากรายการ`);
+    if (!nrls.program_id) throw new BadRequestException(`รหัส NRLS ${code} ยังไม่ได้กำหนดโปรแกรม กรุณาแจ้งผู้ดูแลระบบ`);
+
+    const kind = this.getNrlsKind(nrls);
+    const level = String(levelId || '').trim().toUpperCase();
+    const valid = kind === 'CLINICAL' ? /^[A-I]$/.test(level) : /^[1-5]$/.test(level);
+    if (!valid) {
+      throw new BadRequestException(kind === 'CLINICAL'
+        ? 'ความเสี่ยง Clinical ต้องเลือกระดับความรุนแรง A–I'
+        : 'ความเสี่ยง General ต้องเลือกระดับความรุนแรง 1–5');
+    }
+
+    const localId = riskstoreId === undefined || riskstoreId === null || riskstoreId === 0
+      ? null : Number(riskstoreId);
+    if (localId !== null) {
+      const local = await this.prisma.riskstore.findUnique({ where: { riskstore_id: localId } });
+      if (!local) throw new BadRequestException('ไม่พบชื่อความเสี่ยงเดิมของโรงพยาบาลที่เลือก');
+      if (String(local.nrls_code || '').toUpperCase() !== code) {
+        throw new BadRequestException('ชื่อความเสี่ยงเดิมของโรงพยาบาลไม่ตรงกับรหัส NRLS ที่เลือก กรุณาเลือกใหม่');
+      }
+    }
+    return { nrls, code, kind, level, localId };
+  }
+
+  private async resolveLegacyClassification(riskstoreId: number | null | undefined, levelId: string) {
+    const localId = riskstoreId === undefined || riskstoreId === null || riskstoreId === 0
+      ? null : Number(riskstoreId);
+    const local = localId === null ? null : await this.prisma.riskstore.findUnique({ where: { riskstore_id: localId } });
+    if (localId !== null && !local) throw new BadRequestException('ไม่พบชื่อความเสี่ยงเดิมของโรงพยาบาลที่เลือก');
+    const level = String(levelId || '').trim().toUpperCase();
+    if (!/^(?:[A-I]|[1-5])$/.test(level)) throw new BadRequestException('กรุณาระบุระดับความรุนแรง');
+    return { localId, local, level };
+  }
+
+  async getAiRiskCandidates(eventText: string) {
+    const [standards, localRisks] = await Promise.all([
+      this.prisma.nRLS_riskstore.findMany({
+        select: {
+          nrls_code: true,
+          name: true,
+          group: true,
+          category: true,
+          type: true,
+          sub_type: true,
+          definition: true,
+          program_id: true,
+        },
+      }),
+      this.prisma.riskstore.findMany({
+        where: {
+          nrls_code: { not: null },
+          OR: [{ status: null }, { status: '1' }],
+        },
+        select: { riskstore_id: true, riskstore_name: true, nrls_code: true },
+      }),
+    ]);
+    return rankAiRiskCandidates(eventText, standards, localRisks, 20);
+  }
+
+  private async buildScopingFilter(user: any, status_risk?: string, scope_type?: string) {
+    // Team views must never fall back to every forwarded incident for users without a team.
+    if (scope_type === 'team') {
+      const departmentHandled = { status_risk: { in: ['ทบทวน', 'จำหน่าย'] } };
+      if (this.isAdmin(user)) return { AND: [{ sendto_team_id: { not: null } }, departmentHandled] };
+      if (user?.teamId) {
+        return { AND: [{ sendto_team_id: Number(user.teamId) }, departmentHandled] };
+      }
+      return { id: -1 };
+    }
+
+    if (!user) return { id: -1 };
+
+    if (this.isAdmin(user)) return {};
+
+    const isRmCommittee = this.isRmCommittee(user);
+    const isHead = this.isHead(user);
 
     if (isRmCommittee) {
+      if (user?.rmScope === 'hospital') return {};
+      if (user?.rmScope === 'group') {
+        const deptIds = await this.getGroupDepartmentIds(user);
+        return {
+          OR: [
+            { department_id: { in: deptIds } },
+            { sendto_department_id: { in: deptIds } },
+          ],
+        };
+      }
       const scope = scope_type || 'primary';
       if (status_risk === 'รายงาน') {
         const deptId = (scope === 'secondary' && user.departmentId2 && user.departmentId2 !== 0)
@@ -45,15 +286,31 @@ export class IncidentsService {
           };
         }
       }
-    } else if (isHeadOfGroup && user.departmentGroup) {
-      if (status_risk === 'รายงาน') {
-        return { department_id: (user.departmentId || '').toString() };
+    } else if (isHead) {
+      const deptIds = user?.rmScope === 'group'
+        ? await this.getGroupDepartmentIds(user)
+        : this.getUserDepartmentIds(user);
+      if (status_risk === 'รายงาน' || status_risk === 'แก้ไข') {
+        return { department_id: { in: deptIds } };
       } else {
-        const depts = await this.prisma.department.findMany({
-          where: { depart_group_id: user.departmentGroup },
-          select: { id: true },
-        });
-        const deptIds = depts.map(d => d.id.toString());
+        if (!status_risk || status_risk === 'all') {
+          return {
+            OR: [
+              {
+                AND: [
+                  { status_risk: { in: ['รายงาน', 'แก้ไข'] } },
+                  { department_id: { in: deptIds } },
+                ],
+              },
+              {
+                AND: [
+                  { status_risk: { notIn: ['รายงาน', 'แก้ไข'] } },
+                  { OR: [{ department_id: { in: deptIds } }, { sendto_department_id: { in: deptIds } }] },
+                ],
+              },
+            ],
+          };
+        }
         return {
           OR: [
             { department_id: { in: deptIds } },
@@ -68,17 +325,58 @@ export class IncidentsService {
         : user.departmentId.toString();
 
       if (status_risk === 'รายงาน') {
-        return { department_id: deptId };
+        const userId = this.getUserId(user);
+        return userId ? { department_id: deptId, created_by: userId } : { id: -1 };
       } else {
+        const userId = this.getUserId(user);
         return {
           OR: [
-            { department_id: deptId },
-            { sendto_department_id: deptId }
+            ...(userId ? [{ created_by: userId }] : []),
+            {
+              AND: [
+                { status_risk: { notIn: ['รายงาน', 'แก้ไข'] } },
+                { OR: [{ department_id: deptId }, { sendto_department_id: deptId }] }
+              ]
+            },
+            ...(user.teamId ? [{ sendto_team_id: Number(user.teamId) }] : [])
           ]
         };
       }
     }
-    return {};
+    return { id: -1 };
+  }
+
+  private async scopeIncidentWhere(where: any, user?: any): Promise<any> {
+    const scoping = await this.buildScopingFilter(user);
+    return Object.keys(scoping).length > 0 ? { AND: [where, scoping] } : where;
+  }
+
+  private async getVisibleReportDepartmentIds(user?: any): Promise<number[] | null> {
+    if (this.isAdmin(user) || (this.isRmCommittee(user) && user?.rmScope === 'hospital')) return null;
+    if ((this.isRmCommittee(user) || this.isHead(user)) && user?.rmScope === 'group') {
+      return (await this.getGroupDepartmentIds(user)).map(Number).filter(Number.isFinite);
+    }
+    return this.getUserDepartmentIds(user).map(Number).filter(Number.isFinite);
+  }
+
+  private assertAttachmentReferencesOwned(imageValue: unknown, user?: any, existingImageValue?: unknown): void {
+    if (!imageValue || this.isAdmin(user)) return;
+    const actorId = this.getUserId(user);
+    if (!actorId) throw new ForbiddenException('ไม่พบตัวตนเจ้าของไฟล์แนบ');
+
+    const existingNames = new Set(String(existingImageValue || '').split(',').map((name) => name.trim()).filter(Boolean));
+    const uploadDir = resolve(process.env.UPLOAD_DIR || './uploads');
+    for (const storedName of String(imageValue).split(',').map((name) => name.trim()).filter(Boolean)) {
+      if (existingNames.has(storedName)) continue;
+      const filename = basename(storedName.replace(/\\/g, '/'));
+      if (filename !== storedName || !filename.startsWith(`${actorId}-`)) {
+        throw new ForbiddenException('อ้างอิงได้เฉพาะไฟล์แนบที่บัญชีนี้เป็นผู้อัปโหลด');
+      }
+      const filePath = resolve(uploadDir, filename);
+      if (!filePath.startsWith(`${uploadDir}${sep}`) || !existsSync(filePath)) {
+        throw new BadRequestException(`ไม่พบไฟล์แนบ ${filename}`);
+      }
+    }
   }
 
   async findAll(query: GetIncidentsQueryDto, user?: any) {
@@ -92,21 +390,26 @@ export class IncidentsService {
       status_risk,
       search,
       program_id,
+      nrls,
+      nrls_type,
+      classification_status,
       sendto_team_id,
       is_forwarded
     } = query as any;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = { AND: [] };
 
     // Forwarded to Lead Team Filter
     if (sendto_team_id) {
       where.sendto_team_id = Number(sendto_team_id);
     } else if (is_forwarded === 'true' || is_forwarded === true) {
-      where.OR = [
-        { sendto_team_id: { not: null } },
-        { sendto_department_id: { not: null } },
-      ];
+      where.AND.push({
+        OR: [
+          { sendto_team_id: { not: null } },
+          { sendto_department_id: { not: null } },
+        ],
+      });
     }
 
     // Date filtering
@@ -118,30 +421,40 @@ export class IncidentsService {
 
     // Severity level filter or Sentinel filter
     if (level_id) {
-      if (level_id === 'sentinel_clinical') {
-        where.OR = [
-          { level_id: { in: ['G', 'H', 'I'] } },
-          {
-            AND: [
-              { level_id: { in: ['E', 'F'] } },
-              { riskstore_id: { in: [297, 298, 300, 302] } }
-            ]
-          },
-          { riskstore_id: 2000071 }
-        ];
+      if (level_id === 'clinical_ef') {
+        where.level_id = { in: ['E', 'F'] };
+      } else if (level_id === 'clinical_ghi') {
+        where.level_id = { in: ['G', 'H', 'I'] };
+      } else if (level_id === 'general_45') {
+        where.level_id = { in: ['4', '5'] };
+      } else if (level_id === 'sentinel_clinical') {
+        where.AND.push({
+          OR: [
+            { level_id: { in: ['G', 'H', 'I'] } },
+            {
+              AND: [
+                { level_id: { in: ['E', 'F'] } },
+                { riskstore_id: { in: [297, 298, 300, 302] } }
+              ]
+            },
+            { riskstore_id: 2000071 }
+          ],
+        });
       } else if (level_id === 'sentinel_general') {
         where.level_id = { in: ['4', '5'] };
       } else if (level_id === 'sentinel_all') {
-        where.OR = [
-          { level_id: { in: ['G', 'H', 'I', '4', '5'] } },
-          {
-            AND: [
-              { level_id: { in: ['E', 'F'] } },
-              { riskstore_id: { in: [297, 298, 300, 302] } }
-            ]
-          },
-          { riskstore_id: 2000071 }
-        ];
+        where.AND.push({
+          OR: [
+            { level_id: { in: ['G', 'H', 'I', '4', '5'] } },
+            {
+              AND: [
+                { level_id: { in: ['E', 'F'] } },
+                { riskstore_id: { in: [297, 298, 300, 302] } }
+              ]
+            },
+            { riskstore_id: 2000071 }
+          ],
+        });
       } else {
         where.level_id = level_id;
       }
@@ -156,36 +469,44 @@ export class IncidentsService {
     if (program_id) {
       where.program_id = program_id;
     }
+    if (classification_status) where.classification_status = classification_status;
+    if (nrls_type) {
+      where.nrls_standard = { group: { contains: nrls_type === 'CLINICAL' ? 'คลินิก' : 'ทั่วไป' } };
+    }
+    if (nrls && nrls.trim()) {
+      const term = nrls.trim();
+      where.AND.push({ OR: [
+        { nrls_code: { contains: term } },
+        { nrls_name_snapshot: { contains: term } },
+      ] });
+    }
 
     // Keyword Search
     if (search && search.trim() !== '') {
       const s = search.trim();
       const numId = Number(s);
-      where.OR = [
+      const searchConditions: any[] = [
         { detail: { contains: s } },
         { problem_basic: { contains: s } },
         { detail_hosxp: { contains: s } },
+        { nrls_code: { contains: s } },
+        { nrls_name_snapshot: { contains: s } },
+        { nrls_standard: { name: { contains: s } } },
+        { local_risk: { riskstore_name: { contains: s } } },
       ];
       if (!isNaN(numId)) {
-        where.OR.push({ id: numId });
-        where.OR.push({ id_risk: numId });
+        searchConditions.push({ id: numId });
+        searchConditions.push({ id_risk: numId });
       }
+      where.AND.push({ OR: searchConditions });
     }
 
     // RBAC Data Scoping
     const scoping = await this.buildScopingFilter(user, status_risk, query.scope_type);
     if (Object.keys(scoping).length > 0) {
-      if (department_id) {
-        where.AND = [
-          scoping,
-          { department_id: department_id }
-        ];
-      } else {
-        where.AND = [scoping];
-      }
-    } else if (department_id) {
-      where.department_id = department_id;
+      where.AND.push(scoping);
     }
+    if (department_id) where.AND.push({ department_id });
 
     let data: any[] = [];
     let total = 0;
@@ -231,7 +552,7 @@ export class IncidentsService {
       const pageIds = allMatching.slice(skip, skip + limit).map((item) => item.id);
 
       const pageRecords = await this.prisma.riskregister.findMany({
-        where: { id: { in: pageIds } },
+        where: { AND: [where, { id: { in: pageIds } }] },
       });
 
       const recordMap = new Map(pageRecords.map((r) => [r.id, r]));
@@ -317,12 +638,13 @@ export class IncidentsService {
       }
     }
 
-    const enrichedData = data.map(item => ({
+    const enrichedData = await Promise.all(data.map(async (item) => ({
       ...item,
       department_name: deptMap.get(item.department_id) || `แผนก ${item.department_id}`,
       sendto_department_name: item.sendto_department_id ? (deptMap.get(item.sendto_department_id.toString()) || `แผนก ${item.sendto_department_id}`) : 'ไม่มีระบุ',
       risk_topic_name: riskMapById.get(item.riskstore_id) || riskMapByRid.get(item.id_risk) || null,
-    }));
+      permissions: await this.getIncidentPermissions(user, item),
+    })));
 
 
     return {
@@ -353,7 +675,7 @@ export class IncidentsService {
       this.buildScopingFilter(user, 'all')
     ]);
 
-    const [total, pending, confirmed, reviewing, closed, notRisk, sentinelClinical, sentinelGeneral] = await Promise.all([
+    const [total, pending, confirmed, reviewing, closed, notRisk, sentinelClinical, sentinelGeneral, severityGroups, activeGoalGroups] = await Promise.all([
       this.prisma.riskregister.count({ where: allScoping }),
       this.prisma.riskregister.count({ where: { ...pendingScoping, status_risk: 'รายงาน' } }),
       this.prisma.riskregister.count({ where: { ...confirmedScoping, status_risk: 'ตรวจสอบ' } }),
@@ -362,21 +684,67 @@ export class IncidentsService {
       this.prisma.riskregister.count({ where: { ...notRiskScoping, status_risk: 'ไม่ใช่ความเสี่ยง' } }),
       this.prisma.riskregister.count({
         where: {
-          ...allScoping,
-          OR: [
-            { level_id: { in: ['G', 'H', 'I'] } },
+          AND: [
+            allScoping,
             {
-              AND: [
-                { level_id: { in: ['E', 'F'] } },
-                { riskstore_id: { in: [297, 298, 300, 302] } }
+              OR: [
+                { level_id: { in: ['G', 'H', 'I'] } },
+                {
+                  AND: [
+                    { level_id: { in: ['E', 'F'] } },
+                    { riskstore_id: { in: [297, 298, 300, 302] } }
+                  ]
+                },
+                { riskstore_id: 2000071 }
               ]
-            },
-            { riskstore_id: 2000071 }
+            }
           ]
         }
       }),
-      this.prisma.riskregister.count({ where: { ...allScoping, level_id: { in: ['4', '5'] } } }),
+      this.prisma.riskregister.count({ where: { AND: [allScoping, { level_id: { in: ['4', '5'] } }] } }),
+      this.prisma.riskregister.groupBy({
+        by: ['level_id'],
+        where: allScoping,
+        _count: { _all: true },
+      }),
+      this.prisma.riskregister.groupBy({
+        by: ['nrls_code', 'level_id'],
+        where: {
+          AND: [allScoping, { status_risk: { in: ['ตรวจสอบ', 'ทบทวน'] } }],
+        },
+        _count: { _all: true },
+      }),
     ]);
+
+    const byLevel = severityGroups.reduce<Record<string, number>>((result, row) => {
+      const level = String(row.level_id || '').trim().toUpperCase();
+      if (level) result[level] = row._count._all;
+      return result;
+    }, {});
+
+    const activeSeverityByGoal: Record<'clinical' | 'patient' | 'personnel' | 'organization', Record<string, number>> = {
+      clinical: {},
+      patient: {},
+      personnel: {},
+      organization: {},
+    };
+    for (const row of activeGoalGroups) {
+      const level = String(row.level_id || '').trim().toUpperCase();
+      const code = String(row.nrls_code || '').trim().toUpperCase();
+      const count = row._count._all;
+      if (!level) continue;
+
+      if (/^[A-I]$/.test(level)) {
+        activeSeverityByGoal.clinical[level] = (activeSeverityByGoal.clinical[level] || 0) + count;
+      }
+      if (code.startsWith('CP')) {
+        activeSeverityByGoal.patient[level] = (activeSeverityByGoal.patient[level] || 0) + count;
+      } else if (code.startsWith('GP')) {
+        activeSeverityByGoal.personnel[level] = (activeSeverityByGoal.personnel[level] || 0) + count;
+      } else if (code.startsWith('GO')) {
+        activeSeverityByGoal.organization[level] = (activeSeverityByGoal.organization[level] || 0) + count;
+      }
+    }
 
     return {
       total,
@@ -388,23 +756,26 @@ export class IncidentsService {
       sentinelClinical,
       sentinelGeneral,
       sentinelTotal: sentinelClinical + sentinelGeneral,
+      byLevel,
+      activeSeverityByGoal,
     };
   }
 
   async getTabCounts(user: any, scope_type?: string) {
-    // Build RBAC scoping filter (no status filter = general scoping)
-    const scoping = await this.buildScopingFilter(user, undefined, scope_type);
+    const statusScopes = await Promise.all([
+      this.buildScopingFilter(user, undefined, scope_type),
+      this.buildScopingFilter(user, 'รายงาน', scope_type),
+      this.buildScopingFilter(user, 'แก้ไข', scope_type),
+      this.buildScopingFilter(user, 'ตรวจสอบ', scope_type),
+      this.buildScopingFilter(user, 'ทบทวน', scope_type),
+      this.buildScopingFilter(user, 'จำหน่าย', scope_type),
+      this.buildScopingFilter(user, 'ไม่ใช่ความเสี่ยง', scope_type),
+    ]);
+    const [generalScope, pendingScope, returnedScope, verifiedScope, reviewingScope, closedScope, notRiskScope] = statusScopes;
 
-    // Helper: merge scoping with extra where clause
-    const countWith = async (extra: any) => {
-      let where: any;
-      if (Object.keys(scoping).length > 0) {
-        where = { AND: [scoping, extra] };
-      } else {
-        where = extra;
-      }
-      return this.prisma.riskregister.count({ where });
-    };
+    const countWith = (scope: any, extra: any) => this.prisma.riskregister.count({
+      where: Object.keys(scope).length > 0 ? { AND: [scope, extra] } : extra,
+    });
 
     // For "forwarded" tab: OR filter for sendto being set
     const forwardedExtra = {
@@ -430,15 +801,15 @@ export class IncidentsService {
     const endOfCurrentMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
 
     const [all, pending, returnedForEdit, verified, reviewing, forwarded, closed, notRisk, sentinel, myReportedThisMonth] = await Promise.all([
-      countWith({}),
-      countWith({ status_risk: 'รายงาน' }),
-      countWith({ status_risk: 'แก้ไข' }),
-      countWith({ status_risk: 'ตรวจสอบ' }),
-      countWith({ status_risk: 'ทบทวน' }),
-      countWith(forwardedExtra),
-      countWith({ status_risk: 'จำหน่าย' }),
-      countWith({ status_risk: 'ไม่ใช่ความเสี่ยง' }),
-      countWith(sentinelExtra),
+      countWith(generalScope, {}),
+      countWith(pendingScope, { status_risk: 'รายงาน' }),
+      countWith(returnedScope, { status_risk: 'แก้ไข' }),
+      countWith(verifiedScope, { status_risk: 'ตรวจสอบ' }),
+      countWith(reviewingScope, { status_risk: 'ทบทวน' }),
+      countWith(generalScope, forwardedExtra),
+      countWith(closedScope, { status_risk: 'จำหน่าย' }),
+      countWith(notRiskScope, { status_risk: 'ไม่ใช่ความเสี่ยง' }),
+      countWith(generalScope, sentinelExtra),
       userId ? this.prisma.riskregister.count({
         where: {
           created_by: userId,
@@ -455,7 +826,8 @@ export class IncidentsService {
       where: {
         AND: [
           teamScoping,
-          { status_risk: { in: ['ตรวจสอบ', 'แก้ไข'] } }
+          { status_risk: 'ทบทวน' },
+          { OR: [{ team_review_status: null }, { team_review_status: { in: ['PENDING', 'IN_PROGRESS'] } }] },
         ]
       }
     });
@@ -474,6 +846,250 @@ export class IncidentsService {
       deptReviewCount: verified + returnedForEdit,
       teamReviewCount
     };
+  }
+
+  async getTeamWorkspace(user: any, query: any = {}) {
+    const requestedTeamId = query.team_id ? Number(query.team_id) : undefined;
+    const teamId = this.resolveTeamScope(user, requestedTeamId);
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.max(1, Math.min(100, Number(query.limit) || 25));
+    const now = new Date();
+    const defaultFiscalYear = currentFiscalYear(now);
+    const nrlsCutoverFiscalYear = currentFiscalYear(new Date(`${NRLS_CUTOVER_DATE}T00:00:00`));
+    const fiscalYear = query.fiscal_year ? Number(query.fiscal_year) : defaultFiscalYear;
+    if (!Number.isInteger(fiscalYear) || fiscalYear < 2000 || fiscalYear > 2100) {
+      throw new BadRequestException('ปีงบประมาณไม่ถูกต้อง');
+    }
+    const fiscalPeriod = fiscalYearPeriod(fiscalYear);
+    const observationMonths = elapsedFiscalMonths(fiscalYear, now);
+    const observedEnd = observationMonths === 0
+      ? null
+      : new Date(Math.min(now.getTime(), fiscalPeriod.end.getTime()));
+    const matrixAnd: any[] = [
+      teamId ? { sendto_team_id: teamId } : { sendto_team_id: { not: null } },
+      // A team receives only incidents for which the department has already
+      // recorded its own review. Closed incidents remain available as history.
+      { status_risk: { in: ['ทบทวน', 'จำหน่าย'] } },
+      { date_report: { gte: fiscalPeriod.start, lte: fiscalPeriod.end } },
+    ];
+    const and: any[] = [...matrixAnd];
+
+    if (query.team_review_status === 'PENDING') {
+      and.push({ OR: [{ team_review_status: null }, { team_review_status: 'PENDING' }] });
+    } else if (['IN_PROGRESS', 'COMPLETED'].includes(String(query.team_review_status || ''))) {
+      and.push({ team_review_status: String(query.team_review_status) });
+    }
+    if (query.department_id) and.push({ department_id: String(query.department_id) });
+    if (query.program_id) and.push({ program_id: Number(query.program_id) });
+    if (query.nrls_code) and.push({ nrls_code: String(query.nrls_code).trim() });
+    if (String(query.search || '').trim()) {
+      const search = String(query.search).trim();
+      const numericId = Number(search);
+      const or: any[] = [
+        { nrls_code: { contains: search } },
+        { nrls_name_snapshot: { contains: search } },
+        { detail: { contains: search } },
+        { problem_basic: { contains: search } },
+      ];
+      if (Number.isFinite(numericId)) or.push({ id: numericId });
+      and.push({ OR: or });
+    }
+
+    const [incidents, matrixIncidents] = await Promise.all([
+      this.prisma.riskregister.findMany({
+        where: { AND: and },
+        orderBy: [{ date_report: 'desc' }, { id: 'desc' }],
+      }),
+      // The annual matrix must remain stable when the user filters the work
+      // queue by workflow status, department, program or search text.
+      this.prisma.riskregister.findMany({
+        where: { AND: matrixAnd },
+        orderBy: [{ date_report: 'desc' }, { id: 'desc' }],
+      }),
+    ]);
+
+    const statusOrder: Record<string, number> = { PENDING: 1, IN_PROGRESS: 2, COMPLETED: 3 };
+    incidents.sort((a, b) => {
+      const aStatus = a.status_risk === 'จำหน่าย' ? 'COMPLETED' : (a.team_review_status || 'PENDING');
+      const bStatus = b.status_risk === 'จำหน่าย' ? 'COMPLETED' : (b.team_review_status || 'PENDING');
+      const statusDiff = (statusOrder[aStatus] || 9) - (statusOrder[bStatus] || 9);
+      if (statusDiff !== 0) return statusDiff;
+      return b.date_report.getTime() - a.date_report.getTime() || b.id - a.id;
+    });
+
+    const departmentIds = [...new Set(incidents.map((row) => Number(row.department_id)).filter(Boolean))];
+    const programIds = [...new Set(incidents.map((row) => Number(row.program_id)).filter(Boolean))];
+    const [departments, programs, team] = await Promise.all([
+      this.prisma.department.findMany({ where: { id: { in: departmentIds } }, select: { id: true, depart_name: true } }),
+      this.prisma.program.findMany({ where: { program_id: { in: programIds } }, select: { program_id: true, program_name: true } }),
+      teamId ? this.prisma.team.findUnique({ where: { id: teamId }, select: { id: true, team_name: true } }) : null,
+    ]);
+    const departmentMap = new Map(departments.map((row) => [String(row.id), row.depart_name]));
+    const programMap = new Map(programs.map((row) => [row.program_id, row.program_name]));
+
+    const matrix = Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => ({ count: 0, items: [] as any[] })));
+    const riskSummary = new Map<string, any>();
+
+    for (const row of matrixIncidents) {
+      // Legacy incidents remain visible in the work queue, but a risk without
+      // NRLS cannot be placed reliably in the annual matrix.
+      if (!row.nrls_code) continue;
+      const key = row.nrls_code;
+      const consequence = consequenceFromSeverity(row.level_id);
+      const summary = riskSummary.get(key) || {
+        key: row.nrls_code,
+        nrls_code: row.nrls_code,
+        name: row.nrls_name_snapshot || row.detail || row.nrls_code,
+        count: 0,
+        waiting: 0,
+        max_consequence: 0,
+        incident_ids: [],
+      };
+      summary.count += 1;
+      if (row.status_risk !== 'จำหน่าย' && (!row.team_review_status || row.team_review_status === 'PENDING')) summary.waiting += 1;
+      summary.max_consequence = Math.max(summary.max_consequence, consequence);
+      if (summary.incident_ids.length < 100) summary.incident_ids.push(row.id);
+      riskSummary.set(key, summary);
+    }
+
+    for (const summary of riskSummary.values()) {
+      const likelihood = likelihoodFromAnnualCount(summary.count, observationMonths);
+      if (likelihood === 0) continue;
+      const consequence = summary.max_consequence;
+      summary.likelihood = likelihood;
+      summary.consequence = consequence;
+      summary.risk_score = likelihood * consequence;
+      summary.risk_level = riskLevelFor(likelihood, consequence);
+      const cell = matrix[consequence - 1][likelihood - 1];
+      cell.count += 1;
+      if (cell.items.length < 10) cell.items.push({
+        nrls_code: summary.nrls_code,
+        name: summary.name,
+        incident_count: summary.count,
+        risk_score: summary.risk_score,
+        risk_level: summary.risk_level,
+      });
+    }
+
+    const start = (page - 1) * limit;
+    const pageRows = incidents.slice(start, start + limit).map((row) => ({
+      ...row,
+      team_review_status: row.status_risk === 'จำหน่าย' ? 'COMPLETED' : (row.team_review_status || 'PENDING'),
+      department_name: departmentMap.get(row.department_id) || `หน่วยงาน ${row.department_id}`,
+      program_name: programMap.get(Number(row.program_id)) || '-',
+    }));
+
+    return {
+      team: team || { id: teamId, team_name: teamId ? `ทีมนำรหัส ${teamId}` : 'ทุกทีมนำ' },
+      summary: {
+        total: incidents.length,
+        pending: incidents.filter((row) => row.status_risk !== 'จำหน่าย' && (!row.team_review_status || row.team_review_status === 'PENDING')).length,
+        in_progress: incidents.filter((row) => row.team_review_status === 'IN_PROGRESS').length,
+        completed: incidents.filter((row) => row.status_risk === 'จำหน่าย' || row.team_review_status === 'COMPLETED').length,
+        high_severity: incidents.filter((row) => consequenceFromSeverity(row.level_id) >= 4).length,
+        mapped_risks: riskSummary.size,
+        unmapped_incidents: matrixIncidents.filter((row) => !row.nrls_code).length,
+      },
+      matrix,
+      top_risks: [...riskSummary.values()].sort((a, b) => b.count - a.count || b.max_consequence - a.max_consequence).slice(0, 10),
+      data: pageRows,
+      meta: {
+        total: incidents.length,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(incidents.length / limit)),
+        fiscal_year: fiscalYear,
+        fiscal_year_thai: fiscalYear + 543,
+        fiscal_year_start: fiscalPeriod.start,
+        fiscal_year_end: fiscalPeriod.end,
+        observed_end: observedEnd,
+        observation_months: observationMonths,
+        is_complete_year: observationMonths === 12,
+        nrls_cutover_date: NRLS_CUTOVER_DATE,
+        data_quality: fiscalYear < nrlsCutoverFiscalYear
+          ? 'LEGACY_PARTIAL'
+          : observationMonths === 0
+            ? 'NOT_STARTED'
+            : observationMonths < 12
+              ? 'IN_PROGRESS'
+              : 'COMPLETE',
+        available_fiscal_years: Array.from(new Set([fiscalYear, defaultFiscalYear + 1, defaultFiscalYear, defaultFiscalYear - 1, defaultFiscalYear - 2, defaultFiscalYear - 3])).sort((a, b) => b - a),
+      },
+    };
+  }
+
+  async batchReviewTeam(dto: TeamBatchReviewDto, user: any) {
+    const ids = [...new Set((dto.incident_ids || []).map(Number).filter((id) => Number.isFinite(id) && id > 0))];
+    if (!ids.length) throw new BadRequestException('กรุณาเลือกอุบัติการณ์อย่างน้อย 1 รายการ');
+    if (dto.action === 'COMPLETE' && !String(dto.note || '').trim()) {
+      throw new BadRequestException('กรุณาระบุผลสรุปหรือข้อเสนอแนะของทีม');
+    }
+
+    const requestedTeamId = dto.team_id ? Number(dto.team_id) : undefined;
+    let teamId = this.resolveTeamScope(user, requestedTeamId);
+    const incidents = await this.prisma.riskregister.findMany({
+      where: {
+        id: { in: ids },
+        sendto_team_id: teamId ? teamId : { not: null },
+        status_risk: 'ทบทวน',
+        OR: [{ team_review_status: null }, { team_review_status: { in: ['PENDING', 'IN_PROGRESS'] } }],
+      },
+    });
+    if (incidents.length !== ids.length) {
+      throw new ForbiddenException('บางรายการไม่ได้ส่งให้ทีมนี้ ยังไม่ผ่านการทบทวนของหน่วยงาน หรือปิดเหตุการณ์แล้ว');
+    }
+
+    const assignedTeams = [...new Set(incidents.map((row) => Number(row.sendto_team_id)).filter(Boolean))];
+    if (!teamId) {
+      if (assignedTeams.length !== 1) throw new BadRequestException('Admin ต้องเลือกเหตุการณ์จากทีมเดียวกันต่อหนึ่งครั้ง');
+      teamId = assignedTeams[0];
+    }
+    const team = await this.prisma.team.findUnique({ where: { id: teamId }, select: { team_name: true } });
+    const actorId = this.getUserId(user) || 1;
+    const now = new Date();
+    const actionLabel = dto.action === 'START' ? 'รับเข้าทบทวนเป็นชุด' : 'สรุปผลการทบทวนเป็นชุด';
+    const note = String(dto.note || '').trim();
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const [index, incident] of incidents.entries()) {
+        await tx.riskregister.updateMany({
+          where: { id: incident.id, id_risk: incident.id_risk, sendto_team_id: teamId },
+          data: dto.action === 'START' ? {
+            team_review_status: 'IN_PROGRESS',
+            team_review_started_at: incident.team_review_started_at || now,
+            team_review_completed_at: null,
+            team_reviewed_by: actorId,
+            modify_date: now,
+            updated_by: actorId,
+          } : {
+            team_review_status: 'COMPLETED',
+            team_review_started_at: incident.team_review_started_at || now,
+            team_review_completed_at: now,
+            team_reviewed_by: actorId,
+            modify_date: now,
+            updated_by: actorId,
+          },
+        });
+        await tx.riskreview.create({
+          data: {
+            riskregister_id: incident.id,
+            risk_id: incident.id_risk,
+            riskvisit: `TEAM-${Date.now().toString().slice(-9)}-${index + 1}`,
+            review_date: now,
+            notereview: `👥 [${team?.team_name || `ทีมนำ ${teamId}`}] ${actionLabel}${note ? `: ${note}` : ''}`,
+            cause_problem: 'การทบทวนระดับทีมนำแบบกลุ่ม',
+            reviewresults_id: dto.action === 'COMPLETE' ? 2 : 1,
+            status_risk: incident.status_risk,
+            created_by: actorId,
+            create_date: now,
+            modify_date: now,
+            count: 1,
+          },
+        });
+      }
+    });
+
+    return { success: true, action: dto.action, updated: incidents.length, team_id: teamId };
   }
 
   async getMyReported(user: any, fiscalYearParam?: string) {
@@ -533,7 +1149,7 @@ export class IncidentsService {
     const enrichedIncidents = await Promise.all(
       incidents.map(async (inc) => {
         const [rStore, dept, targetDept] = await Promise.all([
-          this.prisma.riskstore.findFirst({ where: { riskstore_id: inc.riskstore_id } }),
+          inc.riskstore_id ? this.prisma.riskstore.findFirst({ where: { riskstore_id: inc.riskstore_id } }) : null,
           this.prisma.department.findUnique({ where: { id: Number(inc.department_id) } }),
           inc.sendto_department_id ? this.prisma.department.findUnique({ where: { id: Number(inc.sendto_department_id) } }) : null
         ]);
@@ -582,7 +1198,7 @@ export class IncidentsService {
   }
 
   async getFormData() {
-    const [departments, riskGroups, programs, reviewresults, locations] = await Promise.all([
+    const [departments, riskGroups, programs, reviewresults, locations, teams] = await Promise.all([
       this.prisma.department.findMany({
         select: { id: true, depart_name: true, depart_group_id: true },
         orderBy: { depart_name: 'asc' },
@@ -602,6 +1218,10 @@ export class IncidentsService {
       this.prisma.location.findMany({
         select: { id: true, name: true },
         orderBy: { name: 'asc' },
+      }),
+      this.prisma.team.findMany({
+        select: { id: true, team_name: true },
+        orderBy: { id: 'asc' },
       }),
     ]);
 
@@ -670,6 +1290,7 @@ export class IncidentsService {
           clear_id,
           risk_name,
           riskstore_full: text, // full string for reference
+          nrls_code: row.nrls_code,
         };
       });
     } catch (e) {
@@ -682,12 +1303,12 @@ export class IncidentsService {
       ];
     }
 
-    return { departments, locations, riskGroups: formattedRiskGroups, programs: mockPrograms, risks, reviewresults };
+    return { departments, locations, riskGroups: formattedRiskGroups, programs: mockPrograms, teams, risks, reviewresults };
   }
 
 
 
-  async findOne(id: number) {
+  async findOne(id: number, user?: any) {
     const incident = await this.prisma.riskregister.findFirst({
       where: { id },
     });
@@ -695,6 +1316,9 @@ export class IncidentsService {
     if (!incident) {
       throw new NotFoundException(`ไม่พบรายงานอุบัติการณ์รหัส #${id}`);
     }
+
+    const permissions = await this.getIncidentPermissions(user, incident);
+    this.assertPermission(permissions.canView, 'ไม่มีสิทธิ์ดูอุบัติการณ์นอกขอบเขตของคุณ');
 
     // Get Department details
     let departmentName = `แผนก ${incident.department_id}`;
@@ -717,10 +1341,10 @@ export class IncidentsService {
     // Get Sendto Team details
     let sendtoTeamName: string | null = null;
     if (incident.sendto_team_id) {
-      const teamProg = await this.prisma.program.findUnique({
-        where: { program_id: incident.sendto_team_id }
+      const team = await this.prisma.team.findUnique({
+        where: { id: incident.sendto_team_id }
       });
-      if (teamProg) sendtoTeamName = teamProg.program_name;
+      if (team) sendtoTeamName = team.team_name;
     }
 
     // Get Sendto Department details
@@ -761,6 +1385,25 @@ export class IncidentsService {
         // ignore if risks table unavailable
       }
     }
+
+    const [nrlsStandard, classificationAudits, structuredReviews, capaActions] = await Promise.all([
+      incident.nrls_code ? this.prisma.nRLS_riskstore.findUnique({
+        where: { nrls_code: incident.nrls_code }, include: { program: true },
+      }) : Promise.resolve(null),
+      this.prisma.incident_classification_audit.findMany({
+        where: { incident_id: incident.id, id_risk: incident.id_risk }, orderBy: { changed_at: 'desc' },
+      }),
+      (this.prisma as any).incident_review_entry.findMany({
+        where: { incident_id: incident.id, incident_id_risk: incident.id_risk },
+        orderBy: { submitted_at: 'desc' },
+      }),
+      (this.prisma as any).capa_action.findMany({
+        where: { incident_id: incident.id, incident_id_risk: incident.id_risk },
+        include: { effectiveness_reviews: { orderBy: { review_date: 'desc' } } },
+        orderBy: { id: 'desc' },
+      }),
+    ]);
+    if (nrlsStandard?.program?.program_name) programName = nrlsStandard.program.program_name;
 
     // Get Reviews timeline from riskreview safely
     let reviews: any[] = [];
@@ -849,12 +1492,83 @@ export class IncidentsService {
       sendto_team_name: sendtoTeamName,
       sendto_department_name: sendtoDeptName,
       risk_topic_name: riskTopicName,
+      nrls_name: incident.nrls_name_snapshot || nrlsStandard?.name || null,
+      nrls_type: nrlsStandard ? this.getNrlsKind(nrlsStandard) : null,
+      classification_audits: classificationAudits,
       level_warning: levelWarning,
       reviews: enrichedReviews,
+      structured_reviews: structuredReviews,
+      capa_actions: capaActions,
+      capa_summary: {
+        total: capaActions.length,
+        closed: capaActions.filter((action: any) => String(action.status).toUpperCase() === 'CLOSED').length,
+        awaiting_effectiveness: capaActions.filter((action: any) => ['IMPLEMENTED', 'AWAITING_EFFECTIVENESS'].includes(String(action.status).toUpperCase())).length,
+        rework: capaActions.filter((action: any) => String(action.status).toUpperCase() === 'REWORK').length,
+      },
+      permissions: {
+        ...permissions,
+        canClassify: await this.isInWorkflowDecisionScope(user, incident),
+        canRecordOwnerReview: permissions.canReview,
+        canRecordCoReview: permissions.canTeamReview,
+        canRecordRmReview: this.isRmCommittee(user) && await this.isInManagementScope(user, incident),
+      },
     };
   }
 
-  async create(data: any, user?: any) {
+  async getAttachmentPath(id: number, requestedFilename: string, user?: any): Promise<string> {
+    const incident = await this.prisma.riskregister.findFirst({ where: { id } });
+    if (!incident) throw new NotFoundException(`ไม่พบรายงานอุบัติการณ์รหัส #${id}`);
+
+    const permissions = await this.getIncidentPermissions(user, incident);
+    this.assertPermission(permissions.canView, 'ไม่มีสิทธิ์เปิดไฟล์แนบของอุบัติการณ์นี้');
+
+    const filename = basename(String(requestedFilename || '').trim());
+    if (!filename || filename !== requestedFilename || filename.includes('..')) {
+      throw new BadRequestException('ชื่อไฟล์แนบไม่ถูกต้อง');
+    }
+
+    const attachmentNames = String(incident.image || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => basename(item.replace(/\\/g, '/')));
+    if (!attachmentNames.includes(filename)) {
+      throw new NotFoundException('ไฟล์นี้ไม่ได้แนบอยู่กับอุบัติการณ์ที่ร้องขอ');
+    }
+
+    const uploadDir = resolve(process.env.UPLOAD_DIR || './uploads');
+    const filePath = resolve(uploadDir, filename);
+    if (!filePath.startsWith(`${uploadDir}${sep}`) || !existsSync(filePath)) {
+      throw new NotFoundException('ไม่พบไฟล์แนบบนเซิร์ฟเวอร์');
+    }
+    return filePath;
+  }
+
+  async create(
+    data: any,
+    user?: any,
+    internalSource?: { linkKey?: string; note?: string; referType?: string },
+  ) {
+    const requestedDepartmentId = String(data.department_id || user?.departmentId || '').trim();
+    if (!requestedDepartmentId) throw new BadRequestException('กรุณาระบุหน่วยงานต้นทางของรายงาน');
+    if (!(this.isRmCommittee(user) && user?.rmScope === 'hospital')) {
+      const allowedDepartmentIds = (this.isRmCommittee(user) || this.isHead(user)) && user?.rmScope === 'group'
+        ? await this.getGroupDepartmentIds(user)
+        : this.getUserDepartmentIds(user);
+      this.assertPermission(
+        allowedDepartmentIds.includes(requestedDepartmentId),
+        'ไม่สามารถสร้างรายงานโดยอ้างหน่วยงานต้นทางนอกขอบเขตของบัญชีนี้',
+      );
+    }
+    this.assertAttachmentReferencesOwned(data.image, user);
+    const incidentDate = new Date(data.date_report || new Date());
+    const hasNrls = Boolean(String(data.nrls_code || '').trim());
+    if (!hasNrls && isNrlsRequired(data.date_report || incidentDate)) {
+      throw new BadRequestException(`เหตุการณ์ตั้งแต่ ${NRLS_CUTOVER_DATE_THAI} ต้องเลือกรหัส NRLS`);
+    }
+    const classification = hasNrls
+      ? await this.resolveClassification(data.nrls_code, data.riskstore_id, data.level_id)
+      : await this.resolveLegacyClassification(data.riskstore_id, data.level_id);
     // Generate id_risk
     const lastRecord = await this.prisma.riskregister.findFirst({
       orderBy: { id_risk: 'desc' },
@@ -864,27 +1578,37 @@ export class IncidentsService {
 
     const createData: any = {
       id_risk: nextIdRisk,
-      date_report: new Date(data.date_report || new Date()),
+      date_report: incidentDate,
       time_report: new Date(data.time_report || new Date()),
       duration_id: data.duration_id ? Number(data.duration_id) : null,
       location_id: data.location_id ? Number(data.location_id) : null,
       user_ir_type: data.user_ir_type || 'ตนเอง',
-      user_ir: data.user_ir ? Number(data.user_ir) : (user?.id || 1),
-      program_id: data.program_id ? Number(data.program_id) : null,
-      level_id: data.level_id || 'A',
-      riskstore_id: data.riskstore_id ? Number(data.riskstore_id) : 1,
+      user_ir: this.getUserId(user) || 1,
+      program_id: hasNrls ? (classification as any).nrls.program_id : ((classification as any).local?.program_id || (data.program_id ? Number(data.program_id) : null)),
+      level_id: classification.level,
+      riskstore_id: classification.localId,
       detail: data.detail || '',
       detail_hosxp: data.detail_hosxp || null,
       affected: Array.isArray(data.affected) ? data.affected.join(', ') : (data.affected || null),
       edit: data.edit || null,
       problem_basic: data.problem_basic || null,
       inform_id: data.inform_id ? Number(data.inform_id) : 0,
-      status_risk: data.status_risk || 'รายงาน', // Default legacy status: รายงาน (รอยืนยัน)
-      department_id: data.department_id ? data.department_id.toString() : (user?.department_id?.toString() || '1'),
+      // Every new incident must enter the approval workflow. Client input cannot skip stages.
+      status_risk: 'รายงาน',
+      department_id: requestedDepartmentId,
       image: data.image || null,
-      nrls_code: data.nrls_code || null,
+      nrls_code: hasNrls ? (classification as any).code : null,
+      nrls_name_snapshot: hasNrls ? (classification as any).nrls.name : null,
+      is_sec41: Boolean(data.is_sec41),
+      is_potential_harm: Boolean(data.is_potential_harm),
+      classification_status: hasNrls ? 'PENDING' : 'LEGACY',
+      classified_by: null,
+      classified_at: null,
+      link_key: internalSource?.linkKey ? String(internalSource.linkKey).slice(0, 100) : null,
+      note: internalSource?.note ? String(internalSource.note).slice(0, 255) : null,
+      refer_type: internalSource?.referType ? String(internalSource.referType).slice(0, 1) : null,
       register_date: new Date(),
-      created_by: user?.id || 1,
+      created_by: this.getUserId(user) || 1,
       create_date: new Date(),
       modify_date: new Date(),
     };
@@ -892,9 +1616,12 @@ export class IncidentsService {
     const newIncident = await this.prisma.riskregister.create({
       data: createData,
     });
+    if (hasNrls) {
+      await this.rcaPolicy.evaluateAndPersist(newIncident.id, this.getUserId(user) || undefined, 'INCIDENT_CREATED');
+    }
 
     // Also mirror to legacy `risk` table if possible
-    try {
+    if (createData.riskstore_id !== null) try {
       await this.prisma.risk.create({
         data: {
           date_report: createData.date_report,
@@ -930,7 +1657,7 @@ export class IncidentsService {
   }
 
   private async sendTelegramAlert(incident: any) {
-    let botApiToken = '8866061704:AAGdyH0MvzUsnzVWrSqh0V5wZLgCO4iJq6Q';
+    let botApiToken = process.env.TELEGRAM_BOT_TOKEN || '';
     let chatId = process.env.TELEGRAM_CHAT_ID || 'PUT_YOUR_CHAT_ID_HERE'; 
     let deptName = String(incident.department_id || '-');
 
@@ -952,17 +1679,22 @@ export class IncidentsService {
       }
     }
     
-    if (chatId === 'PUT_YOUR_CHAT_ID_HERE') {
-      console.warn('Telegram Chat ID is not configured. Please set TELEGRAM_CHAT_ID in .env');
+    if (!botApiToken || chatId === 'PUT_YOUR_CHAT_ID_HERE') {
+      console.warn('Telegram is not configured; notification skipped');
       return;
     }
 
+    // Only the dedicated basic-problem summary is eligible for Telegram. Never
+    // fall back to the full narrative because it can contain unexpected PHI.
+    const safeSummary = this.sanitizeTelegramSummary(incident.problem_basic || '');
     const message = `🚨 <b>แจ้งเตือนอุบัติการณ์ความเสี่ยงใหม่ (ระดับ ${incident.level_id})</b> 🚨\n\n` +
       `<b>รหัส:</b> ${incident.id}\n` +
+      `<b>NRLS:</b> ${incident.nrls_code || 'รอจัดประเภท'}\n` +
+      `<b>ประเภทเหตุการณ์:</b> ${this.sanitizeTelegramSummary(incident.nrls_name_snapshot || '') || '-'}\n` +
       `<b>ระดับ:</b> ${incident.level_id}\n` +
       `<b>วันที่เกิดเหตุ:</b> ${new Date(incident.date_report).toLocaleDateString('th-TH')}\n` +
       `<b>หน่วยงาน:</b> ${deptName}\n` +
-      `<b>รายละเอียด:</b> ${incident.detail ? incident.detail.substring(0, 200) : '-'}...\n\n` +
+      (safeSummary ? `<b>สรุปเหตุการณ์:</b> ${safeSummary}\n` : '') +
       `<i>โปรดตรวจสอบในระบบ HRMS</i>`;
 
     const url = `https://api.telegram.org/bot${botApiToken}/sendMessage`;
@@ -982,21 +1714,140 @@ export class IncidentsService {
     }
   }
 
-  async update(id: number, data: any) {
-    const updateData: any = { ...data };
-    delete updateData.riskstore_text;
-    delete updateData.risk_id;
+  private sanitizeTelegramSummary(value: string): string {
+    return String(value || '')
+      .replace(/\b(?:HN|AN|CID|เลขบัตร(?:ประชาชน)?)\s*[:#-]?\s*[A-Za-z0-9-]+/gi, '[ปกปิด]')
+      .replace(/\b\d{13}\b/g, '[ปกปิดเลขประจำตัว]')
+      .replace(/\b0\d{8,9}\b/g, '[ปกปิดเบอร์โทร]')
+      .replace(/(?:นาย|นางสาว|นาง|ด\.ช\.|ด\.ญ\.)\s*[ก-๙A-Za-z]+(?:\s+[ก-๙A-Za-z]+){0,2}/g, '[ปกปิดชื่อ]')
+      .replace(/&/g, 'และ')
+      .replace(/[<>]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 160);
+  }
+
+  async update(id: number, data: any, user?: any) {
+    const incident = await this.prisma.riskregister.findFirst({ where: { id } });
+    if (!incident) throw new NotFoundException(`ไม่พบรายงานอุบัติการณ์รหัส #${id}`);
+    const permissions = await this.getIncidentPermissions(user, incident);
+    this.assertPermission(permissions.canEdit, 'ไม่มีสิทธิ์แก้ไขรายละเอียดอุบัติการณ์นี้');
+    if (data.image !== undefined) this.assertAttachmentReferencesOwned(data.image, user, incident.image);
+    if (data.department_id !== undefined && String(data.department_id) !== String(incident.department_id)) {
+      throw new BadRequestException(
+        'หน่วยงานต้นทางของรายงานเปลี่ยนไม่ได้หลังสร้างรายการ กรุณาใช้หน่วยงานผู้รับผิดชอบ/หน่วยงานปลายทางแทน',
+      );
+    }
+
+    const editableFields = [
+      'date_report', 'time_report', 'duration_id', 'location_id', 'user_ir_type', 'user_ir',
+      'level_id', 'detail', 'detail_hosxp', 'affected', 'edit', 'problem_basic', 'inform_id',
+      'image', 'is_sec41', 'is_potential_harm',
+    ];
+    const updateData: any = {};
+    for (const field of editableFields) if (data[field] !== undefined) updateData[field] = data[field];
+    const effectiveDate = data.date_report || incident.date_report;
+    const effectiveNrlsCode = data.nrls_code !== undefined ? data.nrls_code : incident.nrls_code;
+    if (!String(effectiveNrlsCode || '').trim() && isNrlsRequired(effectiveDate)) {
+      throw new BadRequestException(`เหตุการณ์ตั้งแต่ ${NRLS_CUTOVER_DATE_THAI} ต้องเลือกรหัส NRLS`);
+    }
+    const classificationChanged = data.nrls_code !== undefined || data.riskstore_id !== undefined;
+    if (classificationChanged) {
+      this.assertPermission(
+        await this.isInWorkflowDecisionScope(user, incident),
+        'การจัดประเภท NRLS เป็นการตัดสินด้านความเสี่ยง ทำได้เฉพาะหัวหน้าหรือ RM ในขอบเขตนี้',
+      );
+      if (incident.classification_status === 'CONFIRMED') {
+        this.assertPermission(await this.isInWorkflowDecisionScope(user, incident), 'รายการที่ยืนยันแล้วแก้การจัดประเภทได้เฉพาะผู้รับผิดชอบในขอบเขตนี้');
+      }
+      const selectedRiskstoreId = data.riskstore_id !== undefined ? data.riskstore_id : incident.riskstore_id;
+      const selectedLevel = data.level_id ?? incident.level_id;
+      if (String(effectiveNrlsCode || '').trim()) {
+        const classification = await this.resolveClassification(effectiveNrlsCode, selectedRiskstoreId, selectedLevel);
+        updateData.nrls_code = classification.code;
+        updateData.nrls_name_snapshot = classification.nrls.name;
+        updateData.program_id = classification.nrls.program_id;
+        updateData.riskstore_id = classification.localId;
+        updateData.level_id = classification.level;
+        updateData.classification_status = incident.classification_status === 'CONFIRMED' ? 'NEEDS_REVIEW' : 'PENDING';
+      } else {
+        const legacy = await this.resolveLegacyClassification(selectedRiskstoreId, selectedLevel);
+        updateData.nrls_code = null;
+        updateData.nrls_name_snapshot = null;
+        updateData.program_id = legacy.local?.program_id || null;
+        updateData.riskstore_id = legacy.localId;
+        updateData.level_id = legacy.level;
+        updateData.classification_status = 'LEGACY';
+      }
+      updateData.classified_by = null;
+      updateData.classified_at = null;
+    } else if (data.level_id !== undefined && incident.nrls_code) {
+      const classification = await this.resolveClassification(incident.nrls_code, incident.riskstore_id, data.level_id);
+      updateData.level_id = classification.level;
+    }
     if (data.date_report) updateData.date_report = new Date(data.date_report);
     if (data.time_report) updateData.time_report = new Date(data.time_report);
     if (Array.isArray(data.affected)) updateData.affected = data.affected.join(', ');
-    if (data.department_id) updateData.department_id = data.department_id.toString();
 
-    await this.prisma.riskregister.updateMany({
-      where: { id },
-      data: updateData,
+    await this.prisma.$transaction(async (tx) => {
+      await tx.riskregister.updateMany({ where: { id, id_risk: incident.id_risk }, data: updateData });
+      if (classificationChanged &&
+          (String(incident.nrls_code || '') !== String(updateData.nrls_code || '') ||
+           Number(incident.riskstore_id || 0) !== Number(updateData.riskstore_id || 0))) {
+        await tx.incident_classification_audit.create({ data: {
+          incident_id: incident.id,
+          id_risk: incident.id_risk,
+          old_nrls_code: incident.nrls_code,
+          new_nrls_code: updateData.nrls_code,
+          old_riskstore_id: incident.riskstore_id,
+          new_riskstore_id: updateData.riskstore_id,
+          changed_by: this.getUserId(user),
+          reason: data.classification_reason || 'แก้ไขการจัดประเภทอุบัติการณ์',
+        } });
+      }
     });
+    const remainsLegacy = (updateData.classification_status ?? incident.classification_status) === 'LEGACY';
+    if (!remainsLegacy && (classificationChanged || data.level_id !== undefined || data.is_sec41 !== undefined || data.is_potential_harm !== undefined)) {
+      await this.rcaPolicy.evaluateAndPersist(id, this.getUserId(user) || undefined, 'INCIDENT_UPDATED');
+    }
 
-    return this.findOne(id);
+    return this.findOne(id, user);
+  }
+
+  async confirmClassification(id: number, reason?: string, user?: any) {
+    const incident = await this.prisma.riskregister.findFirst({ where: { id } });
+    if (!incident) throw new NotFoundException(`ไม่พบรายงานอุบัติการณ์รหัส #${id}`);
+    this.assertPermission(await this.isInWorkflowDecisionScope(user, incident), 'ไม่มีสิทธิ์ยืนยันการจัดประเภทอุบัติการณ์นี้');
+    if (['จำหน่าย', 'ไม่ใช่ความเสี่ยง'].includes(String(incident.status_risk || ''))) {
+      throw new BadRequestException('ไม่สามารถยืนยันหรือเปลี่ยนการจัดประเภทของเคสที่สิ้นสุด Workflow แล้ว');
+    }
+    if (!incident.nrls_code || incident.classification_status === 'LEGACY') {
+      throw new BadRequestException(`ข้อมูลเดิมก่อน ${NRLS_CUTOVER_DATE_THAI} ที่ไม่มี NRLS ไม่ต้องยืนยันย้อนหลัง`);
+    }
+    const classification = await this.resolveClassification(incident.nrls_code || '', incident.riskstore_id, incident.level_id);
+    const userId = this.getUserId(user);
+    await this.prisma.riskregister.updateMany({
+      where: { id, id_risk: incident.id_risk },
+      data: {
+        nrls_code: classification.code,
+        nrls_name_snapshot: classification.nrls.name,
+        program_id: classification.nrls.program_id,
+        riskstore_id: classification.localId,
+        level_id: classification.level,
+        classification_status: 'CONFIRMED',
+        classified_by: userId,
+        classified_at: new Date(),
+        modify_date: new Date(),
+      },
+    });
+    await this.prisma.incident_classification_audit.create({ data: {
+      incident_id: incident.id, id_risk: incident.id_risk,
+      old_nrls_code: incident.nrls_code, new_nrls_code: classification.code,
+      old_riskstore_id: incident.riskstore_id, new_riskstore_id: classification.localId,
+      changed_by: userId, reason: reason || 'ยืนยันการจัดประเภท NRLS',
+    } });
+    await this.rcaPolicy.evaluateAndPersist(id, userId || undefined, 'CLASSIFICATION_CONFIRMED');
+    return this.findOne(id, user);
   }
 
   async updateStatus(
@@ -1008,21 +1859,132 @@ export class IncidentsService {
     sendto_department_id?: string,
     user_ir_type?: string
   ) {
-    console.log('DEBUG SERVICE ARGS:', { id, newStatus, user_id: user?.id, note, department_id, sendto_department_id, user_ir_type });
     const validStatuses = ['รายงาน', 'แก้ไข', 'ตรวจสอบ', 'ทบทวน', 'จำหน่าย', 'ไม่ใช่ความเสี่ยง'];
     if (!validStatuses.includes(newStatus)) {
-      throw new Error(`Invalid status: ${newStatus}`);
+      throw new BadRequestException(`สถานะไม่ถูกต้อง: ${newStatus}`);
+    }
+
+    const incident = await this.prisma.riskregister.findFirst({ where: { id } });
+    if (!incident) throw new NotFoundException(`ไม่พบรายงานอุบัติการณ์รหัส #${id}`);
+
+    const permissions = await this.getIncidentPermissions(user, incident);
+    const permissionByTarget: Record<string, boolean> = {
+      'รายงาน': false,
+      'แก้ไข': permissions.canConfirm,
+      'ตรวจสอบ': permissions.canConfirm,
+      'ทบทวน': permissions.canReview,
+      'จำหน่าย': permissions.canClose,
+      'ไม่ใช่ความเสี่ยง': permissions.canReject,
+    };
+    this.assertPermission(permissionByTarget[newStatus], 'ไม่มีสิทธิ์เปลี่ยนเป็นสถานะที่ร้องขอ');
+
+    if (['จำหน่าย', 'ไม่ใช่ความเสี่ยง'].includes(newStatus) && String(note || '').trim().length < 10) {
+      throw new BadRequestException('กรุณาระบุเหตุผลอย่างน้อย 10 ตัวอักษรก่อนปิดเคสหรือระบุว่าไม่ใช่ความเสี่ยง');
+    }
+
+    const currentStatus = incident.status_risk || 'รายงาน';
+    if (newStatus !== currentStatus
+      && ['แก้ไข', 'ตรวจสอบ', 'ทบทวน'].includes(newStatus)
+      && String(note || '').trim().length < 10) {
+      throw new BadRequestException('กรุณาระบุเหตุผลหรือผลการดำเนินงานอย่างน้อย 10 ตัวอักษรก่อนเปลี่ยนสถานะ');
+    }
+
+    if (newStatus === 'ตรวจสอบ'
+      && isNrlsRequired(incident.date_report)
+      && incident.classification_status !== 'CONFIRMED') {
+      throw new BadRequestException('ต้องยืนยันการจัดประเภท NRLS ก่อนยืนยันอุบัติการณ์เข้าสู่ขั้นตอนตรวจสอบ');
+    }
+
+    if (
+      department_id !== undefined
+      && department_id !== null
+      && department_id !== ''
+      && String(department_id) !== String(incident.department_id)
+    ) {
+      throw new BadRequestException(
+        'หน่วยงานต้นทางของรายงานเปลี่ยนไม่ได้ในขั้นตอน Workflow กรุณากำหนดหน่วยงานผู้รับผิดชอบแทน',
+      );
+    }
+
+    if (newStatus === 'จำหน่าย') {
+      const completedReviews = await this.prisma.riskreview.count({
+        where: {
+          riskregister_id: incident.id,
+          status_risk: 'ทบทวน',
+          notereview: { not: '' },
+        },
+      });
+      if (completedReviews < 1) {
+        throw new BadRequestException('ไม่สามารถจำหน่ายอุบัติการณ์ได้: ต้องบันทึกผลการทบทวนอย่างน้อย 1 ครั้งก่อน');
+      }
+
+      const severity = String(incident.level_id || '').trim().toUpperCase();
+      const isLowSeverity = ['A', 'B', '1'].includes(severity);
+      if (!isLowSeverity && !this.isRmCommittee(user)) {
+        throw new ForbiddenException('อุบัติการณ์ระดับ C–I หรือ 2–5 ต้องให้คณะกรรมการ RM เป็นผู้จำหน่ายเคส');
+      }
+    }
+
+    if (newStatus === 'จำหน่าย' && incident.rca_required) {
+      const mini = await this.prisma.rca_case.findFirst({
+        where: { incident_id: incident.id, status: 'COMPLETED', completed_at: { not: null } },
+      });
+      const standard = await this.prisma.standard_rca_case.findFirst({
+        where: { incident_id: incident.id, status: 'COMPLETED', completed_at: { not: null } },
+      });
+      if (!mini && !standard) {
+        throw new BadRequestException('ไม่สามารถจำหน่ายอุบัติการณ์ได้: ต้องทำ RCA ให้เสร็จและระบุวันที่เสร็จสิ้นก่อน');
+      }
+    }
+    const allowedTransitions: Record<string, string[]> = {
+      'รายงาน': ['แก้ไข', 'ตรวจสอบ', 'ไม่ใช่ความเสี่ยง'],
+      'แก้ไข': ['ตรวจสอบ', 'ไม่ใช่ความเสี่ยง'],
+      'ตรวจสอบ': ['แก้ไข', 'ทบทวน', 'ไม่ใช่ความเสี่ยง'],
+      'ทบทวน': ['ทบทวน', 'จำหน่าย', 'ไม่ใช่ความเสี่ยง'],
+      'จำหน่าย': [],
+      'ไม่ใช่ความเสี่ยง': [],
+    };
+    if (newStatus !== currentStatus && !(allowedTransitions[currentStatus] || []).includes(newStatus)) {
+      throw new BadRequestException(`ไม่สามารถเปลี่ยนสถานะจาก "${currentStatus}" เป็น "${newStatus}" ได้`);
+    }
+
+    const isReassigning = (
+      sendto_department_id !== undefined
+      && String(sendto_department_id || '') !== String(incident.sendto_department_id || '')
+    );
+    if (isReassigning) {
+      this.assertPermission(permissions.canAssignDepartment, 'ไม่มีสิทธิ์เปลี่ยนหน่วยงานรับผิดชอบหรือหน่วยงานปลายทาง');
+      if (this.isAdmin(user)) {
+        const adminDepartmentIds = this.getUserDepartmentIds(user);
+        this.assertPermission(
+          adminDepartmentIds.includes(String(sendto_department_id || incident.department_id || '')),
+          'Admin กำหนดหน่วยงานรับผิดชอบในขั้นตอนยืนยันได้เฉพาะหน่วยงานของตนเอง',
+        );
+      } else {
+        const permissionsAfterMove = await this.getIncidentPermissions(user, {
+          ...incident,
+          status_risk: newStatus,
+          sendto_department_id: sendto_department_id === undefined
+            ? incident.sendto_department_id
+            : (sendto_department_id || null),
+        });
+        this.assertPermission(permissionsAfterMove.canView, 'ไม่สามารถย้ายอุบัติการณ์ออกนอกขอบเขตที่คุณรับผิดชอบได้');
+      }
+    }
+
+    if (sendto_department_id) {
+      const destination = await this.prisma.department.findUnique({
+        where: { id: Number(sendto_department_id) },
+        select: { id: true },
+      });
+      if (!destination) throw new BadRequestException('ไม่พบหน่วยงานผู้รับผิดชอบที่เลือก');
     }
 
     const updateData: any = {
       status_risk: newStatus,
       modify_date: new Date(),
-      updated_by: user?.id || 1,
+      updated_by: this.getUserId(user) || 1,
     };
-
-    if (department_id !== undefined && department_id !== null && department_id !== '') {
-      updateData.department_id = String(department_id);
-    }
 
     if (sendto_department_id !== undefined) {
       updateData.sendto_department_id = sendto_department_id ? String(sendto_department_id) : null;
@@ -1034,67 +1996,332 @@ export class IncidentsService {
 
     if (newStatus === 'ตรวจสอบ') {
       updateData.send_date = new Date();
-      updateData.send_use = user?.name || 'หัวหน้างาน/ผู้ดูแลระบบ';
+      updateData.send_use = user?.name || 'หัวหน้างาน/คณะกรรมการ RM';
+      // An incident always has one accountable owner. If no destination was
+      // explicitly selected, the reporting department owns the first review.
+      updateData.sendto_department_id = String(
+        sendto_department_id || incident.sendto_department_id || incident.department_id,
+      );
     }
 
-    await this.prisma.riskregister.updateMany({
-      where: { id },
-      data: updateData,
+    if (newStatus === 'จำหน่าย') {
+      const capaActions = await (this.prisma as any).capa_action.findMany({
+        where: { incident_id: incident.id, incident_id_risk: incident.id_risk },
+        select: { status: true },
+      });
+      const statuses = capaActions.map((action: any) => String(action.status || '').toUpperCase());
+      const activeCount = statuses.filter((status: string) => !['CLOSED', 'CANCELLED'].includes(status)).length;
+      const closedCount = statuses.filter((status: string) => status === 'CLOSED').length;
+      updateData.operational_closed_at = new Date();
+      updateData.improvement_status = statuses.length === 0 || (activeCount === 0 && closedCount === 0)
+        ? 'NOT_REQUIRED'
+        : activeCount === 0
+          ? 'CLOSED'
+          : 'MONITORING';
+      updateData.effectiveness_closed_at = updateData.improvement_status === 'CLOSED' ? new Date() : null;
+    } else if (newStatus === 'ไม่ใช่ความเสี่ยง') {
+      updateData.operational_closed_at = new Date();
+      updateData.improvement_status = 'NOT_REQUIRED';
+      updateData.effectiveness_closed_at = null;
+    }
+
+    const actorId = this.getUserId(user);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.riskregister.updateMany({
+        where: { id, id_risk: incident.id_risk },
+        data: updateData,
+      });
+      await tx.workflow_audit.create({
+        data: {
+          entity_type: 'INCIDENT',
+          entity_id: String(id),
+          action: 'STATUS_TRANSITION',
+          old_value: JSON.stringify({
+            status_risk: currentStatus,
+            sendto_department_id: incident.sendto_department_id,
+          }),
+          new_value: JSON.stringify({
+            status_risk: newStatus,
+            sendto_department_id: updateData.sendto_department_id ?? incident.sendto_department_id,
+          }),
+          reason: String(note || '').trim() || null,
+          changed_by: actorId,
+        },
+      });
+
+      if (newStatus === 'ตรวจสอบ') {
+        const level = String(incident.level_id || '').trim().toUpperCase();
+        const severityGroup = ['G', 'H', 'I', '4', '5'].includes(level)
+          ? 'CRITICAL'
+          : ['E', 'F', '3'].includes(level)
+            ? 'HIGH'
+            : ['C', 'D', '2'].includes(level)
+              ? 'MEDIUM'
+              : 'LOW';
+        const policy = await (tx as any).sla_policy.findUnique({
+          where: {
+            workflow_stage_severity_group: {
+              workflow_stage: 'REVIEW_OWNER',
+              severity_group: severityGroup,
+            },
+          },
+        });
+        const startedAt = new Date();
+        const dueAt = new Date(startedAt.getTime() + Number(policy?.duration_hours || 336) * 3600000);
+        await (tx as any).sla_instance.upsert({
+          where: {
+            entity_type_entity_id_workflow_stage: {
+              entity_type: 'INCIDENT',
+              entity_id: String(id),
+              workflow_stage: 'REVIEW_OWNER',
+            },
+          },
+          create: {
+            policy_id: policy?.id || null,
+            entity_type: 'INCIDENT',
+            entity_id: String(id),
+            workflow_stage: 'REVIEW_OWNER',
+            severity: incident.level_id,
+            owner_department_id: updateData.sendto_department_id || incident.sendto_department_id || incident.department_id,
+            started_at: startedAt,
+            due_at: dueAt,
+          },
+          update: {
+            policy_id: policy?.id || null,
+            severity: incident.level_id,
+            owner_department_id: updateData.sendto_department_id || incident.sendto_department_id || incident.department_id,
+            started_at: startedAt,
+            due_at: dueAt,
+            status: 'ACTIVE',
+            breached_at: null,
+            completed_at: null,
+            escalation_level: 0,
+            last_escalated_at: null,
+          },
+        });
+      }
+
+      // Keep the human-readable timeline in addition to the immutable workflow audit.
+      if (note && note.trim() !== '') {
+        await tx.riskreview.create({
+          data: {
+            riskregister_id: id,
+            risk_id: incident?.id_risk || id,
+            riskvisit: `REV-${Date.now().toString().slice(-10)}`,
+            review_date: new Date(),
+            notereview: note,
+            reviewresults_id: newStatus === 'จำหน่าย' ? 2 : 1,
+            status_risk: newStatus,
+            created_by: actorId || 1,
+            create_date: new Date(),
+            modify_date: new Date(),
+            count: 1,
+          },
+        });
+      }
     });
 
-    // If a note was provided, log it into riskreview
-    if (note && note.trim() !== '') {
-      const incident = await this.prisma.riskregister.findFirst({ where: { id } });
-      await this.prisma.riskreview.create({
+    return this.findOne(id, user);
+  }
+
+  async addReview(id: number, reviewDto: CreateIncidentReviewDto, user?: any) {
+    const incident = await this.prisma.riskregister.findFirst({ where: { id } });
+    if (!incident) throw new NotFoundException('Incident not found');
+    const permissions = await this.getIncidentPermissions(user, incident);
+    const requestedRole = String(reviewDto.review_role || '').toUpperCase();
+    const reviewRole = this.isRmCommittee(user)
+      ? 'RM'
+      : permissions.canReview
+        ? 'OWNER'
+        : 'CO_REVIEW';
+    if (requestedRole && requestedRole !== reviewRole) {
+      throw new ForbiddenException(`ไม่สามารถเปลี่ยนบทบาทผู้ทบทวนเป็น ${requestedRole} ได้ ระบบกำหนดบทบาทจากสิทธิ์เป็น ${reviewRole}`);
+    }
+    const allowedByRole: Record<string, boolean> = {
+      OWNER: permissions.canReview,
+      CO_REVIEW: permissions.canTeamReview,
+      RM: this.isRmCommittee(user) && await this.isInManagementScope(user, incident),
+    };
+    this.assertPermission(Boolean(allowedByRole[reviewRole]), `ไม่มีสิทธิ์บันทึกผลทบทวนในบทบาท ${reviewRole}`);
+
+    const note = String(reviewDto.findings || reviewDto.notereview || '').trim();
+    if (note.length < 10) throw new BadRequestException('กรุณาระบุรายละเอียดการทบทวนหรือมาตรการอย่างน้อย 10 ตัวอักษร');
+    const learningAction = reviewDto.learning_action
+      ? String(reviewDto.learning_action).toUpperCase()
+      : null;
+    if (learningAction && !['NO_NEW_MEASURE', 'SEND_RCA', 'REQUEST_CO_REVIEW'].includes(learningAction)) {
+      throw new BadRequestException('รูปแบบการเรียนรู้และปรับปรุงไม่ถูกต้อง');
+    }
+    const serializedContributingFactors = serializeContributingFactors(reviewDto.contributing_factors);
+    if (reviewDto.learning_action && !serializedContributingFactors) {
+      throw new BadRequestException('กรุณาเลือก Contributing Factor ตามมาตรฐาน NRLS อย่างน้อย 1 รายการ');
+    }
+
+    let coReviewDepartmentId: string | null = null;
+    if (learningAction === 'REQUEST_CO_REVIEW') {
+      this.assertPermission(permissions.canForward, 'ไม่มีสิทธิ์ส่งให้หน่วยงานอื่นทบทวนเพิ่มเติม');
+      coReviewDepartmentId = String(reviewDto.co_review_department_id || '').trim();
+      if (!coReviewDepartmentId) throw new BadRequestException('กรุณาเลือกหน่วยงานที่ต้องการส่งทบทวนเพิ่มเติม');
+      if (coReviewDepartmentId === String(incident.department_id || '')) {
+        throw new BadRequestException('กรุณาเลือกหน่วยงานอื่นที่ไม่ใช่หน่วยงานต้นทาง');
+      }
+      const destination = await this.prisma.department.findUnique({
+        where: { id: Number(coReviewDepartmentId) },
+        select: { id: true },
+      });
+      if (!destination) throw new BadRequestException('ไม่พบหน่วยงานที่เลือกสำหรับทบทวนเพิ่มเติม');
+    }
+    if (learningAction === 'SEND_RCA') {
+      this.assertPermission(permissions.canForward, 'ไม่มีสิทธิ์ส่งเรื่องเข้าศูนย์ RCA');
+      if (!incident.nrls_code) throw new BadRequestException('ต้องยืนยันรหัสมาตรฐาน NRLS ก่อนส่งเรื่องเข้าศูนย์ RCA');
+    }
+    const decision = String(reviewDto.decision || 'SUBMIT').toUpperCase();
+    if (reviewRole !== 'RM' && decision !== 'SUBMIT') {
+      throw new ForbiddenException('เฉพาะ RM เท่านั้นที่บันทึกผล ACCEPT หรือ RETURN ได้');
+    }
+    if (decision === 'RETURN' && String(reviewDto.returned_reason || '').trim().length < 10) {
+      throw new BadRequestException('กรุณาระบุเหตุผลส่งกลับอย่างน้อย 10 ตัวอักษร');
+    }
+    const reviewStatus = decision === 'ACCEPT' ? 'ACCEPTED' : decision === 'RETURN' ? 'RETURNED' : 'SUBMITTED';
+
+    const actorId = this.getUserId(user);
+    let queuedRcaCaseId: string | null = null;
+    const createdReview = await this.prisma.$transaction(async (tx) => {
+      const review = await tx.riskreview.create({
         data: {
           riskregister_id: id,
-          risk_id: incident?.id_risk || id,
+          risk_id: incident.id_risk,
           riskvisit: `REV-${Date.now().toString().slice(-10)}`,
-          review_date: new Date(),
+          review_date: new Date(reviewDto.review_date || new Date()),
           notereview: note,
-          reviewresults_id: newStatus === 'จำหน่าย' ? 2 : 1,
-          status_risk: newStatus,
-          created_by: user?.id || 1,
+          cause_problem: reviewDto.cause_problem || null,
+          contributing_factors: serializedContributingFactors,
+          reviewresults_id: reviewDto.reviewresults_id ? Number(reviewDto.reviewresults_id) : 1,
+          status_risk: 'ทบทวน',
+          created_by: actorId || 1,
           create_date: new Date(),
           modify_date: new Date(),
           count: 1,
-        }
+        },
       });
-    }
 
-    return this.findOne(id);
-  }
+      const structured = await (tx as any).incident_review_entry.create({
+        data: {
+          incident_id: incident.id,
+          incident_id_risk: incident.id_risk,
+          review_role: reviewRole,
+          review_status: reviewStatus,
+          reviewer_user_id: actorId,
+          reviewer_member_cid: user?.cid || null,
+          reviewer_department_id: user?.departmentId ? String(user.departmentId) : null,
+          reviewer_team_id: user?.teamId ? Number(user.teamId) : null,
+          findings: note,
+          recommendation: reviewDto.recommendation?.trim() || null,
+          decision,
+          returned_reason: reviewDto.returned_reason?.trim() || null,
+          submitted_at: new Date(reviewDto.review_date || new Date()),
+          accepted_at: decision === 'ACCEPT' ? new Date() : null,
+          accepted_by: decision === 'ACCEPT' ? actorId : null,
+        },
+      });
 
-  async addReview(id: number, reviewDto: any, user?: any) {
-    const incident = await this.prisma.riskregister.findFirst({ where: { id } });
-    if (!incident) throw new NotFoundException('Incident not found');
-
-    const createdReview = await this.prisma.riskreview.create({
-      data: {
-        riskregister_id: id,
-        risk_id: incident.id_risk,
-        riskvisit: `REV-${Date.now().toString().slice(-10)}`,
-        review_date: new Date(reviewDto.review_date || new Date()),
-        notereview: reviewDto.notereview || reviewDto.note || 'บันทึกการทบทวนเหตุการณ์',
-        cause_problem: reviewDto.cause_problem || null,
-        reviewresults_id: reviewDto.reviewresults_id ? Number(reviewDto.reviewresults_id) : 1,
+      const incidentUpdateData: any = {
         status_risk: 'ทบทวน',
-        created_by: user?.id || 1,
-        create_date: new Date(),
         modify_date: new Date(),
-        count: 1,
-      }
-    });
+        updated_by: actorId || 1,
+      };
 
-    // Update riskregister status: if currently 'รายงาน' (Pending), auto-confirm to 'ตรวจสอบ'
-    const targetStatus = (incident.status_risk === 'รายงาน' || incident.status_risk === 'แก้ไข') ? 'ตรวจสอบ' : (incident.status_risk || 'ทบทวน');
-    await this.prisma.riskregister.updateMany({
-      where: { id },
-      data: {
-        status_risk: targetStatus,
-        modify_date: new Date(),
-        updated_by: user?.id || 1,
+      if (learningAction === 'REQUEST_CO_REVIEW' && coReviewDepartmentId) {
+        incidentUpdateData.sendto_department_id = coReviewDepartmentId;
+        incidentUpdateData.refer_type = '1';
+        incidentUpdateData.send_date = new Date();
+        incidentUpdateData.send_use = user?.name || 'ผู้ทบทวนความเสี่ยง';
+        incidentUpdateData.note = note;
       }
+
+      if (learningAction === 'SEND_RCA') {
+        const existingRca = await tx.standard_rca_case.findFirst({
+          where: { incident_id: incident.id },
+          select: { id: true, status: true, completed_at: true },
+        });
+        queuedRcaCaseId = existingRca?.id
+          || `RCA-FULL-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${incident.id}`;
+
+        if (!existingRca) {
+          await tx.standard_rca_case.create({
+            data: {
+              id: queuedRcaCaseId,
+              rm_no: String(incident.id_risk || incident.id),
+              incident_id: incident.id,
+              incident_id_risk: incident.id_risk,
+              topic: String(incident.nrls_name_snapshot || incident.detail || `อุบัติการณ์ #${incident.id}`).slice(0, 255),
+              incident_date: incident.date_report,
+              rca_team: 'รอศูนย์ RCA รับเรื่อง',
+              severity: incident.level_id,
+              nrls_code: incident.nrls_code,
+              nrls_name_snapshot: incident.nrls_name_snapshot,
+              program_id: incident.program_id,
+              department_id: incident.department_id,
+              due_at: incident.rca_due_at,
+              what_happened: incident.detail,
+              actual_impact: incident.problem_basic,
+              contributing_factors: serializedContributingFactors,
+              status: 'PENDING',
+              created_by: actorId || 1,
+            },
+          });
+        }
+
+        incidentUpdateData.rca_required = true;
+        incidentUpdateData.rca_status = existingRca?.status === 'COMPLETED' && existingRca.completed_at
+          ? 'COMPLETED'
+          : 'REQUIRED';
+        incidentUpdateData.rca_case_id = queuedRcaCaseId;
+        incidentUpdateData.recommended_rca_type = 'FULL';
+      }
+
+      await tx.riskregister.updateMany({
+        where: { id, id_risk: incident.id_risk },
+        data: incidentUpdateData,
+      });
+      await tx.workflow_audit.create({
+        data: {
+          entity_type: 'INCIDENT',
+          entity_id: String(id),
+          action: 'REVIEW_RECORDED',
+          old_value: JSON.stringify({ status_risk: incident.status_risk || 'ตรวจสอบ' }),
+          new_value: JSON.stringify({
+            status_risk: 'ทบทวน',
+            review_id: review.id,
+            structured_review_id: structured.id,
+            review_role: reviewRole,
+            review_status: reviewStatus,
+            learning_action: learningAction,
+            rca_case_id: queuedRcaCaseId,
+            co_review_department_id: coReviewDepartmentId,
+          }),
+          reason: note,
+          changed_by: actorId,
+        },
+      });
+      if (reviewRole === 'OWNER') {
+        await (tx as any).sla_instance.updateMany({
+          where: {
+            entity_type: 'INCIDENT',
+            entity_id: String(id),
+            workflow_stage: 'REVIEW_OWNER',
+            status: 'ACTIVE',
+          },
+          data: { status: 'COMPLETED', completed_at: new Date(), updated_at: new Date() },
+        });
+      }
+      return {
+        ...review,
+        structured_review: structured,
+        learning_action: learningAction,
+        rca_case_id: queuedRcaCaseId,
+        co_review_department_id: coReviewDepartmentId,
+      };
     });
 
     return createdReview;
@@ -1103,31 +2330,43 @@ export class IncidentsService {
   async forwardIncident(id: number, forwardDto: { sendto_team_id?: number; sendto_department_id?: string; refer_type?: string; note?: string }, user?: any) {
     const incident = await this.prisma.riskregister.findFirst({ where: { id } });
     if (!incident) throw new NotFoundException('Incident not found');
+    const permissions = await this.getIncidentPermissions(user, incident);
+    this.assertPermission(permissions.canForward, 'ไม่มีสิทธิ์ส่งต่ออุบัติการณ์นี้');
+    if (!forwardDto.sendto_team_id && !forwardDto.sendto_department_id) {
+      throw new BadRequestException('กรุณาเลือกทีมนำหรือหน่วยงานปลายทาง');
+    }
+    if (forwardDto.sendto_team_id && incident.status_risk !== 'ทบทวน') {
+      throw new BadRequestException('ต้องบันทึกผลการทบทวนของหน่วยงานให้เหตุการณ์อยู่สถานะ “ทบทวน” ก่อนส่งให้ทีมนำ');
+    }
 
     const referType = forwardDto.refer_type || (forwardDto.sendto_team_id ? '2' : '1');
     const updateData: any = {
       sendto_team_id: forwardDto.sendto_team_id ? Number(forwardDto.sendto_team_id) : null,
       sendto_department_id: forwardDto.sendto_department_id ? forwardDto.sendto_department_id.toString() : null,
+      team_review_status: forwardDto.sendto_team_id ? 'PENDING' : null,
+      team_review_started_at: null,
+      team_review_completed_at: null,
+      team_reviewed_by: null,
       refer_type: referType,
       send_date: new Date(),
       send_use: user?.name || 'ผู้ประสานงานความเสี่ยง',
       note: forwardDto.note || null,
       modify_date: new Date(),
-      updated_by: user?.id || 1,
+      updated_by: this.getUserId(user) || 1,
     };
 
     await this.prisma.riskregister.updateMany({
-      where: { id },
+      where: { id, id_risk: incident.id_risk },
       data: updateData,
     });
 
     // Determine destination target name for audit log
     let targetName = 'ทีมนำ / หน่วยงานที่เกี่ยวข้อง';
     if (forwardDto.sendto_team_id) {
-      const prog = await this.prisma.program.findUnique({
-        where: { program_id: Number(forwardDto.sendto_team_id) }
+      const team = await this.prisma.team.findUnique({
+        where: { id: Number(forwardDto.sendto_team_id) }
       });
-      if (prog) targetName = `ทีมนำ: ${prog.program_name}`;
+      if (team) targetName = `ทีมนำ: ${team.team_name}`;
     } else if (forwardDto.sendto_department_id) {
       const dept = await this.prisma.department.findUnique({
         where: { id: Number(forwardDto.sendto_department_id) }
@@ -1146,17 +2385,17 @@ export class IncidentsService {
         cause_problem: 'ประสานงานส่งต่อร่วมทบทวน',
         reviewresults_id: 1,
         status_risk: incident.status_risk || 'ตรวจสอบ',
-        created_by: user?.id || 1,
+        created_by: this.getUserId(user) || 1,
         create_date: new Date(),
         modify_date: new Date(),
         count: 1,
       }
     });
 
-    return this.findOne(id);
+    return this.findOne(id, user);
   }
 
-  async getRiskMatrixStats(query?: any) {
+  async getRiskMatrixStats(query?: any, user?: any) {
     // Only calculate for confirmed incidents: ตรวจสอบ, ทบทวน, จำหน่าย
     const where: any = {
       status_risk: { in: ['ตรวจสอบ', 'ทบทวน', 'จำหน่าย'] }
@@ -1175,7 +2414,7 @@ export class IncidentsService {
     }
 
     const incidents = await this.prisma.riskregister.findMany({
-      where,
+      where: await this.scopeIncidentWhere(where, user),
       select: {
         id: true,
         id_risk: true,
@@ -1244,7 +2483,7 @@ export class IncidentsService {
     };
   }
 
-  async getReportAnalytics(query?: any) {
+  async getReportAnalytics(query?: any, user?: any) {
     const where: any = {};
     if (query?.department_id) where.department_id = query.department_id.toString();
     if (query?.startDate || query?.endDate) {
@@ -1253,20 +2492,21 @@ export class IncidentsService {
       if (query.endDate) where.date_report.lte = new Date(query.endDate);
     }
 
-    const [byStatusRaw, byLevelRaw, allIncidents, departments, programs] = await Promise.all([
-      this.prisma.$queryRaw`
-        SELECT status_risk, COUNT(*) as count 
-        FROM riskregister 
-        GROUP BY status_risk
-      `,
-      this.prisma.$queryRaw`
-        SELECT level_id, COUNT(*) as count 
-        FROM riskregister 
-        GROUP BY level_id 
-        ORDER BY count DESC
-      `,
+    const scopedWhere = await this.scopeIncidentWhere(where, user);
+    const [byStatusGroups, byLevelGroups, allIncidents, departments, programs] = await Promise.all([
+      this.prisma.riskregister.groupBy({
+        by: ['status_risk'],
+        where: scopedWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.riskregister.groupBy({
+        by: ['level_id'],
+        where: scopedWhere,
+        _count: { _all: true },
+        orderBy: { _count: { level_id: 'desc' } },
+      }),
       this.prisma.riskregister.findMany({
-        where,
+        where: scopedWhere,
         select: {
           id: true,
           date_report: true,
@@ -1275,7 +2515,6 @@ export class IncidentsService {
           department_id: true,
           user_ir_type: true,
         },
-        take: 500,
         orderBy: { id: 'desc' }
       }),
       this.prisma.department.findMany({ select: { id: true, depart_name: true } }),
@@ -1284,6 +2523,14 @@ export class IncidentsService {
 
     const deptMap = new Map(departments.map(d => [d.id.toString(), d.depart_name]));
     const progMap = new Map(programs.map(p => [p.program_id, p.program_name]));
+    const byStatusRaw = byStatusGroups.map((item: any) => ({
+      status_risk: item.status_risk,
+      count: item._count._all,
+    }));
+    const byLevelRaw = byLevelGroups.map((item: any) => ({
+      level_id: item.level_id,
+      count: item._count._all,
+    }));
 
     // Program Distribution
     const programCounts: Record<string, number> = {};
@@ -1310,7 +2557,7 @@ export class IncidentsService {
     };
   }
 
-  async getRiskRegister(query?: any) {
+  async getRiskRegister(query?: any, user?: any) {
     const where: any = {};
     if (query?.department_id) where.department_id = query.department_id.toString();
     if (query?.startDate || query?.endDate) {
@@ -1320,7 +2567,7 @@ export class IncidentsService {
     }
 
     const incidents = await this.prisma.riskregister.findMany({
-      where,
+      where: await this.scopeIncidentWhere(where, user),
       select: {
         id: true,
         id_risk: true,
@@ -1640,11 +2887,93 @@ export class IncidentsService {
     };
   }
 
-  async remove(id: number) {
-    await this.prisma.riskregister.deleteMany({
-      where: { id },
+  async remove(
+    id: number,
+    deletion: { duplicate_of_incident_id: number; reason: string },
+    user?: any,
+  ) {
+    this.assertPermission(this.isAdmin(user), 'เฉพาะผู้ดูแลระบบเท่านั้นที่ทำ Safe Delete ได้');
+    const reason = String(deletion?.reason || '').trim();
+    if (reason.length < 10) throw new BadRequestException('กรุณาระบุเหตุผลการลบอย่างน้อย 10 ตัวอักษร');
+
+    const duplicateOfId = Number(deletion?.duplicate_of_incident_id);
+    if (!Number.isInteger(duplicateOfId) || duplicateOfId <= 0 || duplicateOfId === id) {
+      throw new BadRequestException('กรุณาระบุรหัสรายการต้นฉบับที่ซ้ำให้ถูกต้อง');
+    }
+
+    const [incident, original] = await Promise.all([
+      this.prisma.riskregister.findFirst({ where: { id } }),
+      this.prisma.riskregister.findFirst({ where: { id: duplicateOfId } }),
+    ]);
+    if (!incident) throw new NotFoundException(`ไม่พบรายงานอุบัติการณ์รหัส #${id}`);
+    if (!original) throw new NotFoundException(`ไม่พบรายการต้นฉบับที่อ้างว่าเป็นรายการซ้ำ #${duplicateOfId}`);
+
+    if (!['ตรวจสอบ', 'ทบทวน'].includes(String(incident.status_risk || ''))) {
+      throw new BadRequestException('Safe Delete ทำได้เฉพาะรายการที่ยืนยันแล้วและอยู่ระหว่างรอตรวจสอบ/ทบทวน');
+    }
+
+    const confirmedAt = incident.classified_at || incident.send_date;
+    const now = new Date();
+    if (!confirmedAt
+      || confirmedAt.getFullYear() !== now.getFullYear()
+      || confirmedAt.getMonth() !== now.getMonth()) {
+      throw new BadRequestException('ลบได้เฉพาะรายการที่ยืนยันภายในเดือนปัจจุบัน ตามนโยบาย Safe Delete');
+    }
+
+    const sameEventDate = new Date(incident.date_report).toISOString().slice(0, 10)
+      === new Date(original.date_report).toISOString().slice(0, 10);
+    const sameDepartment = String(incident.department_id) === String(original.department_id);
+    const sameClassification = incident.nrls_code && original.nrls_code
+      ? String(incident.nrls_code) === String(original.nrls_code)
+      : Boolean(incident.riskstore_id && original.riskstore_id
+        && Number(incident.riskstore_id) === Number(original.riskstore_id));
+    if (!sameEventDate || !sameDepartment || !sameClassification) {
+      throw new BadRequestException(
+        'ข้อมูลไม่ตรงกับรายการต้นฉบับ: วันเกิดเหตุ หน่วยงานต้นทาง และประเภทความเสี่ยงต้องตรงกันก่อนลบรายการซ้ำ',
+      );
+    }
+
+    const [reviewCount, miniRcaCount, standardRcaCount, capaCount] = await Promise.all([
+      this.prisma.riskreview.count({ where: { riskregister_id: id, status_risk: 'ทบทวน' } }),
+      this.prisma.rca_case.count({ where: { incident_id: id } }),
+      this.prisma.standard_rca_case.count({ where: { incident_id: id } }),
+      this.prisma.capa_action.count({ where: { incident_id: id } }),
+    ]);
+    if (reviewCount + miniRcaCount + standardRcaCount + capaCount > 0) {
+      throw new BadRequestException('รายการนี้มีผลทบทวน, RCA หรือ CAPA แล้ว จึงห้ามลบและต้องใช้การแก้ไขข้อมูลแทน');
+    }
+
+    const actorId = this.getUserId(user);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.workflow_audit.create({
+        data: {
+          entity_type: 'INCIDENT',
+          entity_id: String(id),
+          action: 'SAFE_DELETE_DUPLICATE',
+          old_value: JSON.stringify({
+            id: incident.id,
+            id_risk: incident.id_risk,
+            date_report: incident.date_report,
+            department_id: incident.department_id,
+            sendto_department_id: incident.sendto_department_id,
+            nrls_code: incident.nrls_code,
+            riskstore_id: incident.riskstore_id,
+            level_id: incident.level_id,
+            status_risk: incident.status_risk,
+          }),
+          new_value: JSON.stringify({ duplicate_of_incident_id: duplicateOfId }),
+          reason,
+          changed_by: actorId,
+        },
+      });
+      await tx.riskreview.deleteMany({ where: { riskregister_id: id } });
+      await tx.incident_classification_audit.deleteMany({ where: { incident_id: id } });
+      await tx.riskregister.deleteMany({ where: { id } });
     });
-    return { success: true, message: `ลบรายงาน #${id} สำเร็จ` };
+    return {
+      success: true,
+      message: `ลบรายการซ้ำ #${id} สำเร็จ โดยเก็บ Audit อ้างอิงรายการต้นฉบับ #${duplicateOfId}`,
+    };
   }
 
   async getIndividualMonthlyStats(query?: {
@@ -1652,7 +2981,7 @@ export class IncidentsService {
     department_id?: number;
     year?: number;
     year_type?: string;
-  }) {
+  }, user?: any) {
     const currentYear = new Date().getFullYear();
     const targetYear = query?.year || currentYear;
     const yearType = query?.year_type || 'calendar';
@@ -1662,6 +2991,14 @@ export class IncidentsService {
       deptWhere.id = Number(query.department_id);
     } else if (query?.department_group_id) {
       deptWhere.depart_group_id = Number(query.department_group_id);
+    }
+    const visibleDepartmentIds = await this.getVisibleReportDepartmentIds(user);
+    if (visibleDepartmentIds !== null) {
+      if (deptWhere.id !== undefined && !visibleDepartmentIds.includes(Number(deptWhere.id))) {
+        deptWhere.id = -1;
+      } else if (deptWhere.id === undefined) {
+        deptWhere.id = { in: visibleDepartmentIds };
+      }
     }
 
     const departments = await this.prisma.department.findMany({
@@ -1682,9 +3019,7 @@ export class IncidentsService {
     const positionMap = new Map(positions.map((p) => [p.id, p.position_name]));
 
     const memberWhere: any = { status: '1' };
-    if (deptIds.length > 0) {
-      memberWhere.department_id1 = { in: deptIds };
-    }
+    memberWhere.department_id1 = { in: deptIds };
 
     const members = await this.prisma.member.findMany({
       where: memberWhere,
@@ -1726,8 +3061,7 @@ export class IncidentsService {
       endDate = new Date(`${targetYear}-12-31T23:59:59.999Z`);
     }
 
-    const incidents = await this.prisma.riskregister.findMany({
-      where: {
+    const individualIncidentWhere = {
         date_report: {
           gte: startDate,
           lte: endDate,
@@ -1743,8 +3077,10 @@ export class IncidentsService {
             }
           : deptIds.length > 0
           ? { department_id: { in: deptIds.map((id) => id.toString()) } }
-          : {}),
-      },
+          : { department_id: { in: [] } }),
+      };
+    const incidents = await this.prisma.riskregister.findMany({
+      where: await this.scopeIncidentWhere(individualIncidentWhere, user),
       select: {
         id: true,
         created_by: true,
@@ -1835,7 +3171,7 @@ export class IncidentsService {
     department_group_id?: number;
     year?: number;
     year_type?: string;
-  }) {
+  }, user?: any) {
     const [latestRecord, earliestRecord] = await Promise.all([
       this.prisma.riskregister.findFirst({
         orderBy: { date_report: 'desc' },
@@ -1856,6 +3192,8 @@ export class IncidentsService {
     if (query?.department_group_id) {
       deptWhere.depart_group_id = Number(query.department_group_id);
     }
+    const visibleDepartmentIds = await this.getVisibleReportDepartmentIds(user);
+    if (visibleDepartmentIds !== null) deptWhere.id = { in: visibleDepartmentIds };
 
     const [departments, groups] = await Promise.all([
       this.prisma.department.findMany({
@@ -1882,14 +3220,15 @@ export class IncidentsService {
     const deptIds = departments.map((d) => d.id);
     const deptStringIds = deptIds.map((id) => id.toString());
 
-    const incidents = await this.prisma.riskregister.findMany({
-      where: {
+    const departmentIncidentWhere = {
         date_report: {
           gte: startDate,
           lte: endDate,
         },
-        ...(deptIds.length > 0 ? { department_id: { in: deptStringIds } } : {}),
-      },
+        department_id: { in: deptStringIds },
+      };
+    const incidents = await this.prisma.riskregister.findMany({
+      where: await this.scopeIncidentWhere(departmentIncidentWhere, user),
       select: {
         id: true,
         date_report: true,
@@ -2010,7 +3349,7 @@ export class IncidentsService {
     endDate?: string;
     year?: number;
     year_type?: string;
-  }) {
+  }, user?: any) {
     const [latestRecord, earliestRecord] = await Promise.all([
       this.prisma.riskregister.findFirst({
         orderBy: { date_report: 'desc' },
@@ -2045,12 +3384,12 @@ export class IncidentsService {
       this.prisma.program.findMany({ select: { program_id: true, program_name: true } }),
       this.prisma.riskstore.findMany({ select: { riskstore_id: true, riskstore_name: true, program_id: true } }),
       this.prisma.riskregister.findMany({
-        where: {
+        where: await this.scopeIncidentWhere({
           date_report: {
             gte: startDate,
             lte: endDate,
           },
-        },
+        }, user),
         select: {
           id: true,
           id_risk: true,
@@ -2170,7 +3509,7 @@ export class IncidentsService {
         pData.rca_durations.push(rcaDurationDays);
       }
 
-      const rsInfo = riskstoreMap.get(inc.riskstore_id);
+      const rsInfo = inc.riskstore_id ? riskstoreMap.get(inc.riskstore_id) : undefined;
       const riskTitle = rsInfo?.riskstore_name || inc.detail || 'ไม่ระบุชื่อเรื่องความเสี่ยง';
       const rId = inc.riskstore_id || 0;
 
@@ -2310,7 +3649,7 @@ export class IncidentsService {
     department_group_id?: number;
     year?: number;
     year_type?: string;
-  }) {
+  }, user?: any) {
     const [latestRecord, earliestRecord] = await Promise.all([
       this.prisma.riskregister.findFirst({
         orderBy: { date_report: 'desc' },
@@ -2331,6 +3670,8 @@ export class IncidentsService {
     if (query?.department_group_id) {
       deptWhere.depart_group_id = Number(query.department_group_id);
     }
+    const visibleDepartmentIds = await this.getVisibleReportDepartmentIds(user);
+    if (visibleDepartmentIds !== null) deptWhere.id = { in: visibleDepartmentIds };
 
     const [departments, groups, members] = await Promise.all([
       this.prisma.department.findMany({
@@ -2380,13 +3721,15 @@ export class IncidentsService {
       endDate = new Date(`${targetYear}-12-31T23:59:59.999Z`);
     }
 
-    const incidents = await this.prisma.riskregister.findMany({
-      where: {
+    const staffIncidentWhere = {
         date_report: {
           gte: startDate,
           lte: endDate,
         },
-      },
+        department_id: { in: departments.map((department) => String(department.id)) },
+      };
+    const incidents = await this.prisma.riskregister.findMany({
+      where: await this.scopeIncidentWhere(staffIncidentWhere, user),
       select: {
         id: true,
         created_by: true,
@@ -2555,4 +3898,3 @@ export class IncidentsService {
     };
   }
 }
-

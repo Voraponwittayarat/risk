@@ -12,6 +12,7 @@ import { MembersModule } from './modules/members/members.module';
 import { NrlsRiskstoreModule } from './modules/nrls-riskstore/nrls-riskstore.module';
 import { ProgramsModule } from './modules/programs/programs.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { CapaModule } from './modules/capa/capa.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     MembersModule,
     NrlsRiskstoreModule,
     ProgramsModule,
+    CapaModule,
   ],
   controllers: [],
   providers: [],

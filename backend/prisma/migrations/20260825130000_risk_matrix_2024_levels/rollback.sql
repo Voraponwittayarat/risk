@@ -1,0 +1,2 @@
+-- Data-only migration. Previous colour values cannot be reconstructed safely
+-- because they may have been edited manually.

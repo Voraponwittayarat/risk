@@ -4,7 +4,7 @@ import axios from 'axios'
 import './index.css'
 import App from './App.tsx'
 
-axios.defaults.baseURL = `http://${window.location.hostname}:3000`
+axios.defaults.baseURL = import.meta.env.VITE_API_URL || window.location.origin
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

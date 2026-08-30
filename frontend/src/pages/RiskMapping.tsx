@@ -1,74 +1,124 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import { Search, Link as LinkIcon, Check, X, Save, AlertCircle } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowRight,
+  Check,
+  Filter,
+  Link as LinkIcon,
+  Save,
+  Search,
+  X,
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Swal from 'sweetalert2';
+
+type ViewMode = 'nrls' | 'unmapped-local';
+type MappingStatus = 'all' | 'mapped' | 'unmapped';
+type LocalRiskFilter = 'unmapped' | 'all';
 
 export default function RiskMapping() {
   const [nrlsRisks, setNrlsRisks] = useState<any[]>([]);
   const [localRisks, setLocalRisks] = useState<any[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>('nrls');
   const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'mapped', 'unmapped'
-  
-  const [mappingModal, setMappingModal] = useState<any>(null); // holds the nrls risk being mapped
+  const [filterStatus, setFilterStatus] = useState<MappingStatus>('all');
+  const [filterProgramId, setFilterProgramId] = useState('');
+
+  const [mappingModal, setMappingModal] = useState<any>(null);
   const [selectedLocalIds, setSelectedLocalIds] = useState<number[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState<number | ''>('');
   const [modalSearch, setModalSearch] = useState('');
+  const [modalProgramId, setModalProgramId] = useState('');
+  const [modalLocalFilter, setModalLocalFilter] = useState<LocalRiskFilter>('unmapped');
   const [saving, setSaving] = useState(false);
+
+  const [pickerLocalRisk, setPickerLocalRisk] = useState<any>(null);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [pickerProgramId, setPickerProgramId] = useState('');
 
   const { token } = useAuth();
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [nrlsRes, localRes, progRes] = await Promise.all([
-        axios.get('http://localhost:3000/nrls-riskstore', { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get('http://localhost:3000/risk-topics', { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get('http://localhost:3000/programs', { headers: { Authorization: `Bearer ${token}` } })
+        axios.get('/nrls-riskstore', { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get('/risk-topics', { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get('/programs', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       setNrlsRisks(nrlsRes.data);
       setLocalRisks(localRes.data);
       setPrograms(progRes.data);
-      setLocalRisks(localRes.data);
     } catch (err) {
       console.error(err);
+      Swal.fire({ icon: 'error', title: 'โหลดข้อมูลไม่สำเร็จ', text: 'กรุณาลองรีเฟรชหน้าอีกครั้ง' });
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
-  const openMappingModal = (nrlsRisk: any) => {
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
+
+  const programName = (programId: number | null | undefined) =>
+    programs.find((program) => Number(program.program_id) === Number(programId))?.program_name || 'ยังไม่ระบุ';
+
+  const activeLocalRisks = localRisks.filter((risk) => risk.active);
+  const unmappedLocalRisks = activeLocalRisks.filter((risk) => !risk.nrlsCode);
+  const mappedNrlsCount = nrlsRisks.filter((risk) =>
+    risk.local_risks?.some((localRisk: any) => localRisk.status !== '0'),
+  ).length;
+
+  const openMappingModal = (nrlsRisk: any, additionalLocalId?: number) => {
     setMappingModal(nrlsRisk);
-    const mappedIds = nrlsRisk.local_risks.map((lr: any) => lr.riskstore_id);
-    setSelectedLocalIds(mappedIds);
+    const mappedIds = (nrlsRisk.local_risks || []).map((localRisk: any) => localRisk.riskstore_id);
+    setSelectedLocalIds(
+      additionalLocalId && !mappedIds.includes(additionalLocalId)
+        ? [...mappedIds, additionalLocalId]
+        : mappedIds,
+    );
     setSelectedProgramId(nrlsRisk.program_id || '');
     setModalSearch('');
+    setModalProgramId('');
+    setModalLocalFilter('unmapped');
+  };
+
+  const openNrlsPicker = (localRisk: any) => {
+    setPickerLocalRisk(localRisk);
+    setPickerSearch('');
+    setPickerProgramId('');
+  };
+
+  const selectNrlsForLocalRisk = (nrlsRisk: any) => {
+    const localRiskId = pickerLocalRisk?.id;
+    setPickerLocalRisk(null);
+    if (localRiskId) openMappingModal(nrlsRisk, localRiskId);
   };
 
   const toggleLocalRisk = (id: number) => {
-    setSelectedLocalIds(prev => 
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    setSelectedLocalIds((previous) =>
+      previous.includes(id) ? previous.filter((value) => value !== id) : [...previous, id],
     );
   };
 
   const saveMapping = async () => {
     try {
       setSaving(true);
-      await axios.patch(`http://localhost:3000/nrls-riskstore/${mappingModal.nrls_code}/mapping`, {
-        riskstore_ids: selectedLocalIds,
-        program_id: selectedProgramId === '' ? null : selectedProgramId
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.patch(
+        `/nrls-riskstore/${mappingModal.nrls_code}/mapping`,
+        {
+          riskstore_ids: selectedLocalIds,
+          program_id: selectedProgramId === '' ? null : selectedProgramId,
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
       Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', showConfirmButton: false, timer: 1500 });
       setMappingModal(null);
-      fetchData(); // Refresh data
+      await fetchData();
     } catch (err) {
       console.error(err);
       Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถบันทึกข้อมูลได้' });
@@ -77,130 +127,318 @@ export default function RiskMapping() {
     }
   };
 
-  const filteredNrls = nrlsRisks.filter(r => {
-    const matchSearch = r.nrls_code?.toLowerCase().includes(search.toLowerCase()) || r.name?.toLowerCase().includes(search.toLowerCase());
-    const activeLocalRisks = r.local_risks ? r.local_risks.filter((lr: any) => lr.status !== '0') : [];
-    const isMapped = activeLocalRisks.length > 0;
-    if (filterStatus === 'mapped' && !isMapped) return false;
-    if (filterStatus === 'unmapped' && isMapped) return false;
-    return matchSearch;
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredNrls = nrlsRisks.filter((risk) => {
+    const activeMappedRisks = (risk.local_risks || []).filter((localRisk: any) => localRisk.status !== '0');
+    const isMapped = activeMappedRisks.length > 0;
+    const matchesText =
+      !normalizedSearch ||
+      risk.nrls_code?.toLowerCase().includes(normalizedSearch) ||
+      risk.name?.toLowerCase().includes(normalizedSearch) ||
+      activeMappedRisks.some((localRisk: any) =>
+        localRisk.riskstore_name?.toLowerCase().includes(normalizedSearch),
+      );
+    const matchesProgram = !filterProgramId || Number(risk.program_id) === Number(filterProgramId);
+    const matchesStatus =
+      filterStatus === 'all' ||
+      (filterStatus === 'mapped' && isMapped) ||
+      (filterStatus === 'unmapped' && !isMapped);
+    return matchesText && matchesProgram && matchesStatus;
   });
 
-  const filteredLocalRisks = localRisks.filter(lr => 
-    lr.active &&
-    (lr.fullName.toLowerCase().includes(modalSearch.toLowerCase()) || 
-    lr.code.toLowerCase().includes(modalSearch.toLowerCase()))
-  );
+  const filteredUnmappedLocalRisks = unmappedLocalRisks.filter((risk) => {
+    const matchesText =
+      !normalizedSearch ||
+      risk.fullName?.toLowerCase().includes(normalizedSearch) ||
+      risk.code?.toLowerCase().includes(normalizedSearch);
+    const matchesProgram = !filterProgramId || Number(risk.programId) === Number(filterProgramId);
+    return matchesText && matchesProgram;
+  });
+
+  const normalizedModalSearch = modalSearch.trim().toLowerCase();
+  const filteredLocalRisks = activeLocalRisks.filter((risk) => {
+    const isSelected = selectedLocalIds.includes(risk.id);
+    const matchesText =
+      !normalizedModalSearch ||
+      risk.fullName?.toLowerCase().includes(normalizedModalSearch) ||
+      risk.code?.toLowerCase().includes(normalizedModalSearch);
+    const matchesProgram = !modalProgramId || Number(risk.programId) === Number(modalProgramId);
+    const matchesMappingFilter = modalLocalFilter === 'all' || isSelected || !risk.nrlsCode;
+    return matchesText && matchesProgram && matchesMappingFilter;
+  });
+
+  const normalizedPickerSearch = pickerSearch.trim().toLowerCase();
+  const filteredPickerNrls = nrlsRisks.filter((risk) => {
+    const matchesText =
+      !normalizedPickerSearch ||
+      risk.nrls_code?.toLowerCase().includes(normalizedPickerSearch) ||
+      risk.name?.toLowerCase().includes(normalizedPickerSearch);
+    const matchesProgram = !pickerProgramId || Number(risk.program_id) === Number(pickerProgramId);
+    return matchesText && matchesProgram;
+  });
+
+  const clearFilters = () => {
+    setSearch('');
+    setFilterStatus('all');
+    setFilterProgramId('');
+  };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-16">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="mx-auto max-w-7xl space-y-6 pb-16">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-indigo-100 p-2.5 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
             <LinkIcon className="h-6 w-6" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Mapping ความเสี่ยง NRLS</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">จับคู่หัวข้อความเสี่ยงมาตรฐานประเทศ (NRLS) เข้ากับบริบทโรงพยาบาล</p>
-          </div>
-        </div>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <select 
-            value={filterStatus} 
-            onChange={e => setFilterStatus(e.target.value)}
-            className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none dark:text-white"
-          >
-            <option value="all">ทั้งหมด</option>
-            <option value="mapped">✅ Mapped แล้ว</option>
-            <option value="unmapped">⚠️ ยังไม่ Map</option>
-          </select>
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="ค้นหา NRLS..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
-            />
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              ตรวจสอบมาตรฐาน NRLS และชื่อความเสี่ยงเดิมที่ยังไม่ได้เชื่อมโยง
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <button
+          type="button"
+          onClick={() => {
+            setViewMode('nrls');
+            setFilterStatus('all');
+          }}
+          className={`rounded-2xl border p-4 text-left transition ${
+            viewMode === 'nrls'
+              ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-100 dark:bg-indigo-950/30 dark:ring-indigo-900/40'
+              : 'border-slate-200 bg-white hover:border-indigo-300 dark:border-slate-700 dark:bg-slate-900'
+          }`}
+        >
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">มาตรฐาน NRLS ทั้งหมด</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{nrlsRisks.length}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setViewMode('nrls');
+            setFilterStatus('mapped');
+          }}
+          className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-900"
+        >
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">NRLS ที่ Mapping แล้ว</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-600">{mappedNrlsCount}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode('unmapped-local')}
+          className={`rounded-2xl border p-4 text-left transition ${
+            viewMode === 'unmapped-local'
+              ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-100 dark:bg-amber-950/30 dark:ring-amber-900/40'
+              : 'border-slate-200 bg-white hover:border-amber-300 dark:border-slate-700 dark:bg-slate-900'
+          }`}
+        >
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">ความเสี่ยงเดิมที่ยังไม่ Mapping</p>
+          <p className="mt-1 text-2xl font-bold text-amber-600">{unmappedLocalRisks.length}</p>
+        </button>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="mb-4 flex flex-wrap gap-2 border-b border-slate-100 pb-4 dark:border-slate-800">
+          <button
+            type="button"
+            onClick={() => {
+              setViewMode('nrls');
+              setFilterStatus('all');
+            }}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold ${
+              viewMode === 'nrls'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+            }`}
+          >
+            NRLS ทั้งหมด
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('unmapped-local')}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold ${
+              viewMode === 'unmapped-local'
+                ? 'bg-amber-500 text-white'
+                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+            }`}
+          >
+            ความเสี่ยงเดิมที่ยังไม่ Mapping ({unmappedLocalRisks.length})
+          </button>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px_220px_auto]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder={
+                viewMode === 'nrls'
+                  ? 'ค้นหารหัส NRLS, ชื่อใหม่ หรือชื่อความเสี่ยงเดิม...'
+                  : 'ค้นหารหัสหรือชื่อความเสี่ยงเดิม...'
+              }
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+            />
+          </div>
+          <select
+            value={filterProgramId}
+            onChange={(event) => setFilterProgramId(event.target.value)}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+          >
+            <option value="">ทุกโปรแกรมความเสี่ยง</option>
+            {programs.map((program) => (
+              <option key={program.program_id} value={program.program_id}>
+                {program.program_id}. {program.program_name}
+              </option>
+            ))}
+          </select>
+          {viewMode === 'nrls' ? (
+            <select
+              value={filterStatus}
+              onChange={(event) => setFilterStatus(event.target.value as MappingStatus)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+            >
+              <option value="all">ทุกสถานะ Mapping</option>
+              <option value="mapped">Mapped แล้ว</option>
+              <option value="unmapped">ยังไม่ Mapping</option>
+            </select>
+          ) : (
+            <div className="flex items-center rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+              <Filter className="mr-2 h-4 w-4" /> เฉพาะที่ยังไม่ Mapping
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            ล้างตัวกรอง
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+          พบ {viewMode === 'nrls' ? filteredNrls.length : filteredUnmappedLocalRisks.length} รายการ
+        </p>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
         {loading ? (
-          <div className="p-8 text-center text-slate-500 flex flex-col items-center">
-            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <div className="flex flex-col items-center p-8 text-center text-slate-500">
+            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
             กำลังโหลดข้อมูล...
           </div>
-        ) : (
+        ) : viewMode === 'nrls' ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+              <thead className="border-b border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
-                  <th className="px-4 py-3 font-semibold w-24">NRLS Code</th>
-                  <th className="px-4 py-3 font-semibold w-1/3">ชื่อความเสี่ยง NRLS</th>
-                  <th className="px-4 py-3 font-semibold w-24 text-center">สถานะ</th>
-                  <th className="px-4 py-3 font-semibold">ความเสี่ยงบริบทโรงพยาบาลที่เชื่อมโยง (Local Risks)</th>
-                  <th className="px-4 py-3 font-semibold w-48">โปรแกรมความเสี่ยง</th>
-                  <th className="px-4 py-3 font-semibold w-24 text-center">จัดการ</th>
+                  <th className="w-24 px-4 py-3 font-semibold">NRLS Code</th>
+                  <th className="w-1/3 px-4 py-3 font-semibold">ชื่อความเสี่ยง NRLS</th>
+                  <th className="w-24 px-4 py-3 text-center font-semibold">สถานะ</th>
+                  <th className="px-4 py-3 font-semibold">ชื่อความเสี่ยงเดิมที่เชื่อมโยง</th>
+                  <th className="w-48 px-4 py-3 font-semibold">โปรแกรมความเสี่ยง</th>
+                  <th className="w-24 px-4 py-3 text-center font-semibold">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filteredNrls.map((risk) => {
-                  const activeLocalRisks = risk.local_risks ? risk.local_risks.filter((lr: any) => lr.status !== '0') : [];
-                  const isMapped = activeLocalRisks.length > 0;
+                  const mappedLocalRisks = (risk.local_risks || []).filter(
+                    (localRisk: any) => localRisk.status !== '0',
+                  );
+                  const isMapped = mappedLocalRisks.length > 0;
                   return (
-                  <tr key={risk.nrls_code} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                    <td className="px-4 py-4 align-top">
-                      <span className="inline-flex px-2 py-1 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-md font-bold text-xs border border-indigo-100 dark:border-indigo-800">
-                        {risk.nrls_code}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 align-top font-medium text-slate-800 dark:text-slate-200">
-                      {risk.name}
-                    </td>
-                    <td className="px-4 py-4 align-top text-center">
-                      {isMapped ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-400 px-2 py-1 rounded-full">
-                          <Check size={12} /> Mapped
+                    <tr key={risk.nrls_code} className="transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
+                      <td className="px-4 py-4 align-top">
+                        <span className="inline-flex rounded-md border border-indigo-100 bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400">
+                          {risk.nrls_code}
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-1 rounded-full">
-                          <AlertCircle size={12} /> Pending
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      {isMapped ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {activeLocalRisks.map((lr: any) => (
-                            <span key={lr.riskstore_id} className="inline-flex items-center px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs rounded-lg border border-slate-200 dark:border-slate-700">
-                              {lr.riskstore_name}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-slate-400 text-xs">- ยังไม่ได้เชื่อมโยงข้อมูล -</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 align-top text-sm text-slate-700 dark:text-slate-300">
-                      {risk.program?.program_name || <span className="text-slate-400 italic">ยังไม่ระบุ</span>}
-                    </td>
-                    <td className="px-4 py-4 align-top text-center">
-                      <button onClick={() => openMappingModal(risk)} className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg inline-flex items-center justify-center">
-                        <LinkIcon size={16} />
+                      </td>
+                      <td className="px-4 py-4 align-top font-medium text-slate-800 dark:text-slate-200">{risk.name}</td>
+                      <td className="px-4 py-4 text-center align-top">
+                        {isMapped ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-xs font-bold text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                            <Check size={12} /> Mapped
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-xs font-bold text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+                            <AlertCircle size={12} /> Pending
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        {isMapped ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {mappedLocalRisks.map((localRisk: any) => (
+                              <span
+                                key={localRisk.riskstore_id}
+                                className="inline-flex rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                              >
+                                {localRisk.riskstore_name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">- ยังไม่ได้เชื่อมโยงข้อมูล -</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 align-top text-sm text-slate-700 dark:text-slate-300">
+                        {risk.program?.program_name || <span className="italic text-slate-400">ยังไม่ระบุ</span>}
+                      </td>
+                      <td className="px-4 py-4 text-center align-top">
+                        <button
+                          type="button"
+                          title="ตรวจสอบหรือแก้ไข Mapping"
+                          onClick={() => openMappingModal(risk)}
+                          className="inline-flex items-center justify-center rounded-lg bg-indigo-50 p-2 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950/40"
+                        >
+                          <LinkIcon size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredNrls.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-10 text-center text-slate-500">ไม่พบข้อมูลตามตัวกรอง</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 bg-amber-50/60 text-slate-500 dark:border-slate-700 dark:bg-amber-950/20 dark:text-slate-400">
+                <tr>
+                  <th className="w-36 px-5 py-3 font-semibold">รหัสเดิม</th>
+                  <th className="px-5 py-3 font-semibold">ชื่อความเสี่ยงเดิม</th>
+                  <th className="w-80 px-5 py-3 font-semibold">โปรแกรมเดิม</th>
+                  <th className="w-36 px-5 py-3 text-center font-semibold">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {filteredUnmappedLocalRisks.map((risk) => (
+                  <tr key={risk.id} className="hover:bg-amber-50/30 dark:hover:bg-amber-950/10">
+                    <td className="px-5 py-4 align-top font-mono font-bold text-slate-700 dark:text-slate-300">{risk.code}</td>
+                    <td className="px-5 py-4 align-top font-medium text-slate-900 dark:text-white">{risk.name}</td>
+                    <td className="px-5 py-4 align-top text-slate-600 dark:text-slate-300">{programName(risk.programId)}</td>
+                    <td className="px-5 py-4 text-center align-top">
+                      <button
+                        type="button"
+                        onClick={() => openNrlsPicker(risk)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-white hover:bg-amber-600"
+                      >
+                        เลือก NRLS <ArrowRight size={14} />
                       </button>
                     </td>
                   </tr>
-                )})}
-                {filteredNrls.length === 0 && (
+                ))}
+                {filteredUnmappedLocalRisks.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                      ไม่พบข้อมูลที่ค้นหา
-                    </td>
+                    <td colSpan={4} className="px-4 py-10 text-center text-slate-500">ไม่พบความเสี่ยงเดิมที่ยังไม่ Mapping ตามตัวกรอง</td>
                   </tr>
                 )}
               </tbody>
@@ -209,82 +447,158 @@ export default function RiskMapping() {
         )}
       </div>
 
-      {/* Mapping Modal */}
-      {mappingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl shadow-xl flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+      {pickerLocalRisk && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-xl dark:bg-slate-900">
+            <div className="flex items-start justify-between border-b border-slate-100 p-5 dark:border-slate-800">
               <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Mapping บริบทโรงพยาบาล</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">NRLS: {mappingModal.nrls_code} - {mappingModal.name}</p>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">เลือก NRLS ที่ต้องการเชื่อมโยง</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">ชื่อเดิม: {pickerLocalRisk.fullName}</p>
               </div>
-              <button onClick={() => setMappingModal(null)} className="p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+              <button type="button" onClick={() => setPickerLocalRisk(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
                 <X size={20} />
               </button>
             </div>
-            <div className="p-4 border-b border-slate-100 dark:border-slate-800 space-y-3">
+            <div className="grid gap-3 border-b border-slate-100 p-4 sm:grid-cols-[minmax(0,1fr)_280px] dark:border-slate-800">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="ค้นหารหัสหรือชื่อ NRLS..."
+                  value={pickerSearch}
+                  onChange={(event) => setPickerSearch(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+              <select
+                value={pickerProgramId}
+                onChange={(event) => setPickerProgramId(event.target.value)}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="">ทุกโปรแกรม NRLS</option>
+                {programs.map((program) => (
+                  <option key={program.program_id} value={program.program_id}>{program.program_id}. {program.program_name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 space-y-2 overflow-y-auto p-4">
+              {filteredPickerNrls.map((risk) => {
+                const mappingCount = (risk.local_risks || []).filter((localRisk: any) => localRisk.status !== '0').length;
+                return (
+                  <button
+                    type="button"
+                    key={risk.nrls_code}
+                    onClick={() => selectNrlsForLocalRisk(risk)}
+                    className="flex w-full items-start gap-3 rounded-xl border border-slate-200 p-3 text-left transition hover:border-indigo-400 hover:bg-indigo-50 dark:border-slate-700 dark:hover:bg-indigo-950/20"
+                  >
+                    <span className="rounded-md bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{risk.nrls_code}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-slate-800 dark:text-slate-200">{risk.name}</span>
+                      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{risk.program?.program_name || 'ยังไม่ระบุโปรแกรม'} · ผูกชื่อเดิมแล้ว {mappingCount} รายการ</span>
+                    </span>
+                    <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-indigo-500" />
+                  </button>
+                );
+              })}
+              {filteredPickerNrls.length === 0 && <div className="py-8 text-center text-sm text-slate-500">ไม่พบ NRLS ที่ค้นหา</div>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mappingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-xl dark:bg-slate-900">
+            <div className="flex items-start justify-between border-b border-slate-100 p-5 dark:border-slate-800">
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  โปรแกรมความเสี่ยงสำหรับ NRLS นี้
-                </label>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">ตรวจสอบ Mapping บริบทโรงพยาบาล</h2>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">NRLS: {mappingModal.nrls_code} - {mappingModal.name}</p>
+              </div>
+              <button type="button" onClick={() => setMappingModal(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-3 border-b border-slate-100 p-4 dark:border-slate-800">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">โปรแกรมความเสี่ยงสำหรับ NRLS นี้</label>
                 <select
                   value={selectedProgramId}
-                  onChange={(e) => setSelectedProgramId(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none dark:text-white focus:border-indigo-500"
+                  onChange={(event) => setSelectedProgramId(event.target.value === '' ? '' : Number(event.target.value))}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
                   <option value="">-- ไม่ระบุโปรแกรม --</option>
-                  {programs.map(prog => (
-                    <option key={prog.program_id} value={prog.program_id}>
-                      {prog.program_name}
-                    </option>
+                  {programs.map((program) => (
+                    <option key={program.program_id} value={program.program_id}>{program.program_id}. {program.program_name}</option>
                   ))}
                 </select>
               </div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="ค้นหาชื่อความเสี่ยงโรงพยาบาล..."
-                  value={modalSearch}
-                  onChange={(e) => setModalSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none dark:text-white"
-                />
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px_210px]">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาชื่อความเสี่ยงเดิม..."
+                    value={modalSearch}
+                    onChange={(event) => setModalSearch(event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+                <select
+                  value={modalProgramId}
+                  onChange={(event) => setModalProgramId(event.target.value)}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="">ทุกโปรแกรมเดิม</option>
+                  {programs.map((program) => (
+                    <option key={program.program_id} value={program.program_id}>{program.program_id}. {program.program_name}</option>
+                  ))}
+                </select>
+                <select
+                  value={modalLocalFilter}
+                  onChange={(event) => setModalLocalFilter(event.target.value as LocalRiskFilter)}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="unmapped">ที่เลือก + ยังไม่ Mapping</option>
+                  <option value="all">ชื่อความเสี่ยงเดิมทั้งหมด</option>
+                </select>
               </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">เลือกอยู่ {selectedLocalIds.length} รายการ · แสดง {filteredLocalRisks.length} รายการ</p>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
-              {filteredLocalRisks.map(lr => {
-                const isSelected = selectedLocalIds.includes(lr.id);
-                // Also highlight if it's mapped to a DIFFERENT nrls_code
-                const mappedToOther = lr.nrlsCode && lr.nrlsCode !== mappingModal.nrls_code;
-                
+            <div className="flex-1 space-y-2 overflow-y-auto p-4">
+              {filteredLocalRisks.map((localRisk) => {
+                const isSelected = selectedLocalIds.includes(localRisk.id);
+                const mappedToOther = localRisk.nrlsCode && localRisk.nrlsCode !== mappingModal.nrls_code;
                 return (
-                  <label key={lr.id} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${isSelected ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}>
-                    <input 
-                      type="checkbox" 
+                  <label
+                    key={localRisk.id}
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-all ${
+                      isSelected
+                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                        : 'border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
                       checked={isSelected}
-                      onChange={() => toggleLocalRisk(lr.id)}
-                      className="mt-0.5 w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                      onChange={() => toggleLocalRisk(localRisk.id)}
+                      className="mt-0.5 h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500"
                     />
-                    <div className="flex-1">
-                      <p className={`text-sm font-medium ${isSelected ? 'text-indigo-900 dark:text-indigo-200' : 'text-slate-700 dark:text-slate-300'}`}>
-                        {lr.fullName}
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-sm font-medium ${isSelected ? 'text-indigo-900 dark:text-indigo-200' : 'text-slate-700 dark:text-slate-300'}`}>{localRisk.fullName}</p>
+                      <p className="mt-0.5 text-xs text-slate-400">โปรแกรมเดิม: {programName(localRisk.programId)}</p>
                       {mappedToOther && !isSelected && (
-                        <p className="text-xs text-amber-500 mt-0.5">⚠️ ปัจจุบัน Mapped อยู่กับ {lr.nrlsCode} (หากเลือก จะถูกดึงมาที่นี่แทน)</p>
+                        <p className="mt-1 text-xs font-medium text-amber-600">ปัจจุบัน Mapping กับ {localRisk.nrlsCode} — หากเลือก รายการจะย้ายมาที่ NRLS นี้</p>
                       )}
                     </div>
                   </label>
                 );
               })}
-              {filteredLocalRisks.length === 0 && (
-                <div className="text-center py-8 text-slate-500 text-sm">ไม่พบความเสี่ยงที่ค้นหา</div>
-              )}
+              {filteredLocalRisks.length === 0 && <div className="py-8 text-center text-sm text-slate-500">ไม่พบชื่อความเสี่ยงเดิมตามตัวกรอง</div>}
             </div>
-            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-end gap-3 rounded-b-2xl">
-              <button onClick={() => setMappingModal(null)} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl">
-                ยกเลิก
-              </button>
-              <button disabled={saving} onClick={saveMapping} className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl flex items-center gap-2">
+            <div className="flex justify-end gap-3 rounded-b-2xl border-t border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/50">
+              <button type="button" onClick={() => setMappingModal(null)} className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700">ยกเลิก</button>
+              <button type="button" disabled={saving} onClick={saveMapping} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
                 <Save size={16} /> {saving ? 'กำลังบันทึก...' : 'บันทึก Mapping'}
               </button>
             </div>

@@ -47,6 +47,18 @@ export class GetIncidentsQueryDto {
   @IsInt()
   program_id?: number;
 
+  @ApiPropertyOptional({ description: 'Filter by NRLS code/name' })
+  @IsOptional()
+  nrls?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by NRLS group', enum: ['CLINICAL', 'GENERAL'] })
+  @IsOptional()
+  nrls_type?: 'CLINICAL' | 'GENERAL';
+
+  @ApiPropertyOptional({ description: 'Filter by classification status' })
+  @IsOptional()
+  classification_status?: 'PENDING' | 'CONFIRMED' | 'NEEDS_REVIEW';
+
   @ApiPropertyOptional({ description: 'Filter by scope type (primary, secondary, team)' })
   @IsOptional()
   scope_type?: string;

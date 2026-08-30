@@ -5,11 +5,14 @@ import {
   Printer, ShieldAlert, FileSpreadsheet,
   AlertTriangle, CheckCircle2, Search, Eye, Activity,
   Target, RefreshCw, X, Clock, Edit3, Trash2,
-  ShieldCheck, Flame, Layers, Award, Sparkles,
+  ShieldCheck, Flame, Layers, Sparkles,
   Info, Check, BookmarkCheck, FileText, Lock, UserCheck
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getRiskMatrixLevel } from '../utils/riskMatrix';
+import { OfficialPrintFooter, OfficialPrintHeader, OfficialPrintSignatures } from '../components/OfficialPrintLayout';
+import { printOfficialReport } from '../utils/officialPrint';
 
 // =========================================================================
 // 15 HA-STANDARDIZED & DEPARTMENTAL PRESET RISK TEMPLATES (คลังเทมเพลตความเสี่ยง)
@@ -415,7 +418,7 @@ export default function Reports() {
   const [selectedCell, setSelectedCell] = useState<{ y: number; x: number; count: number; items: any[] } | null>(null);
 
   const { user } = useAuth();
-  const userRole = (user?.role || user?.accessrules || '').toLowerCase();
+  const userRole = (user?.role || '').toLowerCase();
   const isAdminOrRm = ['admin', 'superadmin', 'rm', 'director', 'manager_rm', 'chair', 'rm_committee'].some(r => userRole.includes(r));
 
   // ตรวจสอบสิทธิ์การแก้ไข:
@@ -427,7 +430,7 @@ export default function Reports() {
     if (!user) return true; // Fallback หากยังไม่ได้ล็อกอินหรือเป็นโหมดสาธิต
     
     const adminRoles = ['admin', 'superadmin', 'rm', 'director', 'manager_rm', 'chair'];
-    const userRole = (user.role || user.accessrules || '').toLowerCase();
+    const userRole = (user.role || '').toLowerCase();
     if (adminRoles.some(r => userRole.includes(r))) return true;
 
     // ความเสี่ยงระดับโรงพยาบาล สามารถร่วมทบทวน/แก้ไขได้
@@ -443,6 +446,7 @@ export default function Reports() {
 
   // Form State for Create / Edit
   const [formData, setFormData] = useState<any>({
+    nrls_code: '',
     risk_code: '',
     risk_title: '',
     risk_description: '',
@@ -469,6 +473,8 @@ export default function Reports() {
   // Review Form State
   const [reviewFormData, setReviewFormData] = useState<any>({
     review_date: new Date().toISOString().split('T')[0],
+    period_start: new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().split('T')[0],
+    period_end: new Date().toISOString().split('T')[0],
     result_of_review: '',
     incident_count_in_period: 0,
     current_likelihood: 2,
@@ -540,6 +546,7 @@ export default function Reports() {
     const defaultDept = user?.department_id ? String(user.department_id) : (selectedDept !== 'all' ? selectedDept : '1');
 
     setFormData({
+      nrls_code: '',
       risk_code: '',
       risk_title: '',
       risk_description: '',
@@ -594,8 +601,9 @@ export default function Reports() {
 
       setFormData((prev: any) => ({
         ...prev,
-        risk_code: `INC-${inc.id}`,
-        risk_title: `[อุบัติการณ์จริง #${inc.id}] ${inc.detail ? inc.detail.substring(0, 80) : 'รายงานความเสี่ยงจากหน้างาน'}`,
+        nrls_code: inc.nrls_code || '',
+        risk_code: inc.nrls_code || '',
+        risk_title: inc.nrls_name_snapshot || inc.nrls_name || 'Legacy: รอจัดประเภท NRLS',
         risk_description: `เหตุการณ์ที่เกิดขึ้นจริง: ${inc.detail || '-'}\nการแก้ไขเบื้องต้นที่ทำแล้ว: ${inc.first_aid || inc.action_taken || '-'}`,
         source: 'รายงานอุบัติการณ์',
         scope_level: 'department',
@@ -616,6 +624,7 @@ export default function Reports() {
   const handleOpenEditModal = (item: any) => {
     setSelectedRiskItem(item);
     setFormData({
+      nrls_code: item.nrls_code || '',
       risk_code: item.risk_code,
       risk_title: item.risk_title,
       risk_description: item.risk_description || '',
@@ -646,6 +655,8 @@ export default function Reports() {
     setSelectedRiskItem(item);
     setReviewFormData({
       review_date: new Date().toISOString().split('T')[0],
+      period_start: item.period_start ? String(item.period_start).slice(0, 10) : new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().split('T')[0],
+      period_end: new Date().toISOString().split('T')[0],
       result_of_review: '',
       incident_count_in_period: 0,
       current_likelihood: item.initial_likelihood,
@@ -726,7 +737,7 @@ export default function Reports() {
 
   // Print function
   const handlePrintTable = () => {
-    window.print();
+    printOfficialReport();
   };
 
   // Color helper
@@ -792,6 +803,13 @@ export default function Reports() {
   const currentDeptName = selectedDept === 'all' 
     ? (activeTab === 'hospital' ? 'ทุกหน่วยงาน (ระดับโรงพยาบาล)' : 'ทุกหน่วยงาน (All Departments)') 
     : (currentDeptObj?.depart_name || `แผนกที่ ${selectedDept}`);
+  const printReportTitle: Record<typeof activeTab, string> = {
+    hospital: 'ทะเบียนความเสี่ยงระดับโรงพยาบาล',
+    department: 'ทะเบียนความเสี่ยงระดับหน่วยงาน',
+    due: 'รายงานรายการความเสี่ยงถึงกำหนดทบทวน',
+    matrix: 'รายงานวิเคราะห์เมทริกซ์ความเสี่ยง 5 × 5',
+    standards: 'รายงานความเสี่ยงตามมาตรฐานสำคัญ 9 ด้าน',
+  };
 
   // Export CSV
   const exportToCSV = () => {
@@ -856,7 +874,7 @@ export default function Reports() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="official-print-document official-print-report-wide space-y-6">
       {/* ========================================================================= */}
       {/* PRINT-SPECIFIC CSS STYLESHEET */}
       {/* ========================================================================= */}
@@ -908,35 +926,50 @@ export default function Reports() {
         }
       `}</style>
 
-      {/* Top Header Banner (Minimal & Professional) */}
-      <div className="no-print bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200/80 dark:border-slate-700/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all">
-        <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs font-semibold tracking-wide">
-            <Award className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-            Proactive Risk Management & 2P Safety System
+      <OfficialPrintHeader
+        title={printReportTitle[activeTab]}
+        subtitle="Hospital Risk Register & Risk Analysis Report"
+        documentCode="RM-RP-01"
+        referenceNo={`${activeTab.toUpperCase()}-${new Date().getFullYear() + 543}`}
+        orientation="landscape"
+        metadata={[
+          { label: 'หน่วยงาน', value: currentDeptName },
+          { label: 'ขอบเขต', value: activeTab === 'hospital' ? 'ระดับโรงพยาบาล' : activeTab === 'department' ? 'ระดับหน่วยงาน' : 'ตามเงื่อนไขรายงาน' },
+          { label: 'จำนวนรายการ', value: activeTab === 'matrix' ? matrixData?.total || '-' : filteredRisks.length },
+          { label: 'ผู้จัดทำ', value: user?.name || 'ผู้ใช้งานระบบ' },
+        ]}
+      />
+
+      {/* Top Header Banner (Relaxing & Positive) */}
+      <div className="no-print bg-gradient-to-br from-indigo-50 via-white to-emerald-50 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900 rounded-3xl p-6 md:p-8 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all relative overflow-hidden border border-white/50 dark:border-slate-700/50">
+        <div className="absolute -top-12 -right-10 w-48 h-48 bg-emerald-100/40 dark:bg-emerald-900/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-indigo-100/40 dark:bg-indigo-900/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="space-y-2.5 relative z-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/70 dark:bg-slate-700/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-600/50 text-indigo-600 dark:text-indigo-300 text-xs font-semibold tracking-wide shadow-sm">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+            ภาพรวมความเสี่ยงวันนี้ (Daily Risk Overview)
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
-            <Building className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-            ทะเบียนและความเสี่ยงโรงพยาบาล (Risk Register)
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-2.5">
+            สวัสดี! พร้อมสำหรับวันนี้หรือยัง? 🌤️
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            ระบบบริหารจัดการความเสี่ยงเชิงรุก มาตรฐาน HA 9 ด้าน และการติดตามประเมินผลระดับโรงพยาบาล/หน่วยงาน
+          <p className="text-sm text-slate-600 dark:text-slate-400 max-w-lg leading-relaxed">
+            ทุกอย่างดูเรียบร้อยดี นี่คือสรุปข้อมูลสำคัญที่เราคัดมาให้คุณติดตามผลได้อย่างสบายใจ ไม่พลาดทุกเป้าหมายความปลอดภัย
           </p>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-3 relative z-10">
           <button
             onClick={handleOpenCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm rounded-xl shadow-xs transition-all cursor-pointer"
+            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600/90 hover:bg-indigo-600 text-white font-medium text-xs sm:text-sm rounded-full shadow-sm hover:shadow-md transition-all cursor-pointer"
           >
-            <Sparkles className="w-4 h-4 text-amber-300" />
-            + ลงทะเบียนความเสี่ยงใหม่
+            <span className="text-lg leading-none">+</span>
+            เพิ่มรายการใหม่
           </button>
 
           <button
             onClick={exportToCSV}
-            className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-600 transition cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white/60 dark:bg-slate-700/60 backdrop-blur hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs sm:text-sm rounded-full border border-slate-200 dark:border-slate-600 shadow-sm transition-all cursor-pointer"
             title="ส่งออกเป็นไฟล์ Excel / CSV"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -945,11 +978,11 @@ export default function Reports() {
 
           <button
             onClick={handlePrintTable}
-            className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-600 transition cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white/60 dark:bg-slate-700/60 backdrop-blur hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs sm:text-sm rounded-full border border-slate-200 dark:border-slate-600 shadow-sm transition-all cursor-pointer"
             title="พิมพ์ตารางรายงานออกทางเครื่องพิมพ์"
           >
             <Printer className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-            พิมพ์ตาราง
+            พิมพ์
           </button>
         </div>
       </div>
@@ -957,88 +990,88 @@ export default function Reports() {
       {/* KPI Cards Overview */}
       {stats && (
         <div className="no-print grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-          <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700/80 shadow-xs transition hover:border-indigo-300 dark:hover:border-indigo-700">
+          <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm transition hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">ความเสี่ยงทั้งหมด</span>
-              <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">รายการทั้งหมด</span>
+              <div className="p-1.5 rounded-full bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-400">
                 <Layers className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="mt-2 flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white">{stats.total}</span>
+              <span className="text-2xl font-bold text-slate-800 dark:text-white">{stats.total}</span>
               <span className="text-xs text-slate-400 font-medium">รายการ</span>
             </div>
-            <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">รพ. {stats.hospitalScopeCount} | แผนก {stats.departmentScopeCount}</div>
+            <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">ภาพรวมระบบ</div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-rose-200/80 dark:border-rose-900/50 shadow-xs transition hover:border-rose-400">
+          <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-rose-100 dark:border-rose-900/30 shadow-sm transition hover:shadow-md hover:border-rose-200">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-rose-700 dark:text-rose-400">วิกฤต (Extreme)</span>
-              <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
+              <span className="text-xs font-medium text-rose-600 dark:text-rose-400">ต้องจัดการด่วน (Extreme)</span>
+              <div className="p-1.5 rounded-full bg-rose-50/50 dark:bg-rose-950/30 text-rose-500 dark:text-rose-400">
                 <Flame className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="mt-2 flex items-baseline gap-1.5">
               <span className="text-2xl font-bold text-rose-600 dark:text-rose-400">{stats.extremeCount}</span>
-              <span className="text-xs text-rose-500 font-semibold">15-25 คะแนน</span>
+              <span className="text-xs text-rose-400 font-medium">15-25 คะแนน</span>
             </div>
-            <div className="mt-1 text-[11px] text-rose-600/80 dark:text-rose-400/80 font-medium">RCA ภายใน 24 ชม.</div>
+            <div className="mt-1 text-[11px] text-rose-500/80 dark:text-rose-400/80 font-medium">รอการแก้ไข</div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-amber-200/80 dark:border-amber-900/50 shadow-xs transition hover:border-amber-400">
+          <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-amber-100 dark:border-amber-900/30 shadow-sm transition hover:shadow-md hover:border-amber-200">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">สูง (High)</span>
-              <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
+              <span className="text-xs font-medium text-amber-600 dark:text-amber-400">ควรให้ความสนใจ (High)</span>
+              <div className="p-1.5 rounded-full bg-amber-50/50 dark:bg-amber-950/30 text-amber-500 dark:text-amber-400">
                 <AlertTriangle className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="mt-2 flex items-baseline gap-1.5">
               <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.highCount}</span>
-              <span className="text-xs text-amber-500 font-semibold">9-14 คะแนน</span>
+              <span className="text-xs text-amber-400 font-medium">9-14 คะแนน</span>
             </div>
-            <div className="mt-1 text-[11px] text-amber-600/80 dark:text-amber-400/80 font-medium">เฝ้าระวังใกล้ชิด</div>
+            <div className="mt-1 text-[11px] text-amber-600/80 dark:text-amber-400/80 font-medium">เฝ้าระวัง</div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700/80 shadow-xs transition hover:border-slate-300 dark:hover:border-slate-600">
+          <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-emerald-100 dark:border-emerald-900/30 shadow-sm transition hover:shadow-md hover:border-emerald-200">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">ปานกลาง (Medium)</span>
-              <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+              <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">ปกติดี (Medium)</span>
+              <div className="p-1.5 rounded-full bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-500 dark:text-emerald-400">
                 <Activity className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="mt-2 flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold text-slate-800 dark:text-slate-200">{stats.mediumCount}</span>
-              <span className="text-xs text-slate-500 font-medium">4-8 คะแนน</span>
+              <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.mediumCount}</span>
+              <span className="text-xs text-emerald-400 font-medium">4-8 คะแนน</span>
             </div>
-            <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">ตามแนวทางมาตรฐาน</div>
+            <div className="mt-1 text-[11px] text-emerald-500/80 dark:text-emerald-400/80 font-medium">จัดการได้สบายๆ</div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-purple-200/80 dark:border-purple-900/50 shadow-xs transition hover:border-purple-400">
+          <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-purple-100 dark:border-purple-900/30 shadow-sm transition hover:shadow-md hover:border-purple-200">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-purple-700 dark:text-purple-400">Never Events ⚡</span>
-              <div className="p-1.5 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400">
-                <ShieldAlert className="w-3.5 h-3.5" />
+              <span className="text-xs font-medium text-purple-600 dark:text-purple-400">เป้าหมาย (Never Events)</span>
+              <div className="p-1.5 rounded-full bg-purple-50/50 dark:bg-purple-950/30 text-purple-500 dark:text-purple-400">
+                <ShieldCheck className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="mt-2 flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold text-purple-700 dark:text-purple-400">{stats.neverEventCount}</span>
-              <span className="text-xs text-purple-500 font-bold">Zero Event</span>
+              <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.neverEventCount}</span>
+              <span className="text-xs text-purple-400 font-medium">เหตุการณ์</span>
             </div>
-            <div className="mt-1 text-[11px] text-purple-600/80 dark:text-purple-400/80 font-medium">ห้ามเกิดเด็ดขาด</div>
+            <div className="mt-1 text-[11px] text-purple-500/80 dark:text-purple-400/80 font-medium">ควบคุมอยู่ ⚡</div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-blue-200/80 dark:border-blue-900/50 shadow-xs transition hover:border-blue-400">
+          <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-blue-100 dark:border-blue-900/30 shadow-sm transition hover:shadow-md hover:border-blue-200">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">ถึงกำหนดทบทวน</span>
-              <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+              <span className="text-xs font-medium text-blue-600 dark:text-blue-400">กำหนดทบทวน</span>
+              <div className="p-1.5 rounded-full bg-blue-50/50 dark:bg-blue-950/30 text-blue-500 dark:text-blue-400">
                 <Clock className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="mt-2 flex items-baseline gap-1.5">
               <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.dueSoonCount}</span>
-              <span className="text-xs text-blue-500 font-semibold">ใน 30 วัน</span>
+              <span className="text-xs text-blue-400 font-medium">ใน 30 วัน</span>
             </div>
-            <div className="mt-1 text-[11px] text-blue-600/80 dark:text-blue-400/80 font-medium">แจ้งเตือน Due Date</div>
+            <div className="mt-1 text-[11px] text-blue-500/80 dark:text-blue-400/80 font-medium">จัดสรรเวลาได้</div>
           </div>
         </div>
       )}
@@ -1795,6 +1828,12 @@ export default function Reports() {
         </div>
       )}
 
+      <OfficialPrintSignatures
+        roles={['ผู้จัดทำรายงาน', 'ผู้ตรวจสอบ / หัวหน้าหน่วยงาน', 'ประธานคณะกรรมการบริหารความเสี่ยง (RM)']}
+        names={[user?.name]}
+      />
+      <OfficialPrintFooter />
+
       {/* ========================================================================= */}
       {/* MODAL 1: SMART REGISTER / CREATE RISK PROFILE (WITH 1-CLICK AUTO-FILL)   */}
       {/* ========================================================================= */}
@@ -1970,6 +2009,10 @@ export default function Reports() {
               {/* Risk Code & Title */}
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">รหัส NRLS *</label>
+                  <input type="text" required placeholder="เช่น CPP405" value={formData.nrls_code} onChange={e => setFormData({ ...formData, nrls_code: e.target.value.toUpperCase(), risk_code: e.target.value.toUpperCase() })} className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 font-mono font-bold uppercase" />
+                </div>
+                <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">รหัสความเสี่ยง (Code) *</label>
                   <input
                     type="text"
@@ -1980,7 +2023,7 @@ export default function Reports() {
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 font-mono font-bold focus:ring-2 focus:ring-indigo-500 uppercase"
                   />
                 </div>
-                <div className="sm:col-span-3">
+                <div className="sm:col-span-2">
                   <label className="block text-xs font-bold text-slate-700 mb-1">ชื่อหัวข้อความเสี่ยง (Risk Title) *</label>
                   <input
                     type="text"
@@ -2006,6 +2049,14 @@ export default function Reports() {
 
               {/* Standards and Goals */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">เริ่มรอบคำนวณ *</label>
+                  <input type="date" required value={reviewFormData.period_start} onChange={e => setReviewFormData({ ...reviewFormData, period_start: e.target.value })} className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">สิ้นสุดรอบคำนวณ *</label>
+                  <input type="date" required value={reviewFormData.period_end} onChange={e => setReviewFormData({ ...reviewFormData, period_end: e.target.value })} className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
+                </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">เป้าหมายความปลอดภัย (2P Safety Goal)</label>
                   <input
@@ -2036,7 +2087,7 @@ export default function Reports() {
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-600">คะแนน: {calculatedScore}</span>
                     {getRiskBadge(
-                      calculatedScore >= 15 ? 'red' : calculatedScore >= 9 ? 'orange' : calculatedScore >= 4 ? 'yellow' : 'green',
+                      getRiskMatrixLevel(formData.initial_likelihood, formData.initial_consequence),
                       calculatedScore
                     )}
                   </div>
@@ -2238,6 +2289,10 @@ export default function Reports() {
             <form onSubmit={handleSubmitEdit} className="p-6 overflow-y-auto space-y-4 flex-1">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">รหัส NRLS</label>
+                  <input type="text" required disabled={!isAdminOrRm} value={formData.nrls_code} onChange={e => setFormData({ ...formData, nrls_code: e.target.value.toUpperCase() })} className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 font-mono font-bold uppercase disabled:bg-slate-100" />
+                </div>
+                <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">รหัสความเสี่ยง</label>
                   <input
                     type="text"
@@ -2307,7 +2362,7 @@ export default function Reports() {
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-600">คะแนน: {calculatedScore}</span>
                     {getRiskBadge(
-                      calculatedScore >= 15 ? 'red' : calculatedScore >= 9 ? 'orange' : calculatedScore >= 4 ? 'yellow' : 'green',
+                      getRiskMatrixLevel(formData.initial_likelihood, formData.initial_consequence),
                       calculatedScore
                     )}
                   </div>
@@ -2476,11 +2531,11 @@ export default function Reports() {
                   </label>
                   <input
                     type="number"
-                    min={0}
+                    readOnly
                     value={reviewFormData.incident_count_in_period}
-                    onChange={e => setReviewFormData({ ...reviewFormData, incident_count_in_period: Number(e.target.value) })}
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 font-bold"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-slate-100 font-bold"
                   />
+                  <p className="mt-1 text-[11px] text-slate-500">Backend คำนวณจาก NRLS, ช่วงวันที่ และ scope เมื่อบันทึก</p>
                 </div>
               </div>
 
@@ -2520,7 +2575,7 @@ export default function Reports() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-emerald-900">ประเมินระดับความเสี่ยงคงเหลือ (Residual Risk):</span>
                   {getRiskBadge(
-                    reviewScore >= 15 ? 'red' : reviewScore >= 9 ? 'orange' : reviewScore >= 4 ? 'yellow' : 'green',
+                    getRiskMatrixLevel(reviewFormData.current_likelihood, reviewFormData.current_consequence),
                     reviewScore
                   )}
                 </div>

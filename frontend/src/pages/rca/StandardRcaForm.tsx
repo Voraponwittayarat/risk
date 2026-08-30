@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import {
   ShieldAlert,
@@ -17,12 +17,23 @@ import {
   ChevronUp,
   X,
   FileSpreadsheet,
+  Database,
+  Link2,
 } from 'lucide-react';
 import type { TimelineItem } from '../../components/rca/EventTimeline';
-import { FishboneDiagram } from '../../components/rca/FishboneDiagram';
-import type { FishboneItem } from '../../components/rca/FishboneDiagram';
+import { TierContributingFactorPicker } from '../../components/rca/TierContributingFactorPicker';
 import { AiRcaAssistantModal } from '../../components/rca/AiRcaAssistantModal';
 import { useAuth } from '../../contexts/AuthContext';
+import { OfficialPrintFooter, OfficialPrintHeader, OfficialPrintSignatures } from '../../components/OfficialPrintLayout';
+import { printOfficialReport } from '../../utils/officialPrint';
+import {
+  contributingFactorSelectionsFromLegacy,
+  contributingFactorSelectionsToLegacy,
+  getContributingFactor,
+  normalizeContributingFactorSelections,
+  type ContributingFactorSelection,
+  type LegacyCauseFactor,
+} from '../../utils/contributingFactors';
 
 // Master Trigger Tool List (Wang Chao Hospital Standard 1/2568)
 const TRIGGER_TOOL_ITEMS = [
@@ -55,16 +66,17 @@ const STANDARD_RCA_TEAMS = [
 ];
 
 const CLINICAL_CARE_STEPS = [
-  '1. การเข้าถึงและเข้ารับบริการ (Access & Entry)',
-  '2. การประเมินผู้ป่วยแรกรับ (Initial Assessment)',
-  '3. การตรวจวินิจฉัยและส่งตรวจทางห้องปฏิบัติการ (Diagnosis & Investigation)',
-  '4. การวางแผนการรักษา (Care Planning)',
-  '5. การให้การดูแลรักษาและการทำหัตถการ (Treatment & Clinical Care)',
-  '6. การประเมินซ้ำและการเฝ้าระวังอาการทรุดลง (Re-assessment & Early Warning)',
-  '7. การสื่อสารและการส่งมอบข้อมูล (Communication & Handover)',
-  '8. การวางแผนจำหน่ายผู้ป่วย (Discharge Planning)',
-  '9. การเสริมพลังและการให้ความรู้ผู้ป่วย/ญาติ (Empowerment & Education)',
-  '10. การติดตามผลหลังจำหน่าย (Discharge Follow-up & Continuity of Care)',
+  'การเข้าถึง/เข้ารับบริการ (Access/Entry)',
+  'การประเมิน/การส่งตรวจ (Assessment/Investigation)',
+  'การวินิจฉัย (Diagnosis)',
+  'วางแผนดูแล (Plan of Care)',
+  'การดูแลรักษาผู้ป่วย (Care of Patient)',
+  'ประเมินซ้ำ (Reassess)',
+  'การสื่อสารให้ข้อมูลผู้ป่วย (Communication)',
+  'แผนจำหน่าย (Discharge Plan)',
+  'ให้ความรู้/เสริมพลัง (Empowerment)',
+  'จำหน่าย/ดูแลต่อเนื่อง (Discharge)',
+  'อื่นๆ (ระบุเอง)',
 ];
 
 interface WhyItem {
@@ -106,9 +118,36 @@ interface ReviewSessionItem {
   notes: string;
 }
 
+interface IncidentSource {
+  id: number;
+  id_risk?: number;
+  rm_no?: string;
+  nrls_code?: string;
+  nrls_name?: string;
+  nrls_name_snapshot?: string;
+  incident_topic?: string;
+  incident_description?: string;
+  risk_topic_name?: string;
+  detail?: string;
+  problem_basic?: string;
+  level_id?: string;
+  date_report?: string;
+  status_risk?: string;
+  department_id?: string;
+}
+
+const PROCESS_TIER_FIELD_NUMBER: Partial<Record<keyof ProcessAnalysisItem, number>> = {
+  tier1_personnel: 1,
+  tier2_teamwork: 2,
+  tier3_environment: 3,
+  tier4_policy: 4,
+  tier5_external: 5,
+};
+
 export default function StandardRcaForm() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -119,7 +158,6 @@ export default function StandardRcaForm() {
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isTriggerModalOpen, setIsTriggerModalOpen] = useState(false);
   const [triggerSearch, setTriggerSearch] = useState('');
-  const [useFishbone, setUseFishbone] = useState(true);
   const [useSwissCheese, setUseSwissCheese] = useState(false);
 
   // Section 1: General Metadata
@@ -133,6 +171,12 @@ export default function StandardRcaForm() {
   const [isNotRisk, setIsNotRisk] = useState(false);
   const [status, setStatus] = useState('in_progress');
   const [sourceTriggerReviewId, setSourceTriggerReviewId] = useState<number | undefined>(undefined);
+  const [incidentId, setIncidentId] = useState<number | undefined>(undefined);
+  const [sourceIncident, setSourceIncident] = useState<IncidentSource | null>(null);
+  const [incidentCandidates, setIncidentCandidates] = useState<IncidentSource[]>([]);
+  const [incidentSearch, setIncidentSearch] = useState('');
+  const [loadingIncident, setLoadingIncident] = useState(false);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
 
   // Sources of Information
   const [infoInterview, setInfoInterview] = useState(true);
@@ -158,23 +202,14 @@ export default function StandardRcaForm() {
 
   // Section 5: Clinical Process (10 Steps & 5 Tiers)
   const [selectedProcessKey, setSelectedProcessKey] = useState(CLINICAL_CARE_STEPS[0]);
-  const [processAnalyses, setProcessAnalyses] = useState<ProcessAnalysisItem[]>([
-    {
-      process_key: CLINICAL_CARE_STEPS[0],
-      problem: '',
-      tier1_personnel: '',
-      tier2_teamwork: '',
-      tier3_environment: '',
-      tier4_policy: '',
-      tier5_external: '',
-      corrective_action: '',
-    },
-  ]);
+  const [processAnalyses, setProcessAnalyses] = useState<ProcessAnalysisItem[]>([]);
+  const [expandedProcessFactorSummary, setExpandedProcessFactorSummary] = useState<string | null>(null);
 
-  // Section 6: Fishbone 6M
-  const [fishbones, setFishbones] = useState<FishboneItem[]>([]);
+  // NRLS fiscal-year 2569 Contributing Factors, scoped to the case or a clinical process
+  const [contributingFactors, setContributingFactors] = useState<ContributingFactorSelection[]>([]);
+  const [legacyFishbones, setLegacyFishbones] = useState<LegacyCauseFactor[]>([]);
 
-  // Section 7a: 5 Whys
+  // Section 6a: 5 Whys
   const [whys, setWhys] = useState<WhyItem[]>([
     { level: 1, question: 'ทำไมถึงเกิดเหตุการณ์นี้?', answer: '' },
     { level: 2, question: 'ทำไมถึงเกิดสาเหตุในข้อ 1?', answer: '' },
@@ -183,13 +218,13 @@ export default function StandardRcaForm() {
     { level: 5, question: 'ทำไม (สาเหตุรากเหง้าเชิงระบบ)?', answer: '' },
   ]);
 
-  // Section 7b: Swiss Cheese Model (4 Layers)
+  // Section 6b: Swiss Cheese Model (4 Layers)
   const [swissCheeseOrg, setSwissCheeseOrg] = useState('');
   const [swissCheeseSupervision, setSwissCheeseSupervision] = useState('');
   const [swissCheesePreconditions, setSwissCheesePreconditions] = useState('');
   const [swissCheeseUnsafeActs, setSwissCheeseUnsafeActs] = useState('');
 
-  // Section 8: CAPA Action Plan
+  // Section 7: CAPA Action Plan
   const [capas, setCapas] = useState<CapaItem[]>([
     {
       action: '',
@@ -200,7 +235,7 @@ export default function StandardRcaForm() {
     },
   ]);
 
-  // Section 9: Review Sessions
+  // Section 8: Review Sessions
   const [reviewSessions, setReviewSessions] = useState<ReviewSessionItem[]>([
     {
       session_no: 1,
@@ -210,36 +245,87 @@ export default function StandardRcaForm() {
     },
   ]);
 
-  // Load existing case or pre-load from location state
+  const applyIncidentSource = (incident: IncidentSource) => {
+    const linkedIncidentId = Number(incident.id);
+    if (!Number.isFinite(linkedIncidentId) || linkedIncidentId <= 0) return;
+
+    const nrlsTopic = incident.incident_topic
+      || incident.nrls_name_snapshot
+      || incident.nrls_name
+      || incident.risk_topic_name
+      || `อุบัติการณ์ #${linkedIncidentId}`;
+    const description = incident.incident_description
+      || incident.detail
+      || incident.problem_basic
+      || '';
+    const sourceRmNo = incident.rm_no || String(incident.id_risk || linkedIncidentId);
+
+    setIncidentId(linkedIncidentId);
+    setSourceIncident(incident);
+    setTopic(nrlsTopic);
+    setRmNo(sourceRmNo);
+    setWhatHappened(description);
+    if (incident.level_id) setSeverity(incident.level_id);
+    if (incident.date_report) setIncidentDate(incident.date_report.slice(0, 10));
+  };
+
+  const loadIncidentSource = async (sourceId: number, fallback?: IncidentSource) => {
+    try {
+      setLoadingIncident(true);
+      const res = await axios.get(`/incidents/${sourceId}`);
+      applyIncidentSource(res.data);
+    } catch (err) {
+      console.error('Failed to load linked incident', err);
+      if (fallback) applyIncidentSource(fallback);
+      else alert('ไม่สามารถดึงข้อมูลรายงานความเสี่ยงที่เลือกได้');
+    } finally {
+      setLoadingIncident(false);
+    }
+  };
+
+  // Load existing case or pre-load its linked incident from navigation/query state.
   useEffect(() => {
     if (id && id !== 'new') {
       loadCaseData(id);
     } else {
-      // Check location state from Trigger Tool or Incident Detail
       const state = location.state as any;
-      if (state) {
+      const stateIncident = state?.incident || state;
+      const requestedIncidentId = Number(
+        searchParams.get('incident_id') || stateIncident?.incident_id || stateIncident?.id,
+      );
+      if (Number.isFinite(requestedIncidentId) && requestedIncidentId > 0) {
+        loadIncidentSource(requestedIncidentId, stateIncident);
+      } else if (state) {
         if (state.source_trigger_review_id) {
           setSourceTriggerReviewId(state.source_trigger_review_id);
         }
-        if (state.topic || state.risk_name) {
-          setTopic(state.topic || state.risk_name || '');
-        }
-        if (state.severity_level || state.level_id) {
-          setSeverity(state.severity_level || state.level_id || 'G');
-        }
-        if (state.what_happened || state.ae_description || state.detail) {
-          setWhatHappened(state.what_happened || state.ae_description || state.detail || '');
-        }
-        if (state.incident_date || state.date_risk) {
-          const d = state.incident_date || state.date_risk;
-          setIncidentDate(d.slice(0, 10));
-        }
-        if (state.rm_no) {
-          setRmNo(state.rm_no);
-        }
+        if (state.topic || state.risk_name) setTopic(state.topic || state.risk_name || '');
+        if (state.severity_level || state.level_id) setSeverity(state.severity_level || state.level_id || 'G');
+        if (state.what_happened || state.ae_description || state.detail) setWhatHappened(state.what_happened || state.ae_description || state.detail || '');
+        if (state.incident_date || state.date_risk) setIncidentDate((state.incident_date || state.date_risk).slice(0, 10));
+        if (state.rm_no) setRmNo(state.rm_no);
       }
     }
-  }, [id, location.state]);
+  }, [id, location.state, searchParams]);
+
+  useEffect(() => {
+    if (id && id !== 'new') return;
+    const timer = window.setTimeout(async () => {
+      try {
+        setLoadingCandidates(true);
+        const res = await axios.get('/rca/standard-candidates', {
+          params: incidentSearch.trim() ? { search: incidentSearch.trim() } : undefined,
+        });
+        setIncidentCandidates(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        console.error('Failed to load Standard RCA incident sources', err);
+        setIncidentCandidates([]);
+      } finally {
+        setLoadingCandidates(false);
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [id, incidentSearch]);
 
   const loadCaseData = async (caseIdToLoad: string) => {
     try {
@@ -247,6 +333,18 @@ export default function StandardRcaForm() {
       const res = await axios.get(`/rca/standard/${caseIdToLoad}`);
       const data = res.data;
       setCaseId(data.id);
+      if (data.incident_id) {
+        setIncidentId(Number(data.incident_id));
+        setSourceIncident({
+          id: Number(data.incident_id),
+          id_risk: data.incident_id_risk,
+          rm_no: data.rm_no,
+          nrls_code: data.nrls_code,
+          nrls_name: data.nrls_name_snapshot,
+          incident_topic: data.nrls_name_snapshot || data.topic,
+          incident_description: data.incident_detail_raw || data.what_happened,
+        });
+      }
       setRmNo(data.rm_no || '');
       setTopic(data.topic || '');
       setSeverity(data.severity || 'G');
@@ -273,11 +371,17 @@ export default function StandardRcaForm() {
 
       if (data.timelines?.length) setTimelines(data.timelines);
       if (data.whys?.length) setWhys(data.whys);
-      if (data.fishbones?.length) {
-        setFishbones(data.fishbones);
-        setUseFishbone(true);
+      const storedContributingFactors = normalizeContributingFactorSelections(data.contributing_factors);
+      const migratedFishbones = contributingFactorSelectionsFromLegacy(data.fishbones || []);
+      if (storedContributingFactors.length || migratedFishbones.selections.length) {
+        setContributingFactors(storedContributingFactors.length ? storedContributingFactors : migratedFishbones.selections);
       }
-      if (data.process_analyses?.length) setProcessAnalyses(data.process_analyses);
+      setLegacyFishbones(migratedFishbones.legacy);
+      if (data.cmps?.length) setCmps(data.cmps);
+      if (data.process_analyses?.length) {
+        setProcessAnalyses(data.process_analyses);
+        setSelectedProcessKey(data.process_analyses[0].process_key);
+      }
       if (data.capas?.length) setCapas(data.capas);
       if (data.review_sessions?.length) {
         setReviewSessions(
@@ -305,16 +409,10 @@ export default function StandardRcaForm() {
       if (aiData.potential_impact_summary) setPotentialImpact(aiData.potential_impact_summary);
     }
 
-    if (selectedKeys.includes('fishbone') && aiData.fishbones?.length) {
-      setFishbones(
-        aiData.fishbones.map((f: any, idx: number) => ({
-          category: f.category === 'man' ? 'people' : f.category === 'milieu' ? 'environment' : f.category,
-          factor: f.factor,
-          sub_factor: f.sub_factor,
-          sort_order: idx + 1,
-        }))
-      );
-      setUseFishbone(true);
+    if (selectedKeys.includes('fishbone') && (aiData.contributing_factors?.length || aiData.fishbones?.length)) {
+      const suggested = normalizeContributingFactorSelections(aiData.contributing_factors);
+      const migratedSuggestion = contributingFactorSelectionsFromLegacy(aiData.fishbones || []).selections;
+      setContributingFactors(suggested.length ? suggested : migratedSuggestion);
     }
 
     if (selectedKeys.includes('whys') && aiData.whys?.length) {
@@ -395,6 +493,92 @@ export default function StandardRcaForm() {
     setCmps(updated);
   };
 
+  const handleQuickReviewDateChange = (value: string) => {
+    setReviewSessions((current) => {
+      const first = current[0] || {
+        session_no: 1,
+        review_date_time: '',
+        reviewers: user?.name || '',
+        notes: 'การทบทวนจากผู้เกี่ยวข้องแบบรวดเร็ว',
+      };
+      const time = first.review_date_time?.slice(11, 16) || '09:00';
+      const updatedFirst = { ...first, review_date_time: value ? `${value}T${time}` : '' };
+      return current.length ? [updatedFirst, ...current.slice(1)] : [updatedFirst];
+    });
+  };
+
+  const handleQuickReviewersChange = (value: string) => {
+    setReviewSessions((current) => {
+      const first = current[0] || {
+        session_no: 1,
+        review_date_time: new Date().toISOString().slice(0, 16),
+        reviewers: '',
+        notes: 'การทบทวนจากผู้เกี่ยวข้องแบบรวดเร็ว',
+      };
+      const updatedFirst = { ...first, reviewers: value };
+      return current.length ? [updatedFirst, ...current.slice(1)] : [updatedFirst];
+    });
+  };
+
+  const handleAddProcessAnalysis = () => {
+    if (processAnalyses.some((item) => item.process_key === selectedProcessKey)) return;
+    setProcessAnalyses([
+      ...processAnalyses,
+      {
+        process_key: selectedProcessKey,
+        problem: '',
+        tier1_personnel: '',
+        tier2_teamwork: '',
+        tier3_environment: '',
+        tier4_policy: '',
+        tier5_external: '',
+        corrective_action: '',
+      },
+    ]);
+  };
+
+  const handleRemoveProcessAnalysis = (idx: number) => {
+    const removedProcessKey = processAnalyses[idx]?.process_key;
+    setProcessAnalyses(processAnalyses.filter((_, itemIdx) => itemIdx !== idx));
+    if (removedProcessKey) {
+      setContributingFactors((current) => current.filter((factor) => factor.process_key !== removedProcessKey));
+      if (expandedProcessFactorSummary === removedProcessKey) setExpandedProcessFactorSummary(null);
+    }
+  };
+
+  const handleProcessAnalysisChange = (idx: number, field: keyof ProcessAnalysisItem, value: string) => {
+    const updated = [...processAnalyses];
+    updated[idx] = { ...updated[idx], [field]: value };
+    setProcessAnalyses(updated);
+    const tier = PROCESS_TIER_FIELD_NUMBER[field];
+    if (tier) {
+      const processKey = updated[idx].process_key;
+      setContributingFactors((current) => current.map((factor) => (
+        factor.process_key === processKey && factor.tier === tier
+          ? { ...factor, ...(value.trim() ? { detail: value.trim() } : { detail: undefined }) }
+          : factor
+      )));
+    }
+  };
+
+  const handleTierContributingFactorsChange = (
+    processKey: string,
+    tier: number,
+    cause: string,
+    nextFactors: ContributingFactorSelection[],
+  ) => {
+    setContributingFactors((current) => {
+      const otherMappings = current.filter((factor) => !(factor.process_key === processKey && factor.tier === tier));
+      const tierMappings = nextFactors.map((factor) => ({
+        code: factor.code,
+        ...(cause.trim() ? { detail: cause.trim() } : {}),
+        process_key: processKey,
+        tier,
+      }));
+      return [...otherMappings, ...tierMappings];
+    });
+  };
+
   // CAPA Handlers
   const handleAddCapa = () => {
     setCapas([
@@ -444,6 +628,10 @@ export default function StandardRcaForm() {
 
   // Form Save
   const handleSave = async (markAsNotRisk = isNotRisk) => {
+    if ((!id || id === 'new') && !incidentId) {
+      alert('กรุณาเลือกรายงานความเสี่ยงต้นทางก่อนสร้าง Standard RCA');
+      return;
+    }
     if (!topic.trim()) {
       alert('กรุณาระบุหัวข้อเรื่องการทำ RCA');
       return;
@@ -454,6 +642,8 @@ export default function StandardRcaForm() {
 
     const payload = {
       id: caseId || undefined,
+      incident_id: incidentId,
+      incident_id_risk: sourceIncident?.id_risk,
       rm_no: rmNo || undefined,
       source_trigger_review_id: sourceTriggerReviewId,
       topic,
@@ -472,8 +662,22 @@ export default function StandardRcaForm() {
       created_by: user?.id || 1,
       timelines: timelines.filter((t) => t.event_description.trim() || t.event_time.trim()),
       whys: whys.filter((w) => w.answer.trim()),
-      fishbones: useFishbone ? fishbones : [],
-      process_analyses: processAnalyses.filter((p) => p.problem.trim() || p.corrective_action.trim()),
+      contributing_factors: contributingFactors,
+      fishbones: [
+        ...legacyFishbones,
+        ...contributingFactorSelectionsToLegacy(contributingFactors),
+      ],
+      cmps: cmps.filter((cmp) => cmp.observation.trim() || cmp.hypothesis.trim() || cmp.comment.trim()),
+      process_analyses: processAnalyses.filter((p) =>
+        p.problem.trim()
+        || p.tier1_personnel.trim()
+        || p.tier2_teamwork.trim()
+        || p.tier3_environment.trim()
+        || p.tier4_policy.trim()
+        || p.tier5_external.trim()
+        || p.corrective_action.trim()
+        || contributingFactors.some((factor) => factor.process_key === p.process_key)
+      ),
       capas: capas.filter((c) => c.action.trim()),
       review_sessions: reviewSessions.map((s) => ({
         reviewers: s.reviewers,
@@ -493,7 +697,10 @@ export default function StandardRcaForm() {
       navigate('/rca/list');
     } catch (err) {
       console.error('Failed to save standard RCA', err);
-      alert('เกิดข้อผิดพลาดในการบันทึก Standard RCA');
+      const message = axios.isAxiosError(err) && typeof err.response?.data?.message === 'string'
+        ? err.response.data.message
+        : 'เกิดข้อผิดพลาดในการบันทึก Standard RCA';
+      alert(message);
     } finally {
       setSaving(false);
     }
@@ -518,6 +725,9 @@ export default function StandardRcaForm() {
 
   const clinicalSeverities = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
   const generalSeverities = ['1', '2', '3', '4', '5'];
+  const selectableIncidents = sourceIncident && !incidentCandidates.some((candidate) => candidate.id === sourceIncident.id)
+    ? [sourceIncident, ...incidentCandidates]
+    : incidentCandidates;
 
   if (loading) {
     return (
@@ -529,7 +739,19 @@ export default function StandardRcaForm() {
   }
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-28">
+    <div className="official-print-document official-print-form space-y-8 max-w-6xl mx-auto pb-28">
+      <OfficialPrintHeader
+        title="แบบวิเคราะห์สาเหตุรากเหง้าเชิงระบบ (Standard RCA)"
+        subtitle="Root Cause Analysis & Corrective Action Report"
+        documentCode="RM-RCA-FM-01"
+        referenceNo={caseId || (incidentId ? `INC-${incidentId}` : 'DRAFT')}
+        metadata={[
+          { label: 'RM No.', value: rmNo },
+          { label: 'Incident ID', value: incidentId },
+          { label: 'ระดับความรุนแรง', value: severity },
+          { label: 'สถานะ RCA', value: status },
+        ]}
+      />
       {/* 1. Header Banner with AI Assistant Button */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 sm:p-7 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6 print:hidden transition-all">
         <div className="space-y-2">
@@ -554,7 +776,7 @@ export default function StandardRcaForm() {
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-                Case ID: {caseId || 'สร้างเคสใหม่'} {sourceTriggerReviewId ? `(เชื่อมโยงจาก Trigger Tool Review #${sourceTriggerReviewId})` : ''}
+                Case ID: {caseId || 'สร้างเคสใหม่'} {incidentId ? `• เชื่อม Incident #${incidentId}` : ''} {sourceTriggerReviewId ? `(เชื่อมโยงจาก Trigger Tool Review #${sourceTriggerReviewId})` : ''}
               </p>
             </div>
           </div>
@@ -571,7 +793,7 @@ export default function StandardRcaForm() {
           </button>
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={printOfficialReport}
             className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-medium border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 transition cursor-pointer"
           >
             <Printer className="w-4 h-4 text-slate-500 dark:text-slate-400" />
@@ -588,6 +810,66 @@ export default function StandardRcaForm() {
           </button>
         </div>
       </div>
+
+      {(!id || id === 'new') && (
+        <section className="rounded-3xl border-2 border-indigo-200 bg-indigo-50/60 p-5 shadow-sm dark:border-indigo-900 dark:bg-indigo-950/20 print:hidden sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-indigo-600 p-2.5 text-white"><Database className="h-5 w-5" /></div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-black text-indigo-950 dark:text-indigo-200">เชื่อมโยงรายงานความเสี่ยงเดิม <span className="text-rose-500">*</span></h2>
+              <p className="mt-1 text-xs text-indigo-700 dark:text-indigo-300">เลือก Incident ต้นทาง ระบบจะดึงหัวข้อ NRLS, เลข RM, รายละเอียดเหตุการณ์, วันที่ และระดับความรุนแรงมาให้อัตโนมัติ</p>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-5">
+                <div className="relative lg:col-span-2">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="search"
+                    value={incidentSearch}
+                    onChange={(event) => setIncidentSearch(event.target.value)}
+                    placeholder="ค้นหาจาก Incident ID, IR, NRLS หรือรายละเอียด..."
+                    className="w-full rounded-xl border border-indigo-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-indigo-800 dark:bg-slate-900"
+                  />
+                </div>
+                <select
+                  value={incidentId || ''}
+                  disabled={loadingCandidates || loadingIncident}
+                  onChange={(event) => {
+                    const nextId = Number(event.target.value);
+                    if (!nextId) {
+                      setIncidentId(undefined);
+                      setSourceIncident(null);
+                      setTopic('');
+                      setRmNo('');
+                      setWhatHappened('');
+                      return;
+                    }
+                    const candidate = selectableIncidents.find((item) => item.id === nextId);
+                    if (candidate) loadIncidentSource(nextId, candidate);
+                  }}
+                  className="rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 dark:border-indigo-800 dark:bg-slate-900 lg:col-span-3"
+                >
+                  <option value="">{loadingCandidates ? 'กำลังค้นหารายงาน...' : 'เลือกรายงานความเสี่ยงต้นทาง'}</option>
+                  {selectableIncidents.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      #{candidate.id} / IR {candidate.id_risk || '-'} • {candidate.nrls_code || 'ไม่มี NRLS'} • {candidate.incident_topic || candidate.nrls_name || candidate.nrls_name_snapshot || candidate.detail || '-'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {sourceIncident && (
+                <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-emerald-300 bg-white p-4 text-xs dark:border-emerald-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 font-black text-emerald-700 dark:text-emerald-300"><Link2 className="h-4 w-4" /> เชื่อมโยงแล้ว: Incident #{sourceIncident.id} / IR {sourceIncident.id_risk || '-'}</div>
+                    <p className="mt-1 text-slate-600 dark:text-slate-300">{sourceIncident.nrls_code || '-'} : {sourceIncident.nrls_name || sourceIncident.nrls_name_snapshot || sourceIncident.incident_topic || topic}</p>
+                  </div>
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">ดึงข้อมูลเดิมแล้ว</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Main 9 Sections Form Body (No nested <form> tags) */}
       <div className="space-y-8">
@@ -621,9 +903,11 @@ export default function StandardRcaForm() {
                 type="text"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
+                readOnly={Boolean(incidentId)}
                 placeholder="เช่น การให้ยา High Alert Drug ไม่ตรงตามคำสั่งแพทย์ในเวรดึก"
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                className={`w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none ${incidentId ? 'bg-emerald-50/70 dark:bg-emerald-950/20 cursor-not-allowed' : 'bg-slate-50 dark:bg-slate-800/80'}`}
               />
+              {incidentId && <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">✓ หัวข้อมาตรฐานจาก NRLS Topic ของ Incident #{incidentId}</p>}
             </div>
 
             <div className="md:col-span-4 space-y-2">
@@ -678,9 +962,11 @@ export default function StandardRcaForm() {
                 type="text"
                 value={rmNo}
                 onChange={(e) => setRmNo(e.target.value)}
+                readOnly={Boolean(incidentId)}
                 placeholder="เช่น RM-2568-089"
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                className={`w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none ${incidentId ? 'bg-emerald-50/70 dark:bg-emerald-950/20 cursor-not-allowed' : 'bg-slate-50 dark:bg-slate-800/80'}`}
               />
+              {incidentId && <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">✓ อ้างอิง Incident #{incidentId} / IR {sourceIncident?.id_risk || '-'}</p>}
             </div>
 
             {/* รายละเอียดเหตุการณ์ที่เกิดขึ้น (Incident Description / What Happened) */}
@@ -690,7 +976,7 @@ export default function StandardRcaForm() {
                   <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                   รายละเอียดเหตุการณ์ที่เกิดขึ้น / ข้อเท็จจริงของความเสี่ยง (Incident Description)
                 </label>
-                {whatHappened && (
+                {incidentId && whatHappened && (
                   <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
                     ✓ ดึงข้อมูลรายละเอียดความเสี่ยงมาให้อัตโนมัติ
                   </span>
@@ -778,50 +1064,6 @@ export default function StandardRcaForm() {
               </div>
             </div>
 
-            {/* Sources of Information */}
-            <div className="md:col-span-12 space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                แหล่งข้อมูลที่ใช้ในการทบทวน (Sources of Information)
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <label className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 cursor-pointer hover:bg-slate-100 text-xs text-slate-700 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={infoInterview}
-                    onChange={(e) => setInfoInterview(e.target.checked)}
-                    className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
-                  />
-                  <span>สัมภาษณ์ผู้เกี่ยวข้อง</span>
-                </label>
-                <label className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 cursor-pointer hover:bg-slate-100 text-xs text-slate-700 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={infoCctv}
-                    onChange={(e) => setInfoCctv(e.target.checked)}
-                    className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
-                  />
-                  <span>ตรวจสอบกล้อง CCTV</span>
-                </label>
-                <label className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 cursor-pointer hover:bg-slate-100 text-xs text-slate-700 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={infoDocument}
-                    onChange={(e) => setInfoDocument(e.target.checked)}
-                    className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
-                  />
-                  <span>ทบทวนเวชระเบียน / Log</span>
-                </label>
-                <label className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 cursor-pointer hover:bg-slate-100 text-xs text-slate-700 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={infoInspection}
-                    onChange={(e) => setInfoInspection(e.target.checked)}
-                    className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
-                  />
-                  <span>ตรวจสถานที่เกิดเหตุจริง</span>
-                </label>
-              </div>
-            </div>
           </div>
         </section>
 
@@ -963,331 +1205,238 @@ export default function StandardRcaForm() {
           </div>
         </section>
 
-        {/* ================= SECTION 4: REVIEWERS & CMPS ================= */}
-        <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
-                4
-              </span>
+        {/* ================= SECTION 4: QUICK STAKEHOLDER REVIEW & CMPS ================= */}
+        <section className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+          <div className="flex items-center gap-2.5 border-b border-slate-100 pb-4 dark:border-slate-800">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-sm font-black text-violet-600 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-400">4</span>
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">การทบทวนจากผู้เกี่ยวข้อง (แบบรวดเร็ว) และวิเคราะห์ CMPs</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">รวบรวมข้อมูลจากผู้เกี่ยวข้องและหลักฐาน เพื่อระบุปัญหาการจัดการดูแลรักษาที่เบี่ยงเบนจากมาตรฐาน</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/40 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">วันที่ร่วมทบทวน / วันที่สัมภาษณ์</label>
+              <input
+                type="date"
+                value={reviewSessions[0]?.review_date_time?.slice(0, 10) || ''}
+                onChange={(e) => handleQuickReviewDateChange(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">รายชื่อผู้ร่วมทบทวน / ผู้ให้ข้อมูลสำคัญ</label>
+              <input
+                type="text"
+                value={reviewSessions[0]?.reviewers || ''}
+                onChange={(e) => handleQuickReviewersChange(e.target.value)}
+                placeholder="ระบุชื่อบุคลากรที่เกี่ยวข้องที่ให้ข้อมูล"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">แหล่งข้อมูลเพิ่มเติมที่เข้าสืบค้นและทบทวน (Information &amp; Evidence Sources)</label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { label: 'สัมภาษณ์บุคลากร', checked: infoInterview, setter: setInfoInterview },
+                { label: 'กล้องวงจรปิด (CCTV)', checked: infoCctv, setter: setInfoCctv },
+                { label: 'ตรวจสอบเอกสาร/Logs', checked: infoDocument, setter: setInfoDocument },
+                { label: 'เดินตรวจประเมินหน้างาน', checked: infoInspection, setter: setInfoInspection },
+              ].map((source) => (
+                <label key={source.label} className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-700 hover:border-violet-300 hover:bg-violet-50/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-violet-800">
+                  <input type="checkbox" checked={source.checked} onChange={(e) => source.setter(e.target.checked)} className="h-4 w-4 rounded text-violet-600 focus:ring-violet-500" />
+                  <span>{source.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
               <div>
-                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
-                  การทบทวนจากผู้เกี่ยวข้อง และวิเคราะห์ CMPs (Care Management Problems)
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  ปัญหาในกระบวนการดูแลรักษา สมมติฐานเชิงสาเหตุ และความเห็นแนวทางแก้ไขทันที
-                </p>
+                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">รายละเอียดประเด็นปัญหา CMPs และสมมติฐานร่วมกัน</h4>
+                <p className="mt-0.5 text-[11px] text-slate-500">Care Management Problems (CMPs) คือ ปัญหาจากการจัดการดูแลรักษา หรือความเบี่ยงเบนจากแนวปฏิบัติมาตรฐาน</p>
               </div>
+              <button type="button" onClick={handleAddCmp} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3.5 py-2 text-xs font-bold text-violet-700 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-300">
+                <Plus className="h-3.5 w-3.5" /> เพิ่มประเด็นหน้างาน
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={handleAddCmp}
-              className="px-3.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/50 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-xs font-semibold flex items-center gap-1.5 transition"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>เพิ่มข้อสังเกต CMP</span>
-            </button>
-          </div>
 
-          <div className="space-y-4">
-            {cmps.map((cmp, idx) => (
-              <div
-                key={idx}
-                className="p-5 rounded-2xl bg-teal-50/30 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900/40 space-y-3 relative group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-teal-800 dark:text-teal-300">
-                    ประเด็น CMP ข้อที่ {idx + 1}
-                  </span>
-                  {cmps.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveCmp(idx)}
-                      className="text-slate-400 hover:text-rose-500"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                      สิ่งที่สังเกตพบ (CMPs)
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={cmp.observation}
-                      onChange={(e) => handleCmpChange(idx, 'observation', e.target.value)}
-                      placeholder="เช่น ขาดการทำ Double Check ยา HAD..."
-                      className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                      สมมติฐาน / ปัจจัยที่เป็นอุปสรรค
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={cmp.hypothesis}
-                      onChange={(e) => handleCmpChange(idx, 'hypothesis', e.target.value)}
-                      placeholder="เช่น ภาระงานเร่งด่วนในเวรดึก ขาดระบบแจ้งเตือน..."
-                      className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                      ความเห็นและแนวทางแก้ไขทันที
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={cmp.comment}
-                      onChange={(e) => handleCmpChange(idx, 'comment', e.target.value)}
-                      placeholder="เช่น กำหนดให้มี Checklist ติดหน้าตู้ยาทันที..."
-                      className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+              <table className="min-w-[900px] w-full table-fixed text-left text-xs">
+                <thead className="bg-slate-50 text-[11px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  <tr>
+                    <th className="w-[31%] px-3 py-3">สิ่งที่สังเกตพบ / ปัญหาเชิงพฤติกรรมและการจัดการ (CMPs)</th>
+                    <th className="w-[31%] px-3 py-3">สมมติฐาน / ปัจจัยที่เป็นอุปสรรคหรือปัญหาหน้างาน</th>
+                    <th className="w-[31%] px-3 py-3">ความเห็นของผู้เกี่ยวข้อง / แนวทางแก้ไขเชิงปฏิบัติทันที</th>
+                    <th className="w-[7%] px-2 py-3 text-center">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
+                  {cmps.map((cmp, idx) => (
+                    <tr key={idx}>
+                      <td className="p-3 align-top"><textarea rows={3} value={cmp.observation} onChange={(e) => handleCmpChange(idx, 'observation', e.target.value)} placeholder="สิ่งที่สังเกตพบ..." className="w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" /></td>
+                      <td className="p-3 align-top"><textarea rows={3} value={cmp.hypothesis} onChange={(e) => handleCmpChange(idx, 'hypothesis', e.target.value)} placeholder="สมมติฐาน..." className="w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" /></td>
+                      <td className="p-3 align-top"><textarea rows={3} value={cmp.comment} onChange={(e) => handleCmpChange(idx, 'comment', e.target.value)} placeholder="ความเห็นของผู้เกี่ยวข้อง..." className="w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" /></td>
+                      <td className="p-3 text-center align-middle"><button type="button" onClick={() => handleRemoveCmp(idx)} className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-950/40" title="ลบประเด็น CMP"><Trash2 size={15} /></button></td>
+                    </tr>
+                  ))}
+                  {cmps.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">ยังไม่มีประเด็น CMP — กด “เพิ่มประเด็นหน้างาน” เพื่อเริ่มบันทึก</td></tr>}
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
 
-        {/* ================= SECTION 5: CLINICAL PROCESS (10 STEPS & 5 TIERS) ================= */}
-        <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-          <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800">
-            <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
-              5
-            </span>
+        {/* ================= SECTION 5: CLINICAL PROCESS BOARD ================= */}
+        <section className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+          <div className="flex items-center gap-2.5 border-b border-slate-100 pb-4 dark:border-slate-800">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-sm font-black text-blue-600 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-400">5</span>
             <div>
-              <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                การวิเคราะห์กระบวนการดูแลรักษา (Clinical Process 10 Steps & 5 Tiers)
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300">
-                  มาตรฐาน (Standard)
-                </span>
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                วิเคราะห์เจาะลึก 5 ลำดับชั้นปัจจัย (บุคลากร, ทีมงาน, สิ่งแวดล้อม, นโยบาย, ภายนอก) ในแต่ละขั้นตอนการดูแล
-              </p>
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">การวิเคราะห์กระบวนการดูแลรักษา (Clinical Process Analysis)</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">เพิ่มกระบวนการที่มีปัญหา วิเคราะห์จาก CMPs ถึง Tier 5 และผูกสาเหตุมาตรฐาน NRLS กับแต่ละกระบวนการ</p>
             </div>
           </div>
 
-          <div className="space-y-5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                เลือกขั้นตอนการดูแลรักษาที่พบปัญหา
-              </label>
-              <select
-                value={selectedProcessKey}
-                onChange={(e) => {
-                  setSelectedProcessKey(e.target.value);
-                  if (!processAnalyses.find((p) => p.process_key === e.target.value)) {
-                    setProcessAnalyses([
-                      ...processAnalyses,
-                      {
-                        process_key: e.target.value,
-                        problem: '',
-                        tier1_personnel: '',
-                        tier2_teamwork: '',
-                        tier3_environment: '',
-                        tier4_policy: '',
-                        tier5_external: '',
-                        corrective_action: '',
-                      },
-                    ]);
-                  }
-                }}
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-              >
-                {CLINICAL_CARE_STEPS.map((step) => (
-                  <option key={step} value={step}>
-                    {step}
-                  </option>
-                ))}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/40">
+            <label className="mb-2 block text-xs font-bold text-slate-700 dark:text-slate-300">เลือกกระบวนการที่พบปัญหาเพื่อเพิ่มลงในกระดานวิเคราะห์</label>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <select value={selectedProcessKey} onChange={(e) => setSelectedProcessKey(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                {CLINICAL_CARE_STEPS.map((step) => <option key={step} value={step}>{step}</option>)}
               </select>
+              <button type="button" onClick={handleAddProcessAnalysis} disabled={processAnalyses.some((item) => item.process_key === selectedProcessKey)} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700">
+                <Plus className="h-4 w-4" /> {processAnalyses.some((item) => item.process_key === selectedProcessKey) ? 'เพิ่มแล้ว' : 'เพิ่มกระบวนการ'}
+              </button>
             </div>
-
-            {/* 5 Tiers Input for selected process */}
-            {(() => {
-              const currentItem =
-                processAnalyses.find((p) => p.process_key === selectedProcessKey) || {
-                  process_key: selectedProcessKey,
-                  problem: '',
-                  tier1_personnel: '',
-                  tier2_teamwork: '',
-                  tier3_environment: '',
-                  tier4_policy: '',
-                  tier5_external: '',
-                  corrective_action: '',
-                };
-
-              const updateCurrentItem = (field: keyof ProcessAnalysisItem, val: string) => {
-                const idx = processAnalyses.findIndex((p) => p.process_key === selectedProcessKey);
-                if (idx >= 0) {
-                  const updated = [...processAnalyses];
-                  updated[idx] = { ...updated[idx], [field]: val };
-                  setProcessAnalyses(updated);
-                } else {
-                  setProcessAnalyses([
-                    ...processAnalyses,
-                    { ...currentItem, [field]: val },
-                  ]);
-                }
-              };
-
-              return (
-                <div className="p-5 rounded-2xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-indigo-900 dark:text-indigo-300">
-                      ปัญหาที่พบในขั้นตอนนี้ (Process Breakdown / Failure)
-                    </label>
-                    <input
-                      type="text"
-                      value={currentItem.problem}
-                      onChange={(e) => updateCurrentItem('problem', e.target.value)}
-                      placeholder="ระบุความคลาดเคลื่อนหรืออุปสรรคที่เกิดขึ้นในขั้นตอนนี้..."
-                      className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-3 pt-2">
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                        Tier 1: บุคลากร
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={currentItem.tier1_personnel}
-                        onChange={(e) => updateCurrentItem('tier1_personnel', e.target.value)}
-                        placeholder="ทักษะ, ความเหนื่อยล้า..."
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                        Tier 2: ทีมงาน
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={currentItem.tier2_teamwork}
-                        onChange={(e) => updateCurrentItem('tier2_teamwork', e.target.value)}
-                        placeholder="การสื่อสาร, การส่งเวร..."
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                        Tier 3: สิ่งแวดล้อม/อุปกรณ์
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={currentItem.tier3_environment}
-                        onChange={(e) => updateCurrentItem('tier3_environment', e.target.value)}
-                        placeholder="แสงสว่าง, เครื่องมือ..."
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                        Tier 4: นโยบาย/องค์กร
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={currentItem.tier4_policy}
-                        onChange={(e) => updateCurrentItem('tier4_policy', e.target.value)}
-                        placeholder="แนวทาง CPG, กำลังคน..."
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                        Tier 5: ปัจจัยภายนอก
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={currentItem.tier5_external}
-                        onChange={(e) => updateCurrentItem('tier5_external', e.target.value)}
-                        placeholder="ผู้ป่วย/ญาติ, บริษัทยา..."
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5 pt-2">
-                    <label className="block text-xs font-bold text-emerald-700 dark:text-emerald-400">
-                      แนวทางแก้ไขเฉพาะกระบวนการนี้ (Process Corrective Action)
-                    </label>
-                    <input
-                      type="text"
-                      value={currentItem.corrective_action}
-                      onChange={(e) => updateCurrentItem('corrective_action', e.target.value)}
-                      placeholder="มาตรการปรับปรุงกระบวนการดูแลรักษาเฉพาะจุดนี้..."
-                      className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 text-xs text-slate-900 dark:text-slate-100"
-                    />
-                  </div>
-                </div>
-              );
-            })()}
           </div>
+
+          {processAnalyses.length === 0 ? (
+            <div className="rounded-2xl border-2 border-dashed border-slate-200 px-4 py-12 text-center dark:border-slate-800">
+              <p className="font-bold text-slate-500 dark:text-slate-400">ยังไม่มีกระบวนการที่ถูกเลือก</p>
+              <p className="mt-1 text-xs text-slate-400">กรุณาเลือกกระบวนการจากด้านบนแล้วกด “เพิ่มกระบวนการ”</p>
+            </div>
+          ) : (
+            <div className="-mx-2 overflow-x-auto px-2 pb-4">
+              <div className="flex min-w-max items-stretch gap-4">
+                {processAnalyses.map((item, idx) => {
+                  const titleMatch = item.process_key.match(/^(.*?)\s*\((.*?)\)$/);
+                  const thaiTitle = titleMatch?.[1] || item.process_key;
+                  const englishTitle = titleMatch?.[2] || '';
+                  const processFactors = contributingFactors.filter((factor) => factor.process_key === item.process_key);
+                  const processFactorCount = processFactors.length;
+                  const tiers: Array<{ field: keyof ProcessAnalysisItem; tierNumber?: number; icon: string; title: string; hint: string; box: string; label: string }> = [
+                    { field: 'problem', icon: '⚠️', title: 'ปัญหา (CMPs)', hint: 'คลิกระบุความผิดพลาด (Error/Mistake)', box: 'border-rose-200 bg-rose-50/60 dark:border-rose-900 dark:bg-rose-950/20', label: 'text-rose-700 dark:text-rose-300' },
+                    { field: 'tier1_personnel', tierNumber: 1, icon: '🧑‍⚕️', title: 'Tier 1: บุคคล', hint: 'เขียนสาเหตุด้านผู้ป่วย/เจ้าหน้าที่ ทักษะ ความเหนื่อยล้า...', box: 'border-violet-200 bg-violet-50/50 dark:border-violet-900 dark:bg-violet-950/20', label: 'text-violet-700 dark:text-violet-300' },
+                    { field: 'tier2_teamwork', tierNumber: 2, icon: '🤝', title: 'Tier 2: งานและทีม', hint: 'เขียนสาเหตุด้านงาน/ทีม การสื่อสาร การส่งเวร...', box: 'border-teal-200 bg-teal-50/50 dark:border-teal-900 dark:bg-teal-950/20', label: 'text-teal-700 dark:text-teal-300' },
+                    { field: 'tier3_environment', tierNumber: 3, icon: '🌿', title: 'Tier 3: สิ่งแวดล้อม', hint: 'เขียนสาเหตุด้านสภาพแวดล้อม เครื่องมือ การกำกับสนับสนุน...', box: 'border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20', label: 'text-amber-700 dark:text-amber-300' },
+                    { field: 'tier4_policy', tierNumber: 4, icon: '🏢', title: 'Tier 4: บริหาร/องค์กร', hint: 'เขียนสาเหตุด้านนโยบาย การบริหาร และวัฒนธรรมองค์กร...', box: 'border-pink-200 bg-pink-50/50 dark:border-pink-900 dark:bg-pink-950/20', label: 'text-pink-700 dark:text-pink-300' },
+                    { field: 'tier5_external', tierNumber: 5, icon: '🌐', title: 'Tier 5: ภายนอก', hint: 'เขียนสาเหตุจากนโยบายรัฐ ผู้ให้บริการภายนอก หรือปัจจัยภายนอก...', box: 'border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40', label: 'text-slate-700 dark:text-slate-300' },
+                  ];
+                  return (
+                    <article key={`${item.process_key}-${idx}`} className="flex w-[300px] shrink-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                      <div className="relative rounded-xl border border-blue-200 bg-blue-50 px-9 py-3 text-center dark:border-blue-900 dark:bg-blue-950/40">
+                        <button type="button" onClick={() => handleRemoveProcessAnalysis(idx)} className="absolute right-2 top-2 rounded-lg p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-950/40" title="ลบกระบวนการนี้"><Trash2 size={14} /></button>
+                        <div className="text-sm font-black text-blue-800 dark:text-blue-200">{thaiTitle}</div>
+                        {englishTitle && <div className="mt-0.5 text-[11px] text-blue-500 dark:text-blue-400">({englishTitle})</div>}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setExpandedProcessFactorSummary((current) => current === item.process_key ? null : item.process_key)}
+                        className={`mt-3 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-[11px] font-bold transition ${expandedProcessFactorSummary === item.process_key
+                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-300 dark:ring-indigo-900'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300'}`}
+                      >
+                        <span>สาเหตุ NRLS ของกระบวนการนี้</span>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] text-white">{processFactorCount}{expandedProcessFactorSummary === item.process_key ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}</span>
+                      </button>
+
+                      {expandedProcessFactorSummary === item.process_key && (
+                        <div className="mt-2 space-y-2 rounded-xl border border-indigo-200 bg-indigo-50/40 p-3 dark:border-indigo-900 dark:bg-indigo-950/20">
+                          <div className="text-[10px] font-black text-indigo-700 dark:text-indigo-300">Summary Factor ทั้งหมดของ Process</div>
+                          {processFactorCount === 0 ? (
+                            <p className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">ยังไม่ได้เลือก Factor — เขียนสาเหตุใน Tier แล้วเลือก Suggested หรือ “แสดงทั้งหมด”</p>
+                          ) : (
+                            [1, 2, 3, 4, 5].map((tierNumber) => {
+                              const tierFactors = processFactors.filter((factor) => factor.tier === tierNumber);
+                              if (!tierFactors.length) return null;
+                              return (
+                                <div key={`summary-${item.process_key}-${tierNumber}`}>
+                                  <div className="mb-1 text-[10px] font-black text-slate-600 dark:text-slate-300">Tier {tierNumber}</div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {tierFactors.map((factor) => (
+                                      <span key={`${tierNumber}-${factor.code}`} className="rounded-md bg-indigo-600 px-1.5 py-1 text-[9px] font-bold text-white" title={getContributingFactor(factor.code)?.labelTh}>
+                                        {factor.code} {getContributingFactor(factor.code)?.labelTh}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                          {processFactors.some((factor) => !factor.tier) && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 dark:border-amber-900 dark:bg-amber-950/20">
+                              <div className="text-[10px] font-black text-amber-700 dark:text-amber-300">ข้อมูลเดิมที่ยังไม่ระบุ Tier</div>
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {processFactors.filter((factor) => !factor.tier).map((factor) => <span key={`unassigned-${factor.code}`} className="rounded-md bg-amber-600 px-1.5 py-1 text-[9px] font-bold text-white">{factor.code}</span>)}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="mt-4 flex-1 space-y-3">
+                        {tiers.map((tier) => (
+                          <div key={tier.field} className={`rounded-xl border p-3 ${tier.box}`}>
+                            <label className={`mb-1.5 flex items-center gap-1.5 text-xs font-black ${tier.label}`}><span>{tier.icon}</span>{tier.title}</label>
+                            <textarea rows={3} value={String(item[tier.field] || '')} onChange={(e) => handleProcessAnalysisChange(idx, tier.field, e.target.value)} placeholder={tier.hint} className="w-full resize-y rounded-lg border border-white/80 bg-white px-2.5 py-2 text-[11px] leading-relaxed text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
+                            {tier.tierNumber && (
+                              <TierContributingFactorPicker
+                                tier={tier.tierNumber}
+                                cause={String(item[tier.field] || '')}
+                                value={processFactors.filter((factor) => factor.tier === tier.tierNumber)}
+                                onChange={(nextFactors) => handleTierContributingFactorsChange(item.process_key, tier.tierNumber!, String(item[tier.field] || ''), nextFactors)}
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-3 rounded-xl border border-emerald-300 bg-emerald-50/70 p-3 dark:border-emerald-800 dark:bg-emerald-950/20">
+                        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300"><span>✅</span>เป้าหมาย / การออกแบบระบบใหม่</label>
+                        <textarea rows={4} value={item.corrective_action} onChange={(e) => handleProcessAnalysisChange(idx, 'corrective_action', e.target.value)} placeholder="ระบุการออกแบบระบบใหม่ หรือแนวทางป้องกัน..." className="w-full resize-y rounded-lg border border-emerald-300 bg-white px-2.5 py-2 text-[11px] leading-relaxed text-slate-800 dark:border-emerald-800 dark:bg-slate-950 dark:text-slate-100" />
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {contributingFactors.some((factor) => !factor.process_key || !factor.tier) && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/20">
+              <h4 className="text-xs font-black text-amber-800 dark:text-amber-300">ข้อมูล Contributing Factor เดิมที่ยังไม่ได้ผูกครบทั้ง Process และ Tier</h4>
+              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">ระบบยังคงเก็บข้อมูลเดิมไว้ ข้อมูลใหม่ควรเขียนสาเหตุและเลือก Factor ภายใน Tier ของแต่ละ Process ด้านบน</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {contributingFactors.filter((factor) => !factor.process_key || !factor.tier).map((factor, factorIndex) => (
+                  <span key={`legacy-factor-${factor.process_key || 'case'}-${factor.tier || 'none'}-${factor.code}-${factorIndex}`} className="rounded-lg bg-amber-600 px-2 py-1 text-[10px] font-bold text-white">
+                    {factor.code} {getContributingFactor(factor.code)?.labelTh}{factor.process_key ? ` — ${factor.process_key}` : ''}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
-        {/* ================= SECTION 6: FISHBONE DIAGRAM 6M (COLLAPSIBLE / OPTIONAL) ================= */}
+        {/* ================= SECTION 6: 5 WHYS & SWISS CHEESE MODEL ================= */}
         <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
                 6
-              </span>
-              <div>
-                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <span>แผนผังก้างปลา 6M (Fishbone Diagram Analysis)</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-normal">
-                    {useFishbone ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
-                  </span>
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  วิเคราะห์สาเหตุและปัจจัยเชิงระบบ 6 ด้าน (Man, Method, Machine, Material, Measurement, Milieu/Environment)
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setUseFishbone(!useFishbone)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-                useFishbone
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
-              }`}
-            >
-              <span>{useFishbone ? '✓ ใช้เครื่องมือผังก้างปลา' : '+ เปิดใช้เครื่องมือผังก้างปลา'}</span>
-              {useFishbone ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
-          </div>
-
-          {useFishbone && (
-            <div className="animate-in fade-in">
-              <FishboneDiagram
-                factors={fishbones}
-                topic={topic || 'อุบัติการณ์ความเสี่ยง รพ.วังเจ้า'}
-                onChange={setFishbones}
-              />
-            </div>
-          )}
-        </section>
-
-        {/* ================= SECTION 7: 5 WHYS & SWISS CHEESE MODEL ================= */}
-        <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
-                7
               </span>
               <div>
                 <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
@@ -1313,7 +1462,7 @@ export default function StandardRcaForm() {
             </button>
           </div>
 
-          {/* 7a. 5 Whys Chain */}
+          {/* 6a. 5 Whys Chain */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
               <HelpCircle className="w-4 h-4 text-amber-500" />
@@ -1347,7 +1496,7 @@ export default function StandardRcaForm() {
             ))}
           </div>
 
-          {/* 7b. Swiss Cheese Model (Collapsible) */}
+          {/* 6b. Swiss Cheese Model (Collapsible) */}
           {useSwissCheese && (
             <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4 animate-in fade-in">
               <h4 className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-2">
@@ -1412,12 +1561,12 @@ export default function StandardRcaForm() {
           )}
         </section>
 
-        {/* ================= SECTION 8: CAPA ACTION PLAN ================= */}
+        {/* ================= SECTION 7: CAPA ACTION PLAN ================= */}
         <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
-                8
+                7
               </span>
               <div>
                 <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
@@ -1518,12 +1667,12 @@ export default function StandardRcaForm() {
           </div>
         </section>
 
-        {/* ================= SECTION 9: REVIEW SESSIONS ================= */}
+        {/* ================= SECTION 8: REVIEW SESSIONS ================= */}
         <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
-                9
+                8
               </span>
               <div>
                 <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
@@ -1672,6 +1821,12 @@ export default function StandardRcaForm() {
           </div>
         </section>
       </div>
+
+      <OfficialPrintSignatures
+        roles={['ผู้บันทึก / เลขานุการทีม RCA', 'หัวหน้าทีมวิเคราะห์ RCA', 'ประธานคณะกรรมการบริหารความเสี่ยง (RM)']}
+        names={[user?.name, rcaTeam === 'other' ? customTeam : rcaTeam]}
+      />
+      <OfficialPrintFooter />
 
       {/* ================= TRIGGER TOOL QUICK SELECTOR MODAL ================= */}
       {isTriggerModalOpen && (

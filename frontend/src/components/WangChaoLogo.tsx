@@ -1,5 +1,3 @@
-import logoImg from '../assets/wangchao-logo.png';
-
 interface WangChaoHospitalLogoProps {
   className?: string;
   size?: number;
@@ -12,7 +10,7 @@ export function WangChaoHospitalLogo({ className = "w-10 h-10", size }: WangChao
       style={size ? { width: `${size}px`, height: `${size}px` } : undefined}
     >
       <img 
-        src={logoImg} 
+        src="/wangchao-official-logo.png"
         alt="โลโก้โรงพยาบาลวังเจ้า" 
         className="w-full h-full object-contain p-0.5 select-none"
       />

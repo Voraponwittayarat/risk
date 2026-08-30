@@ -4,9 +4,9 @@ import { format } from 'date-fns';
 import { 
   Search, Plus, AlertTriangle, 
   ChevronLeft, ChevronRight,
-  Layers, Shield, ShieldAlert, ShieldCheck, X, CheckSquare, Square
+  Layers, Shield, ShieldAlert, ShieldCheck, X, CheckSquare, Square, Building2
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getStatusInfo, getSeverityBadge, isSentinelEvent } from '../utils/statusAdapter';
 import { useAuth } from '../contexts/AuthContext';
 import { MiniRcaModal } from './rca/MiniRcaModal';
@@ -18,6 +18,7 @@ interface IncidentListProps {
 
 const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [incidents, setIncidents] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
@@ -31,10 +32,17 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
   const [isMiniRcaOpen, setIsMiniRcaOpen] = useState(false);
 
   // Filtering & Pagination State
-  const [activeTab, setActiveTab] = useState<string>(defaultTab || (mode === 'pending' ? 'รายงาน' : 'all'));
-  const [search, setSearch] = useState('');
-  const [selectedDept, setSelectedDept] = useState('');
-  const [selectedLevel, setSelectedLevel] = useState('');
+  const requestedTab = searchParams.get('tab');
+  const allowedTabs = ['all', 'รายงาน', 'แก้ไข', 'ตรวจสอบ', 'ทบทวน', 'forwarded', 'จำหน่าย', 'ไม่ใช่ความเสี่ยง', 'sentinel'];
+  const initialTab = requestedTab && allowedTabs.includes(requestedTab) ? requestedTab : 'all';
+  const [activeTab, setActiveTab] = useState<string>(defaultTab || (mode === 'pending' ? 'รายงาน' : initialTab));
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
+  const [selectedDept, setSelectedDept] = useState(() => searchParams.get('department_id') || '');
+  const [selectedLevel, setSelectedLevel] = useState(() => searchParams.get('level_id') || '');
+  const [selectedProgram, setSelectedProgram] = useState(() => searchParams.get('program_id') || '');
+  const [selectedNrlsType, setSelectedNrlsType] = useState(() => searchParams.get('nrls_type') || '');
+  const [selectedClassification, setSelectedClassification] = useState(() => searchParams.get('classification_status') || '');
+  const [programs, setPrograms] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -68,31 +76,31 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
       : <span className="text-blue-600 dark:text-blue-400 ml-1 select-none text-[10px]">▼</span>;
   };
 
-  const isAdmin = user?.role === 'admin' || user?.accessrules === '1' || user?.accessrules === 'admin';
+  const isAdmin = user?.role === 'admin';
+  const isRmCommittee = user?.role === 'rm_committee';
+  const isHospitalRiskManager = isRmCommittee && user?.rmScope === 'hospital';
+  const canViewPendingFilters = isAdmin || isHospitalRiskManager;
+  const hasWideRmScope = isRmCommittee && (user?.rmScope === 'hospital' || user?.rmScope === 'group');
+  const rmScopeLabel = user?.rmScope === 'hospital'
+    ? 'ทุกหน่วยงานทั้งโรงพยาบาล (RM ส่วนกลาง)'
+    : 'ทุกหน่วยงานในกลุ่มงานเดียวกัน';
   const hasSecondaryDept = user?.department_id2 && user?.department_id2 !== 0;
 
   const primaryDeptName = departments.find(d => Number(d.id) === Number(user?.department_id))?.depart_name || 'หน่วยงานหลัก';
   const secondaryDeptName = departments.find(d => Number(d.id) === Number(user?.department_id2))?.depart_name || 'หน่วยงานรอง';
 
-  const getTeamName = (teamId: number) => {
-    switch (teamId) {
-      case 1: return 'ทีมดูแลรักษาผู้ป่วย (PCT / PT)';
-      case 2: return 'ทีมระบบข้อมูลสารสนเทศและเวชระเบียน (IT)';
-      case 3: return 'ทีมเฝ้าระวังและควบคุมการติดเชื้อ (IC)';
-      case 4: return 'ทีมดูแลสิทธิผู้ป่วย จริยธรรม และข้อร้องเรียน';
-      case 5: return 'ทีมบริหารจัดการองค์กรและความปลอดภัยทั่วไป';
-      case 6: return 'ทีมเครื่องมือและอุปกรณ์ทางการแพทย์';
-      case 8: return 'ทีมสิ่งแวดล้อม สาธารณูปโภค และความปลอดภัย (ENV)';
-      case 10: return 'ทีมระบบยาและความปลอดภัย (Medication)';
-      default: return `ทีมดูแลระบบ (ทีม ${teamId})`;
-    }
-  };
-  const teamName = user?.teamId ? getTeamName(user.teamId) : '';
+  const teamName = user?.teamName || (user?.teamId ? `ทีมนำรหัส ${user.teamId}` : '');
+  const canReviewIncident = (incident: any) => Boolean(
+    incident?.permissions?.canReview || incident?.permissions?.canTeamReview,
+  );
 
   // Fetch departments list for filter
   useEffect(() => {
     axios.get('/departments')
       .then(res => setDepartments(res.data || []))
+      .catch(console.error);
+    axios.get('/incidents/form-data')
+      .then(res => setPrograms(res.data.programs || []))
       .catch(console.error);
   }, []);
 
@@ -123,6 +131,9 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
     if (search.trim()) params.search = search.trim();
     if (selectedDept) params.department_id = selectedDept;
     if (selectedLevel) params.level_id = selectedLevel;
+    if (selectedProgram) params.program_id = selectedProgram;
+    if (selectedNrlsType) params.nrls_type = selectedNrlsType;
+    if (selectedClassification) params.classification_status = selectedClassification;
     if (sortBy) params.sortBy = sortBy;
     if (sortOrder) params.sortOrder = sortOrder;
 
@@ -162,7 +173,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
 
   useEffect(() => {
     fetchIncidents();
-  }, [page, activeTab, selectedDept, selectedLevel, scopeType, mode, sortBy, sortOrder]);
+  }, [page, activeTab, selectedDept, selectedLevel, selectedProgram, selectedNrlsType, selectedClassification, scopeType, mode, sortBy, sortOrder]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,6 +183,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
 
   // Toggle selection of single incident
   const toggleSelectIncident = (inc: any) => {
+    if (inc.status_risk !== 'ทบทวน' || !canReviewIncident(inc)) return;
     if (selectedIncidents.some((item) => item.id === inc.id)) {
       setSelectedIncidents(selectedIncidents.filter((item) => item.id !== inc.id));
     } else {
@@ -181,14 +193,16 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
 
   // Toggle select all on page
   const toggleSelectAll = () => {
-    if (selectedIncidents.length === incidents.length && incidents.length > 0) {
+    const eligibleIncidents = incidents.filter((incident) => incident.status_risk === 'ทบทวน' && canReviewIncident(incident));
+    if (selectedIncidents.length === eligibleIncidents.length && eligibleIncidents.length > 0) {
       setSelectedIncidents([]);
     } else {
-      setSelectedIncidents([...incidents]);
+      setSelectedIncidents(eligibleIncidents);
     }
   };
 
-  const isAllSelected = incidents.length > 0 && selectedIncidents.length === incidents.length;
+  const selectableIncidents = incidents.filter((incident) => incident.status_risk === 'ทบทวน' && canReviewIncident(incident));
+  const isAllSelected = selectableIncidents.length > 0 && selectedIncidents.length === selectableIncidents.length;
 
   const tabs = [
     { id: 'all', label: 'ทั้งหมด', countKey: 'all' },
@@ -202,17 +216,73 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
     { id: 'sentinel', label: '⚠️ ความรุนแรงสูง (Sentinel)', countKey: 'sentinel' },
   ];
 
+  const renderIncidentActions = (inc: any, isSentinel: boolean, compact = false) => {
+    const status = inc.status_risk || 'รายงาน';
+    const isPending = status === 'รายงาน' || status === 'แก้ไข';
+    const isConfirmed = status === 'ตรวจสอบ';
+    const isReviewing = status === 'ทบทวน';
+    const canManageWorkflow = isPending
+      ? Boolean(inc.permissions?.canConfirm)
+      : (isConfirmed || isReviewing)
+        ? canReviewIncident(inc)
+        : false;
+    const detailLabel = isPending
+      ? (canManageWorkflow ? 'ตรวจสอบ / ยืนยัน' : 'ดูรายละเอียด')
+      : isConfirmed
+        ? (canManageWorkflow ? 'เริ่มทบทวน' : 'ดูรายละเอียด')
+        : isReviewing
+          ? (canManageWorkflow ? 'ดำเนินการทบทวน' : 'ดูรายละเอียด')
+          : 'ดูประวัติ';
+    const detailHash = (isConfirmed || isReviewing) && canManageWorkflow ? '#review-workstation' : '';
+
+    return (
+    <div className={`flex items-center ${compact ? 'w-full gap-2' : 'justify-center gap-1.5'}`}>
+      <Link
+        to={`/incidents/${inc.id}${detailHash}`}
+        title="ดูและจัดการความเสี่ยง"
+        className={`${compact ? 'flex-1 justify-center py-2.5' : 'px-3 py-1.5'} inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 font-bold text-xs shadow-sm transition-all`}
+      >
+        <ShieldCheck className="w-4 h-4" />
+        <span>{detailLabel}</span>
+      </Link>
+      {isReviewing && canManageWorkflow && (isSentinel ? (
+        <button
+          type="button"
+          onClick={() => navigate('/rca/standard/new', { state: { incident: inc } })}
+          title="เปิด Standard Full RCA"
+          className={`${compact ? 'flex-1 justify-center py-2.5' : 'p-2'} inline-flex items-center gap-1.5 rounded-xl border bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800 transition-all font-bold text-xs`}
+        >
+          <ShieldAlert className="w-4 h-4" />{compact && <span>ทบทวน RCA</span>}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => { setMiniRcaIncident(inc); setIsMiniRcaOpen(true); }}
+          title="ทบทวนด่วน Mini RCA"
+          className={`${compact ? 'flex-1 justify-center py-2.5' : 'p-2'} inline-flex items-center gap-1.5 rounded-xl border bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800 transition-all font-bold text-xs`}
+        >
+          <Shield className="w-4 h-4" />{compact && <span>ทบทวนด่วน</span>}
+        </button>
+      ))}
+    </div>
+    );
+  };
+
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-4 sm:space-y-6 pb-28 min-w-0">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
             {mode === 'pending'
               ? 'ตรวจสอบ & ยืนยันความเสี่ยง (รายการรอยืนยัน)'
               : mode === 'team' 
                 ? `การจัดการความเสี่ยงทีม: ${teamName || 'ทีมดูแล'}`
-                : 'การจัดการความเสี่ยงหน่วยงาน'}
+                : user?.rmScope === 'hospital'
+                  ? 'การจัดการความเสี่ยงส่วนกลาง'
+                  : user?.rmScope === 'group'
+                    ? 'การจัดการความเสี่ยงระดับกลุ่มงาน'
+                    : 'การจัดการความเสี่ยงหน่วยงาน'}
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
             {mode === 'pending'
@@ -222,16 +292,32 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
                 : `บริหารจัดการความเสี่ยงและขั้นตอนติดตามงานระดับหน่วยงาน (พบ ${totalCount.toLocaleString()} รายการ)`}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
           <Link 
             to="/incidents/new" 
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium text-sm transition-all shadow-md shadow-blue-500/20 hover:shadow-lg"
+            className="w-full sm:w-auto justify-center flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium text-sm transition-all shadow-md shadow-blue-500/20 hover:shadow-lg"
           >
             <Plus className="w-4 h-4" />
             รายงานความเสี่ยงใหม่
           </Link>
         </div>
       </div>
+
+      {mode === 'dept' && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900/60 dark:bg-blue-950/30">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-blue-600 p-2 text-white"><Building2 className="h-4 w-4" /></div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-bold text-blue-950 dark:text-blue-100">หน่วยงานเป็นผู้จัดการเหตุการณ์ก่อนส่งให้ทีม</h2>
+              <div className="mt-2 grid gap-2 text-xs text-blue-800 dark:text-blue-200 sm:grid-cols-3">
+                <div className="rounded-xl border border-blue-100 bg-white/70 p-3 dark:border-blue-900 dark:bg-slate-900/40"><strong>1. ยืนยันข้อมูล</strong><span className="mt-1 block text-[11px] opacity-80">ตรวจ NRLS ระดับความรุนแรง และหน่วยงานรับผิดชอบ</span></div>
+                <div className="rounded-xl border border-blue-100 bg-white/70 p-3 dark:border-blue-900 dark:bg-slate-900/40"><strong>2. บันทึกการทบทวนหน่วยงาน</strong><span className="mt-1 block text-[11px] opacity-80">ระบุสาเหตุ การแก้ไขเบื้องต้น และมาตรการที่ทำแล้ว</span></div>
+                <div className="rounded-xl border border-blue-100 bg-white/70 p-3 dark:border-blue-900 dark:bg-slate-900/40"><strong>3. ส่งให้ทีมนำ</strong><span className="mt-1 block text-[11px] opacity-80">ส่งได้เมื่อเหตุการณ์อยู่สถานะ “ทบทวน” แล้วเท่านั้น</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Scoping Selector / Badge - displayed in dept mode for non-admins */}
       {mode === 'dept' && !isAdmin && (
@@ -243,8 +329,13 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
             </span>
           </div>
 
-          {hasSecondaryDept ? (
-            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800/50">
+          {hasWideRmScope ? (
+            <div className="px-4 py-2 bg-indigo-50/70 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold border border-indigo-100 dark:border-indigo-900/50 flex items-center gap-2">
+              <span>🛡️ ขอบเขต RM:</span>
+              <span>{rmScopeLabel}</span>
+            </div>
+          ) : hasSecondaryDept ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 w-full sm:w-auto bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800/50">
               <button
                 onClick={() => {
                   setScopeType('primary');
@@ -283,7 +374,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
 
       {/* Status Filter Tabs */}
       {mode === 'pending' ? (
-        <div className="bg-amber-50/80 dark:bg-amber-950/40 p-4 rounded-2xl border border-amber-200 dark:border-amber-800/60 flex items-center justify-between gap-3 text-xs shadow-xs">
+        <div className="bg-amber-50/80 dark:bg-amber-950/40 p-4 rounded-2xl border border-amber-200 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
           <div className="flex items-center gap-2.5">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
             <span className="font-bold text-amber-900 dark:text-amber-200 text-sm">
@@ -338,8 +429,9 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
       )}
 
       {/* Filter and Search Bar */}
-      <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-        <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      {(mode !== 'pending' || canViewPendingFilters) && (
+      <div className="bg-white dark:bg-slate-800 p-3 sm:p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+        <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -379,6 +471,9 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
               className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">ทุกระดับความรุนแรง</option>
+              <option value="clinical_ef">ด้านคลินิก ระดับ E–F</option>
+              <option value="clinical_ghi">ด้านคลินิก ระดับ G–I</option>
+              <option value="general_45">ด้านองค์กร ระดับ 4–5</option>
               <option value="A">ระดับ A</option>
               <option value="B">ระดับ B</option>
               <option value="C">ระดับ C</option>
@@ -388,8 +483,19 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
               <option value="G">ระดับ G (Sentinel)</option>
               <option value="H">ระดับ H (Sentinel)</option>
               <option value="I">ระดับ I (Sentinel/Death)</option>
+              <option value="1">ระดับ 1</option><option value="2">ระดับ 2</option><option value="3">ระดับ 3</option><option value="4">ระดับ 4</option><option value="5">ระดับ 5</option>
             </select>
           </div>
+
+          <select value={selectedProgram} onChange={e => { setSelectedProgram(e.target.value); setPage(1); }} className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+            <option value="">ทุกโปรแกรม NRLS</option>{programs.map(p => <option key={p.program_id} value={p.program_id}>{p.program_name}</option>)}
+          </select>
+          <select value={selectedNrlsType} onChange={e => { setSelectedNrlsType(e.target.value); setPage(1); }} className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+            <option value="">Clinical และ General</option><option value="CLINICAL">Clinical</option><option value="GENERAL">General</option>
+          </select>
+          <select value={selectedClassification} onChange={e => { setSelectedClassification(e.target.value); setPage(1); }} className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+            <option value="">ทุกสถานะการยืนยัน</option><option value="PENDING">รอยืนยัน</option><option value="CONFIRMED">ยืนยันแล้ว</option><option value="NEEDS_REVIEW">ต้องตรวจสอบ</option>
+          </select>
 
           <div className="flex items-center gap-2">
             <button
@@ -404,6 +510,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
                 setSearch('');
                 setSelectedDept('');
                 setSelectedLevel('');
+                setSelectedProgram(''); setSelectedNrlsType(''); setSelectedClassification('');
                 setPage(1);
               }}
               className="px-3 py-2 text-slate-400 hover:text-slate-600 text-xs"
@@ -413,11 +520,58 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
           </div>
         </form>
       </div>
+      )}
 
       {/* Incidents Table */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+        {/* Compact cards keep the primary action within thumb reach on phones/tablets/laptops. */}
+        <div className="xl:hidden divide-y divide-slate-100 dark:divide-slate-700/60">
+          {loading ? (
+            <div className="px-5 py-14 text-center text-sm text-slate-400">กำลังโหลดรายการข้อมูล...</div>
+          ) : incidents.length === 0 ? (
+            <div className="px-5 py-14 text-center text-sm text-slate-400">ไม่พบรายการอุบัติการณ์ที่ตรงกับเงื่อนไข</div>
+          ) : incidents.map((inc) => {
+            const isChecked = selectedIncidents.some((item) => item.id === inc.id);
+            const canSelectForRca = inc.status_risk === 'ทบทวน' && canReviewIncident(inc);
+            const statusInfo = getStatusInfo(inc.status_risk);
+            const severity = getSeverityBadge(inc.level_id, inc.riskstore_id);
+            const isSentinel = isSentinelEvent(inc.level_id, inc.riskstore_id);
+            const needsRcaAction = Boolean(inc.rca_required) && inc.rca_status !== 'COMPLETED';
+            const dtEvent = inc.date_report ? format(new Date(inc.date_report), 'dd/MM/yyyy') : '-';
+            return (
+              <article key={inc.id} className={`p-4 sm:p-5 ${isChecked ? 'bg-purple-50/50 dark:bg-purple-950/20' : needsRcaAction ? 'bg-red-50/40 dark:bg-red-950/10' : ''}`}>
+                <div className="flex items-start gap-3">
+                  <input type="checkbox" checked={isChecked} disabled={!canSelectForRca} onChange={() => toggleSelectIncident(inc)} aria-label={`เลือกอุบัติการณ์ ${inc.id} เพื่อทำ RCA`} className="mt-1 w-4 h-4 text-purple-600 rounded cursor-pointer shrink-0 disabled:cursor-not-allowed disabled:opacity-30" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span className="font-extrabold text-slate-900 dark:text-white">#{inc.id}</span>
+                      <span className={`inline-flex items-center justify-center min-w-8 h-7 px-2 rounded-lg font-bold text-xs ${severity.badgeClass}`}>{severity.label}</span>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${statusInfo.badgeClass}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotClass}`}></span>{statusInfo.label}
+                      </span>
+                      {needsRcaAction && (
+                        <span className="rounded-full bg-red-600 px-2 py-1 text-[10px] font-black text-white shadow-sm">⚠ ต้องทำ RCA ต่อ</span>
+                      )}
+                    </div>
+                    <h2 className="font-bold text-indigo-900 dark:text-indigo-300 text-sm leading-snug break-words">
+                      {inc.nrls_code ? `${inc.nrls_code} : ${inc.nrls_name_snapshot || 'รอตรวจสอบชื่อ NRLS'}` : 'ข้อมูลเดิม—ยังไม่มี NRLS'}
+                    </h2>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 mt-1.5 leading-relaxed">{inc.detail || inc.problem_basic || 'ไม่มีรายละเอียด'}</p>
+                    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 mt-3 text-[11px]">
+                      <div className="flex gap-1.5"><dt className="text-slate-400 shrink-0">หน่วยงาน:</dt><dd className="font-medium text-slate-700 dark:text-slate-200 truncate">{inc.department_name || `แผนก ${inc.department_id}`}</dd></div>
+                      <div className="flex gap-1.5"><dt className="text-slate-400 shrink-0">วันที่เกิดเหตุ:</dt><dd className="font-medium text-slate-700 dark:text-slate-200">{dtEvent}</dd></div>
+                      <div className="flex gap-1.5 sm:col-span-2"><dt className="text-slate-400 shrink-0">ความเสี่ยงเดิม:</dt><dd className="text-slate-600 dark:text-slate-300 truncate">{inc.risk_topic_name || '-'}</dd></div>
+                    </dl>
+                    <div className="mt-4">{renderIncidentActions(inc, isSentinel, true)}</div>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="hidden xl:block overflow-x-auto">
+          <table className="w-full min-w-[1120px] text-left text-sm text-slate-600 dark:text-slate-300">
             <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-700">
               <tr>
                 <th className="px-4 py-4 w-10 text-center">
@@ -439,7 +593,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
                     {renderSortIndicator('id')}
                   </div>
                 </th>
-                <th className="px-6 py-4 min-w-[260px]">รายละเอียดเหตุการณ์</th>
+                <th className="w-[320px] max-w-[320px] px-6 py-4 whitespace-normal">รายละเอียดเหตุการณ์</th>
                 <th 
                   onClick={() => handleSort('department_id')} 
                   className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors select-none group"
@@ -476,7 +630,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
                     {renderSortIndicator('status_risk')}
                   </div>
                 </th>
-                <th className="px-4 py-4 text-center">จัดการ / ทบทวน RCA</th>
+                <th className="px-4 py-4 text-center whitespace-nowrap">ดู / ทบทวน</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
@@ -498,9 +652,11 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
               ) : (
                 incidents.map((inc) => {
                   const isChecked = selectedIncidents.some((item) => item.id === inc.id);
+                  const canSelectForRca = inc.status_risk === 'ทบทวน' && canReviewIncident(inc);
                   const statusInfo = getStatusInfo(inc.status_risk);
                   const severity = getSeverityBadge(inc.level_id, inc.riskstore_id);
                   const isSentinel = isSentinelEvent(inc.level_id, inc.riskstore_id);
+                  const needsRcaAction = Boolean(inc.rca_required) && inc.rca_status !== 'COMPLETED';
                   const dtEvent = inc.date_report ? format(new Date(inc.date_report), 'dd/MM/yyyy') : '-';
                   const dtRecord = inc.register_date ? format(new Date(inc.register_date), 'dd/MM/yyyy') : '-';
 
@@ -508,7 +664,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
                     <tr 
                       key={inc.id} 
                       className={`hover:bg-slate-50/80 dark:hover:bg-slate-750/50 transition-colors align-top ${
-                        isChecked ? 'bg-purple-50/40 dark:bg-purple-950/20' : isSentinel ? 'bg-red-50/30 dark:bg-red-950/10' : ''
+                        isChecked ? 'bg-purple-50/40 dark:bg-purple-950/20' : needsRcaAction ? 'bg-red-50/40 dark:bg-red-950/10' : ''
                       }`}
                     >
                       {/* Checkbox Column */}
@@ -516,8 +672,9 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
                         <input
                           type="checkbox"
                           checked={isChecked}
+                          disabled={!canSelectForRca}
                           onChange={() => toggleSelectIncident(inc)}
-                          className="w-4 h-4 text-purple-600 rounded cursor-pointer"
+                          className="w-4 h-4 text-purple-600 rounded cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
                         />
                       </td>
 
@@ -525,20 +682,21 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
                       <td className="px-4 py-4 whitespace-nowrap">
                         <div className="font-bold text-slate-900 dark:text-white">#{inc.id}</div>
                         <div className="text-xs text-slate-400">IR: {inc.id_risk}</div>
-                        {isSentinel && (
-                          <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300">
+                        {needsRcaAction && (
+                          <span className="mt-1 inline-flex items-center gap-1 rounded bg-red-600 px-2 py-1 text-[10px] font-black text-white shadow-sm">
                             <AlertTriangle className="w-2.5 h-2.5" />
-                            Sentinel
+                            ต้องทำ RCA ต่อ
                           </span>
                         )}
                       </td>
 
                       {/* Detail */}
-                      <td className="px-6 py-4">
-                        <div className="font-bold text-indigo-900 dark:text-indigo-300 text-sm mb-1 leading-snug">
-                          {inc.risk_topic_name || 'ไม่มีระบุหัวข้อความเสี่ยง'}
+                      <td className="w-[320px] max-w-[320px] px-6 py-4 whitespace-normal">
+                        <div className="font-bold text-indigo-900 dark:text-indigo-300 text-sm mb-1 leading-snug break-words [overflow-wrap:anywhere]">
+                          {inc.nrls_code ? `${inc.nrls_code} : ${inc.nrls_name_snapshot || 'รอตรวจสอบชื่อ NRLS'}` : 'ข้อมูลเดิม—ยังไม่มี NRLS'}
                         </div>
-                        <div className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 mt-1 leading-relaxed">
+                        <div className="text-[11px] text-slate-500 break-words [overflow-wrap:anywhere]">โปรแกรม #{inc.program_id || '-'} • {inc.classification_status || 'PENDING'} • ความเสี่ยงเดิม: {inc.risk_topic_name || '-'}</div>
+                        <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                           {inc.detail || inc.problem_basic || 'ไม่มีรายละเอียด'}
                         </div>
                         {inc.detail_hosxp && (
@@ -610,40 +768,9 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
 
                       {/* Actions */}
                       <td className="px-4 py-4 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {/* View Detail Link */}
-                          <Link
-                            to={`/incidents/${inc.id}`}
-                            title="จัดการความเสี่ยง"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-600 hover:text-white dark:bg-blue-950/50 dark:hover:bg-blue-600 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 font-bold text-xs shadow-2xs transition-all"
-                          >
-                            <ShieldCheck className="w-3.5 h-3.5" />
-                            <span>จัดการความเสี่ยง</span>
-                          </Link>
-
-                          {/* In-App RCA Trigger */}
-                          {isSentinel ? (
-                            <button
-                              onClick={() => navigate('/rca/standard/new', { state: { incident: inc } })}
-                              title="เปิด Standard Full RCA สำหรับเหตุการณ์วิกฤต (Sentinel Event)"
-                              className="p-2 rounded-xl border bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800 transition-all"
-                            >
-                              <ShieldAlert className="w-4 h-4" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                setMiniRcaIncident(inc);
-                                setIsMiniRcaOpen(true);
-                              }}
-                              title="ทบทวนด่วน Mini RCA (Swiss Cheese Model)"
-                              className="p-2 rounded-xl border bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-600 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800 transition-all"
-                            >
-                              <Shield className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
+                        {renderIncidentActions(inc, isSentinel)}
                       </td>
+
                     </tr>
                   );
                 })
@@ -653,7 +780,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
         </div>
 
         {/* Pagination Footer */}
-        <div className="px-6 py-4 bg-slate-50/80 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-4 bg-slate-50/80 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <span className="text-xs text-slate-500 dark:text-slate-400">
             แสดงหน้า <span className="font-semibold text-slate-700 dark:text-slate-200">{page}</span> จากทั้งหมด <span className="font-semibold text-slate-700 dark:text-slate-200">{totalPages}</span> หน้า
           </span>
@@ -681,7 +808,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
 
       {/* Floating Multi-Select Concise RCA Action Bar */}
       {selectedIncidents.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white px-6 py-3.5 rounded-3xl shadow-2xl border border-slate-700 flex items-center gap-4 animate-in slide-in-from-bottom-5">
+        <div className="fixed bottom-3 left-3 right-3 sm:bottom-6 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-40 bg-slate-900 text-white px-4 sm:px-6 py-3.5 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-700 flex flex-wrap items-center justify-center gap-3 sm:gap-4 animate-in slide-in-from-bottom-5">
           <div className="flex items-center gap-2 pr-3 border-r border-slate-700">
             <span className="w-6 h-6 rounded-full bg-purple-500 text-white font-bold text-xs flex items-center justify-center">
               {selectedIncidents.length}

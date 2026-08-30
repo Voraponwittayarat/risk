@@ -15,7 +15,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (isAdmin) {
-      axios.get('http://localhost:3000/incidents/telegram/settings', {
+      axios.get('/incidents/telegram/settings', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       })
       .then(res => {
@@ -29,7 +29,7 @@ export default function Settings() {
   const handleSaveTelegramSettings = async () => {
     setIsSaving(true);
     try {
-      await axios.post('http://localhost:3000/incidents/telegram/settings', {
+      await axios.post('/incidents/telegram/settings', {
         botToken: telegramToken,
         chatId: telegramChatId
       }, {
@@ -58,7 +58,7 @@ export default function Settings() {
     
     setIsSending(true);
     try {
-      await axios.post('http://localhost:3000/incidents/telegram/trigger-summary', {}, {
+      await axios.post('/incidents/telegram/trigger-summary', {}, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       Swal.fire('สำเร็จ', 'ส่งแจ้งเตือนสำเร็จแล้ว', 'success');

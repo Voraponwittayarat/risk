@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bot, Send, X, CheckCircle, Loader2, Sparkles } from 'lucide-react';
 import { format, subDays } from 'date-fns';
+import { deidentifyIncidentText } from '../utils/deidentifyIncidentText';
 
 interface AiChatbotModalProps {
   isOpen: boolean;
@@ -17,6 +18,17 @@ interface Message {
   extractedData?: ExtractedJSON;
 }
 
+interface RiskSuggestion {
+  nrls_code: string;
+  name: string;
+  group: string | null;
+  program_id: number | null;
+  local_risk_id: number | null;
+  local_risk_name: string | null;
+  confidence: number;
+  reason: string;
+}
+
 interface ExtractedJSON {
   date_report: string | null;
   time_report: string | null;
@@ -29,6 +41,7 @@ interface ExtractedJSON {
   severity: string | null;
   affected: string[] | null;
   detail: string | null;
+  risk_suggestions?: RiskSuggestion[];
   reply_message?: string;
   clarification_question: string | null;
 }
@@ -44,6 +57,7 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [selectedRiskCode, setSelectedRiskCode] = useState<string | null>(null);
   // Full chat history for Gemini multi-turn context
   const [chatHistory, setChatHistory] = useState<{ role: string; text: string }[]>([]);
 
@@ -60,6 +74,7 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
     severity: null,
     affected: null,
     detail: null,
+    risk_suggestions: [],
     reply_message: undefined,
     clarification_question: null,
   });
@@ -86,17 +101,18 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
         setIsTyping(false);
       }, 800);
     }
-  }, [isOpen]);
+  }, [isOpen, messages.length]);
 
   // Calculate completeness progress
   useEffect(() => {
     let score = 0;
-    if (currentExtraction.date_report) score += 25;
-    if (currentExtraction.time_report) score += 25;
-    if (currentExtraction.location_id) score += 25;
-    if (currentExtraction.risk_id) score += 25;
+    if (currentExtraction.date_report) score += 20;
+    if (currentExtraction.time_report) score += 20;
+    if (currentExtraction.location_id) score += 20;
+    if (currentExtraction.detail) score += 20;
+    if (selectedRiskCode) score += 20;
     setProgress(score);
-  }, [currentExtraction]);
+  }, [currentExtraction, selectedRiskCode]);
 
   if (!isOpen) return null;
 
@@ -107,11 +123,8 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
     // 1. Date Extraction
     if (text.includes('เมื่อวาน') || text.includes('เมื่อวานนี้')) {
       updated.date_report = format(subDays(new Date(), 1), 'yyyy-MM-dd');
-    } else {
-      // Default to today if not already set (เมื่อเช้า, วันนี้, or no prior date)
-      if (!updated.date_report || text.includes('วันนี้') || text.includes('เมื่อเช้า') || text.includes('เมื่อกี้')) {
-        updated.date_report = format(new Date(), 'yyyy-MM-dd');
-      }
+    } else if (text.includes('วันนี้') || text.includes('เมื่อเช้า') || text.includes('เมื่อกี้')) {
+      updated.date_report = format(new Date(), 'yyyy-MM-dd');
     }
 
     // 2. Time Extraction — Thai word mapping
@@ -154,19 +167,10 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
         updated.duration_name = hr >= 8 && hr < 16 ? 'เช้า' : hr >= 16 ? 'บ่าย' : 'ดึก';
       } else if (text.includes('เวรเช้า') || text.includes('ตอนเช้า') || text.includes('เมื่อเช้า')) {
         updated.duration_name = 'เช้า';
-        if (!updated.time_report) updated.time_report = '08:00';
       } else if (text.includes('เวรบ่าย') || text.includes('ตอนบ่าย') || text.includes('ตอนเย็น')) {
         updated.duration_name = 'บ่าย';
-        if (!updated.time_report) updated.time_report = '13:00';
       } else if (text.includes('เวรดึก') || text.includes('ตอนดึก') || text.includes('กลางคืน')) {
         updated.duration_name = 'ดึก';
-        if (!updated.time_report) updated.time_report = '01:00';
-      } else if (!updated.time_report && updated.duration_name === 'เช้า') {
-        updated.time_report = '08:00'; // already know shift, apply safe default
-      } else if (!updated.time_report && updated.duration_name === 'บ่าย') {
-        updated.time_report = '13:00';
-      } else if (!updated.time_report && updated.duration_name === 'ดึก') {
-        updated.time_report = '01:00';
       }
     }
 
@@ -203,6 +207,7 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
 
     // 5. Risk Topic Matching (from database risks master)
     let bestRiskScore = 0;
+    let matchedRisk: any = null;
     for (const r of risks) {
       const riskName = r.risk_name.toLowerCase();
       let score = 0;
@@ -219,6 +224,7 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
         bestRiskScore = score;
         updated.riskstore_name = r.risk_name;
         updated.risk_id = String(r.id);
+        matchedRisk = r;
       }
     }
 
@@ -229,14 +235,32 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
         if (fallback) {
           updated.riskstore_name = fallback.risk_name;
           updated.risk_id = String(fallback.id);
+          matchedRisk = fallback;
         }
       } else if (text.includes('ยา') && (text.includes('ผิด') || text.includes('คลาดเคลื่อน'))) {
         const fallback = risks.find(r => r.risk_name.includes('คลาดเคลื่อน') || r.risk_name.includes('จ่ายยา'));
         if (fallback) {
           updated.riskstore_name = fallback.risk_name;
           updated.risk_id = String(fallback.id);
+          matchedRisk = fallback;
         }
       }
+    }
+
+    if (!matchedRisk && updated.risk_id) {
+      matchedRisk = risks.find((risk) => String(risk.id) === String(updated.risk_id));
+    }
+    if (matchedRisk?.nrls_code) {
+      updated.risk_suggestions = [{
+        nrls_code: matchedRisk.nrls_code,
+        name: matchedRisk.risk_name,
+        group: null,
+        program_id: matchedRisk.program_id || null,
+        local_risk_id: Number(matchedRisk.id),
+        local_risk_name: matchedRisk.riskstore_full || matchedRisk.risk_name,
+        confidence: 60,
+        reason: 'จับคู่เบื้องต้นจากคำสำคัญกับรายการความเสี่ยงเดิมของโรงพยาบาล',
+      }];
     }
 
     // 6. Severity Level ID
@@ -250,8 +274,6 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
       updated.level_id = 'C';
     } else if (text.includes('ไม่ได้รับบาดเจ็บ') || text.includes('ปลอดภัยดี') || text.includes('ไม่เกิดอันตราย')) {
       updated.level_id = 'B';
-    } else if (!updated.level_id) {
-      updated.level_id = 'A'; // default start level
     }
 
     // 7. Affected Persons
@@ -261,8 +283,6 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
     if (text.includes('ญาติ')) affectedList.push('ญาติ');
     if (affectedList.length > 0) {
       updated.affected = affectedList;
-    } else if (!updated.affected) {
-      updated.affected = ['ผู้ป่วย']; // default
     }
 
     // 8. Detail construction (professional clinical summary)
@@ -302,14 +322,25 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
     setChatHistory(newHistory);
 
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('token');
       const res = await fetch('/incidents/ai-chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ messages: newHistory }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          messages: newHistory.map((message) => ({
+            ...message,
+            text: deidentifyIncidentText(message.text),
+          })),
+        }),
       });
 
-      if (!res.ok) throw new Error('API error');
+      if (!res.ok) {
+        const errorBody = await res.json().catch(() => ({}));
+        throw new Error(errorBody?.message || 'ไม่สามารถเชื่อมต่อผู้ช่วย AI ได้');
+      }
       const aiData: ExtractedJSON = await res.json();
 
       // Match location_id from master data using location_name returned by AI
@@ -322,7 +353,7 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
       }
 
       // Match risk_id from master data using riskstore_name returned by AI
-      if (aiData.riskstore_name && !aiData.risk_id) {
+      if (aiData.riskstore_name && !aiData.risk_id && !aiData.risk_suggestions?.length) {
         const riskMatch = risks.find(r =>
           r.risk_name.toLowerCase().includes(aiData.riskstore_name!.toLowerCase()) ||
           aiData.riskstore_name!.toLowerCase().includes(r.risk_name.toLowerCase())
@@ -331,6 +362,9 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
       }
 
       // Merge with current extraction (accumulate)
+      const nextSuggestions = aiData.risk_suggestions?.length
+        ? aiData.risk_suggestions
+        : (currentExtraction.risk_suggestions || []);
       const merged: ExtractedJSON = {
         date_report: aiData.date_report || currentExtraction.date_report,
         time_report: aiData.time_report || currentExtraction.time_report,
@@ -343,10 +377,16 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
         severity: aiData.severity || currentExtraction.severity,
         affected: aiData.affected || currentExtraction.affected,
         detail: aiData.detail || currentExtraction.detail,
+        risk_suggestions: nextSuggestions,
         reply_message: aiData.reply_message,
         clarification_question: aiData.clarification_question,
       };
       setCurrentExtraction(merged);
+      setSelectedRiskCode((previous) => (
+        previous && nextSuggestions.some((suggestion) => suggestion.nrls_code === previous)
+          ? previous
+          : null
+      ));
 
       let replyText = '';
       if (merged.reply_message) {
@@ -387,9 +427,12 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
       // Fallback to rule-based if API fails
       const nextExtraction = parseNaturalLanguage(userText, currentExtraction);
       setCurrentExtraction(nextExtraction);
+      const unavailableReason = err instanceof Error && err.message.toLowerCase().includes('disabled')
+        ? 'โรงพยาบาลยังไม่ได้เปิดใช้งานบริการ AI ภายนอก'
+        : 'ไม่สามารถเชื่อมต่อบริการ AI ได้ชั่วคราว';
       const fallbackText = nextExtraction.clarification_question
-        ? `⚠️ (Offline mode) ${nextExtraction.clarification_question}`
-        : `🎉 (Offline mode) ข้อมูลครบแล้ว กดปุ่มนำข้อมูลกรอกลงแบบฟอร์มได้เลยค่ะ!`;
+        ? `${unavailableReason} จึงใช้การช่วยกรอกแบบพื้นฐาน: ${nextExtraction.clarification_question}`
+        : `${unavailableReason} จึงใช้การช่วยกรอกแบบพื้นฐาน กรุณาตรวจทานข้อความและหัวข้อความเสี่ยงก่อนนำไปใช้ค่ะ`;
       setMessages(prev => [...prev, { sender: 'bot', text: fallbackText, timestamp: new Date() }]);
     } finally {
       setIsTyping(false);
@@ -397,13 +440,23 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
   };
 
   const handleApplyToForm = () => {
-    onApply(currentExtraction);
+    const selectedSuggestion = currentExtraction.risk_suggestions?.find(
+      (suggestion) => suggestion.nrls_code === selectedRiskCode,
+    );
+    onApply({
+      ...currentExtraction,
+      nrls_code: selectedSuggestion?.nrls_code || null,
+      nrls_name: selectedSuggestion?.name || null,
+      risk_id: selectedSuggestion?.local_risk_id ? String(selectedSuggestion.local_risk_id) : null,
+      riskstore_name: selectedSuggestion?.local_risk_name || selectedSuggestion?.name || null,
+      program_id: selectedSuggestion?.program_id || null,
+    });
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-lg h-[80vh] rounded-2xl shadow-2xl border border-purple-200 dark:border-purple-900/50 flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-2xl h-[86vh] rounded-2xl shadow-2xl border border-purple-200 dark:border-purple-900/50 flex flex-col overflow-hidden">
         
         {/* Header */}
         <div className="px-5 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex items-center justify-between shrink-0 shadow-md">
@@ -416,7 +469,7 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
                 น้อง AI ช่วยเขียนรายงานอุบัติการณ์
                 <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
               </h3>
-              <p className="text-[10px] text-purple-100 opacity-90">ขับเคลื่อนด้วย Gemini AI · วิเคราะห์ภาษาไทยได้ทันที</p>
+              <p className="text-[10px] text-purple-100 opacity-90">ช่วยเรียบเรียงและเสนอหัวข้อความเสี่ยง · โปรดตรวจทานก่อนใช้</p>
             </div>
           </div>
           <button 
@@ -484,16 +537,83 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
               </div>
             </div>
           )}
+
+          {(currentExtraction.detail || Boolean(currentExtraction.risk_suggestions?.length)) && (
+            <div className="ml-10 space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/80 p-4 dark:border-indigo-900 dark:bg-indigo-950/30">
+              {currentExtraction.detail && (
+                <div>
+                  <div className="mb-1 text-xs font-bold text-indigo-800 dark:text-indigo-300">
+                    ข้อความที่ AI เรียบเรียง (แก้ไขต่อในแบบฟอร์มได้)
+                  </div>
+                  <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-200">
+                    {currentExtraction.detail}
+                  </p>
+                </div>
+              )}
+
+              {Boolean(currentExtraction.risk_suggestions?.length) && (
+                <div className="space-y-2 border-t border-indigo-200 pt-3 dark:border-indigo-900">
+                  <div className="text-xs font-bold text-indigo-800 dark:text-indigo-300">
+                    หัวข้อความเสี่ยงที่แนะนำ — กรุณาเลือก 1 รายการ
+                  </div>
+                  {currentExtraction.risk_suggestions?.map((suggestion) => {
+                    const selected = selectedRiskCode === suggestion.nrls_code;
+                    return (
+                      <button
+                        type="button"
+                        key={suggestion.nrls_code}
+                        onClick={() => setSelectedRiskCode(suggestion.nrls_code)}
+                        className={`w-full rounded-xl border p-3 text-left transition ${selected
+                          ? 'border-indigo-500 bg-white ring-2 ring-indigo-200 dark:bg-slate-900 dark:ring-indigo-900'
+                          : 'border-slate-200 bg-white/70 hover:border-indigo-300 dark:border-slate-700 dark:bg-slate-900/60'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 ${selected ? 'border-indigo-600 bg-indigo-600 ring-2 ring-white' : 'border-slate-400'}`} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">
+                              {suggestion.nrls_code} · {suggestion.name}
+                            </span>
+                            <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+                              ความสอดคล้อง {suggestion.confidence}% — {suggestion.reason}
+                            </span>
+                            {suggestion.local_risk_name && (
+                              <span className="mt-1 block text-[11px] text-indigo-600 dark:text-indigo-400">
+                                เชื่อมกับรายการของโรงพยาบาล: {suggestion.local_risk_name}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRiskCode(null)}
+                    className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${selectedRiskCode === null
+                      ? 'border-slate-500 bg-slate-100 font-semibold dark:bg-slate-800'
+                      : 'border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400'
+                    }`}
+                  >
+                    ยังไม่เลือก — จะค้นหาและเลือกเองในแบบฟอร์ม
+                  </button>
+                </div>
+              )}
+              <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                AI เป็นผู้ช่วยร่างข้อมูล ผู้รายงานต้องตรวจสอบข้อเท็จจริง ระดับความรุนแรง และหัวข้อความเสี่ยงก่อนส่ง
+              </p>
+            </div>
+          )}
           
           <div ref={chatEndRef} />
         </div>
 
         {/* Action Panel / Extracted Summary if complete */}
-        {progress >= 50 && (
+        {(currentExtraction.detail || selectedRiskCode) && (
           <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-850 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <CheckCircle className="w-4 h-4 text-emerald-500" />
-              <span>ข้อมูลเบื้องต้นพร้อมนำเข้าหน้ารายงานแล้ว</span>
+              <span>{selectedRiskCode ? `เลือก ${selectedRiskCode} แล้ว` : 'พร้อมนำข้อความไปกรอก โดยยังไม่เลือกหัวข้อความเสี่ยง'}</span>
             </div>
             <button
               type="button"
@@ -506,6 +626,9 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
         )}
 
         {/* Input Bar */}
+        <div className="border-t border-amber-200 bg-amber-50 px-4 py-2 text-[11px] text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+          ระบบปกปิดชื่อ, HN, AN, VN, เลขบัตร, เบอร์โทร และอีเมลก่อนส่งให้ AI อีกชั้น — เพื่อความปลอดภัย กรุณาไม่พิมพ์ข้อมูลเหล่านี้หากไม่จำเป็น
+        </div>
         <form 
           onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}
           className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex gap-2 shrink-0"

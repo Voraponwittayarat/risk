@@ -20,7 +20,7 @@ export default function NrlsManagement() {
   const fetchRisks = async () => {
     try {
       setLoading(true);
-      const res = await axios.get('http://localhost:3000/nrls-riskstore', {
+      const res = await axios.get('/nrls-riskstore', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setRisks(res.data);
@@ -39,7 +39,7 @@ export default function NrlsManagement() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      await axios.patch(`http://localhost:3000/nrls-riskstore/${editForm.nrls_code}`, {
+      await axios.patch(`/nrls-riskstore/${editForm.nrls_code}`, {
         name: editForm.name,
         group: editForm.group,
         category: editForm.category,

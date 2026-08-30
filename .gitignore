@@ -32,6 +32,7 @@ Thumbs.db
 .env.test.local
 .env.production.local
 *.env
+.riskhrms-dev-jwt-secret
 
 # SQLite databases
 *.db

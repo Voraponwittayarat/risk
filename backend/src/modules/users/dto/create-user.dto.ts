@@ -9,9 +9,13 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { CANONICAL_ROLES } from '../../auth/role.utils';
+import type { CanonicalRole } from '../../auth/role.utils';
+import { RM_SCOPES } from '../../auth/rm-scope.utils';
+import type { RmScope } from '../../auth/rm-scope.utils';
 
-export const USER_ROLES = ['admin', 'rm_committee', 'head', 'staff'] as const;
-export type UserRole = (typeof USER_ROLES)[number];
+export const USER_ROLES = CANONICAL_ROLES;
+export type UserRole = CanonicalRole;
 
 export class CreateUserDto {
   @IsString()
@@ -53,4 +57,8 @@ export class CreateUserDto {
 
   @IsIn(USER_ROLES)
   role: UserRole;
+
+  @IsOptional()
+  @IsIn(RM_SCOPES)
+  rmScope?: RmScope | null;
 }

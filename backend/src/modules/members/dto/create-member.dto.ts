@@ -6,4 +6,5 @@ export class CreateMemberDto {
   positionId: number;
   teamId?: number;
   role?: string;
+  rmScope?: string | null;
 }

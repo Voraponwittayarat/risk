@@ -21,11 +21,11 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('User not authenticated');
     }
 
-    // Role Checks based on RBAC rules
-    const isAdmin = user.role === 'admin' || user.accessrules === '1' || user.accessrules === 'admin';
-    const isRmCommittee = user.rmStatus === '1';
+    // `role` is the only authorization source. Legacy flags are compatibility mirrors only.
+    const isAdmin = user.role === 'admin';
+    const isRmCommittee = user.role === 'rm_committee';
     const isSimpleTeam = user.teamId != null;
-    const isHeadOfGroup = user.priority === '1';
+    const isHeadOfGroup = user.role === 'head';
 
     let hasAccess = false;
 

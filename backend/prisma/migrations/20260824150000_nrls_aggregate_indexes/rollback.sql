@@ -1,0 +1,1 @@
+ALTER TABLE riskregister DROP INDEX idx_incident_nrls_period_scope_class;

@@ -30,7 +30,7 @@ const TelegramSettings = () => {
   const fetchDepartments = async () => {
     try {
       setLoading(true);
-      const res = await axios.get('http://localhost:3000/departments', {
+      const res = await axios.get('/departments', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setDepartments(res.data);
@@ -55,7 +55,7 @@ const TelegramSettings = () => {
   const saveTelegramConfig = async (id: number) => {
     try {
       setSaving(true);
-      await axios.patch(`http://localhost:3000/departments/${id}/telegram`, {
+      await axios.patch(`/departments/${id}/telegram`, {
         telegram_token: editToken,
         telegram_chat_id: editChatId
       }, {
@@ -86,7 +86,7 @@ const TelegramSettings = () => {
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading()
       });
-      await axios.post(`http://localhost:3000/departments/${id}/telegram/test`, {}, {
+      await axios.post(`/departments/${id}/telegram/test`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

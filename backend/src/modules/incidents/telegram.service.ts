@@ -15,11 +15,11 @@ export class TelegramService {
   }
 
   async sendSummaryAlert() {
-    const botApiToken = process.env.TELEGRAM_BOT_TOKEN || '8866061704:AAGdyH0MvzUsnzVWrSqh0V5wZLgCO4iJq6Q';
+    const botApiToken = process.env.TELEGRAM_BOT_TOKEN || '';
     const chatId = process.env.TELEGRAM_CHAT_ID;
 
-    if (!chatId) {
-      this.logger.warn('TELEGRAM_CHAT_ID is not set in .env. Skipping summary alert.');
+    if (!botApiToken || !chatId) {
+      this.logger.warn('Telegram token/chat ID is not configured. Skipping summary alert.');
       return;
     }
 
@@ -140,7 +140,7 @@ export class TelegramService {
 
   getTelegramSettings() {
     return {
-      botToken: process.env.TELEGRAM_BOT_TOKEN || '8866061704:AAGdyH0MvzUsnzVWrSqh0V5wZLgCO4iJq6Q',
+      botToken: process.env.TELEGRAM_BOT_TOKEN || '',
       chatId: process.env.TELEGRAM_CHAT_ID || '',
     };
   }

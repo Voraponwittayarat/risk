@@ -12,14 +12,16 @@ interface Member {
   positionId: number | null;
   positionName: string | null;
   teamId: number | null;
+  teamName: string | null;
   role: string;
+  rmScope: string | null;
   active: boolean;
   createdAt: string;
 }
 
 interface Option { id: number; name: string }
 interface RoleOption { id: string; name: string }
-interface Metadata { departments: Option[]; positions: Option[]; roles: RoleOption[] }
+interface Metadata { departments: Option[]; positions: Option[]; teams: Option[]; roles: RoleOption[]; rmScopes: RoleOption[] }
 
 interface MemberForm {
   cid: string;
@@ -29,6 +31,7 @@ interface MemberForm {
   positionId: string;
   teamId: string;
   role: string;
+  rmScope: string;
   active: boolean;
 }
 
@@ -40,6 +43,7 @@ const emptyForm: MemberForm = {
   positionId: '',
   teamId: '',
   role: 'staff',
+  rmScope: 'department',
   active: true,
 };
 
@@ -66,7 +70,7 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
 
 export default function PersonnelManagement() {
   const [members, setMembers] = useState<Member[]>([]);
-  const [metadata, setMetadata] = useState<Metadata>({ departments: [], positions: [], roles: [] });
+  const [metadata, setMetadata] = useState<Metadata>({ departments: [], positions: [], teams: [], roles: [], rmScopes: [] });
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -120,6 +124,7 @@ export default function PersonnelManagement() {
       positionId: member.positionId?.toString() || '',
       teamId: member.teamId?.toString() || '',
       role: member.role,
+      rmScope: member.rmScope || 'department',
       active: member.active,
     });
     setEditing(member);
@@ -134,6 +139,7 @@ export default function PersonnelManagement() {
     positionId: Number(form.positionId),
     teamId: form.teamId ? Number(form.teamId) : null,
     role: form.role,
+    rmScope: form.role === 'rm_committee' ? form.rmScope : null,
     active: form.active,
   });
 
@@ -228,11 +234,15 @@ export default function PersonnelManagement() {
                   <td className="px-5 py-4">
                     <p className="font-medium text-slate-700 dark:text-slate-200">{member.departmentName || '-'}</p>
                     <p className="text-xs text-slate-500">{member.positionName || '-'}</p>
+                    {member.teamName && <p className="mt-1 text-xs text-indigo-600 dark:text-indigo-300">ทีมนำ: {member.teamName}</p>}
                   </td>
                   <td className="px-5 py-4">
                     <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                       {roleName(member.role)}
                     </span>
+                    {member.role === 'rm_committee' && (
+                      <p className="mt-1 text-xs text-slate-500">{metadata.rmScopes.find((item) => item.id === member.rmScope)?.name || 'เฉพาะหน่วยงาน'}</p>
+                    )}
                   </td>
                   <td className="px-5 py-4">
                     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${member.active ? 'text-emerald-600' : 'text-red-500'}`}>
@@ -262,10 +272,11 @@ export default function PersonnelManagement() {
               <Field label="เลขประจำตัวประชาชน 13 หลัก" required><input inputMode="numeric" minLength={13} maxLength={13} value={form.cid} onChange={(event) => setForm({ ...form, cid: event.target.value.replace(/\D/g, '') })} required className="form-input" disabled={editing !== 'new'} title={editing !== 'new' ? 'ไม่สามารถเปลี่ยนเลขบัตรได้' : ''} /></Field>
               <Field label="ชื่อ-นามสกุล" required><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required className="form-input" /></Field>
               <Field label="สิทธิ์การใช้งานเบื้องต้น" required><select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })} className="form-input">{metadata.roles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+              {form.role === 'rm_committee' && <Field label="ขอบเขตการมองเห็นของ RM" required><select value={form.rmScope} onChange={(event) => setForm({ ...form, rmScope: event.target.value })} className="form-input">{metadata.rmScopes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>}
               <Field label="หน่วยงานหลัก" required><select value={form.departmentId} onChange={(event) => setForm({ ...form, departmentId: event.target.value })} required className="form-input"><option value="">เลือกหน่วยงาน</option>{metadata.departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
               <Field label="หน่วยงานรอง (ถ้ามี)"><select value={form.departmentId2} onChange={(event) => setForm({ ...form, departmentId2: event.target.value })} className="form-input"><option value="">ไม่มี</option>{metadata.departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
               <Field label="ตำแหน่ง" required><select value={form.positionId} onChange={(event) => setForm({ ...form, positionId: event.target.value })} required className="form-input"><option value="">เลือกตำแหน่ง</option>{metadata.positions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-              <Field label="รหัสทีม (ถ้ามี)"><input type="number" min="1" value={form.teamId} onChange={(event) => setForm({ ...form, teamId: event.target.value })} className="form-input" /></Field>
+              <Field label="ทีมนำที่สังกัด/รับงานร่วมทบทวน (ถ้ามี)"><select value={form.teamId} onChange={(event) => setForm({ ...form, teamId: event.target.value })} className="form-input"><option value="">ไม่สังกัดทีมนำ</option>{metadata.teams.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
             </div>
             {editing !== 'new' && <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4" /><span className="text-sm font-semibold text-slate-700 dark:text-slate-200">เปิดใช้งาน</span></label>}
             {error && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{error}</div>}

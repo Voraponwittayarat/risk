@@ -6,8 +6,12 @@ import {
   Activity, Sparkles, Building2, CheckCircle2, AlertCircle, Target, BarChart2, ShieldCheck, ShieldAlert, Layers, ExternalLink, MessageSquare, Info
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useAuth } from '../contexts/AuthContext';
+import { OfficialPrintFooter, OfficialPrintHeader, OfficialPrintSignatures } from '../components/OfficialPrintLayout';
+import { printOfficialReport } from '../utils/officialPrint';
 
 export default function IndividualReportStats() {
+  const { user } = useAuth();
   // Main Tab State: staff_report | program_matrix | dept_kpi | individual
   const [activeTab, setActiveTab] = useState<'staff_report' | 'program_matrix' | 'dept_kpi' | 'individual'>('program_matrix');
 
@@ -187,7 +191,7 @@ export default function IndividualReportStats() {
 
   // Print Handler
   const handlePrintTable = () => {
-    window.print();
+    printOfficialReport();
   };
 
   // Export CSV for Staff Reporting (Excel Format)
@@ -441,9 +445,34 @@ export default function IndividualReportStats() {
     new Date().getFullYear() - 1,
     new Date().getFullYear() - 2,
   ];
+  const printReportTitle: Record<typeof activeTab, string> = {
+    staff_report: 'รายงานจำนวนเจ้าหน้าที่ที่รายงานความเสี่ยงรายเดือน',
+    program_matrix: 'รายงานอุบัติการณ์จำแนกตามเรื่องความเสี่ยงและระดับความรุนแรง (REP1_14)',
+    dept_kpi: 'รายงานตัวชี้วัดความครอบคลุมการรายงานความเสี่ยงรายหน่วยงาน',
+    individual: 'รายงานสถิติการส่งรายงานความเสี่ยงรายบุคคล',
+  };
+  const selectedGroupName = selectedDeptGroup === 'all'
+    ? 'ทุกกลุ่มงาน'
+    : departmentGroups.find((group: any) => String(group.id) === String(selectedDeptGroup))?.depart_group_name || selectedDeptGroup;
+  const selectedDepartmentName = selectedDeptForIndividual === 'all'
+    ? 'ทุกหน่วยงาน'
+    : departments.find((department: any) => String(department.id) === String(selectedDeptForIndividual))?.depart_name || selectedDeptForIndividual;
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="official-print-document official-print-report-wide space-y-6 pb-12">
+      <OfficialPrintHeader
+        title={printReportTitle[activeTab]}
+        subtitle="Risk Reporting Statistics & Performance Indicators"
+        documentCode="RM-RP-02"
+        referenceNo={`STAT-${selectedYear + 543}`}
+        orientation="landscape"
+        metadata={[
+          { label: 'รอบรายงาน', value: `พ.ศ. ${selectedYear + 543}` },
+          { label: 'ประเภทปี', value: selectedYearType === 'fiscal' ? 'ปีงบประมาณ' : 'ปีปฏิทิน' },
+          { label: 'กลุ่มงาน', value: selectedGroupName },
+          { label: 'หน่วยงาน', value: selectedDepartmentName },
+        ]}
+      />
       {/* Tab Navigation Header */}
       <div className="no-print bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col lg:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl w-full lg:w-auto overflow-x-auto">
@@ -1794,6 +1823,12 @@ export default function IndividualReportStats() {
           )}
         </div>
       )}
+
+      <OfficialPrintSignatures
+        roles={['ผู้จัดทำรายงาน', 'ผู้ตรวจสอบข้อมูล', 'ประธานคณะกรรมการบริหารความเสี่ยง (RM)']}
+        names={[user?.name]}
+      />
+      <OfficialPrintFooter />
 
       {/* DRILL-DOWN POPUP MODAL: SUMMARY & REVIEW RESULTS OF RISK TOPIC */}
       {selectedRiskModalItem && (

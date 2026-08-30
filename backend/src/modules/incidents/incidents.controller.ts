@@ -1,17 +1,24 @@
-import { Controller, Get, Query, Param, Post, Body, Patch, Delete, UseGuards, Request, UseInterceptors, UploadedFiles, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Query, Param, Post, Body, Patch, Delete, UseGuards, Request, UseInterceptors, UploadedFiles, BadRequestException, Res, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { IncidentsService } from './incidents.service';
 import { GetIncidentsQueryDto } from './dto/get-incidents-query.dto';
 import { CreateIncidentDto } from './dto/create-incident.dto';
 import { UpdateIncidentDto } from './dto/update-incident.dto';
+import { ConfirmClassificationDto } from './dto/confirm-classification.dto';
+import { TeamBatchReviewDto } from './dto/team-batch-review.dto';
+import { DeleteIncidentDto } from './dto/delete-incident.dto';
+import { CreateIncidentReviewDto } from './dto/create-incident-review.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import type { Response } from 'express';
+import { readFile, unlink } from 'fs/promises';
 
 import { TelegramService } from './telegram.service';
+import { deidentifyIncidentText, normalizeAiRiskSuggestions } from './ai-incident-assistant.utils';
 
 @ApiTags('Incidents')
 @ApiBearerAuth()
@@ -44,14 +51,14 @@ export class IncidentsController {
 
   @Get('matrix/stats')
   @ApiOperation({ summary: 'Retrieve 5x5 Risk Matrix data for confirmed incidents' })
-  getRiskMatrixStats(@Query() query: any) {
-    return this.incidentsService.getRiskMatrixStats(query);
+  getRiskMatrixStats(@Query() query: any, @Request() req) {
+    return this.incidentsService.getRiskMatrixStats(query, req.user);
   }
 
   @Get('reports/analytics')
   @ApiOperation({ summary: 'Retrieve summary reports and breakdown by program & department' })
-  getReportAnalytics(@Query() query: any) {
-    return this.incidentsService.getReportAnalytics(query);
+  getReportAnalytics(@Query() query: any, @Request() req) {
+    return this.incidentsService.getReportAnalytics(query, req.user);
   }
 
   @Get('reports/individual-monthly-stats')
@@ -61,13 +68,14 @@ export class IncidentsController {
     @Query('department_id') department_id?: string,
     @Query('year') year?: string,
     @Query('year_type') year_type?: string,
+    @Request() req?: any,
   ) {
     return this.incidentsService.getIndividualMonthlyStats({
       department_group_id: department_group_id ? Number(department_group_id) : undefined,
       department_id: department_id ? Number(department_id) : undefined,
       year: year ? Number(year) : undefined,
       year_type: year_type || 'calendar',
-    });
+    }, req?.user);
   }
 
   @Get('reports/department-monthly-stats')
@@ -76,12 +84,13 @@ export class IncidentsController {
     @Query('department_group_id') department_group_id?: string,
     @Query('year') year?: string,
     @Query('year_type') year_type?: string,
+    @Request() req?: any,
   ) {
     return this.incidentsService.getDepartmentMonthlyStats({
       department_group_id: department_group_id ? Number(department_group_id) : undefined,
       year: year ? Number(year) : undefined,
       year_type: year_type || 'fiscal',
-    });
+    }, req?.user);
   }
 
   @Get('reports/program-severity-matrix')
@@ -91,13 +100,14 @@ export class IncidentsController {
     @Query('endDate') endDate?: string,
     @Query('year') year?: string,
     @Query('year_type') year_type?: string,
+    @Request() req?: any,
   ) {
     return this.incidentsService.getProgramSeverityMatrix({
       startDate,
       endDate,
       year: year ? Number(year) : undefined,
       year_type: year_type || 'fiscal',
-    });
+    }, req?.user);
   }
 
   @Get('reports/department-staff-stats')
@@ -106,12 +116,13 @@ export class IncidentsController {
     @Query('department_group_id') department_group_id?: string,
     @Query('year') year?: string,
     @Query('year_type') year_type?: string,
+    @Request() req?: any,
   ) {
     return this.incidentsService.getDepartmentStaffReportingStats({
       department_group_id: department_group_id ? Number(department_group_id) : undefined,
       year: year ? Number(year) : undefined,
       year_type: year_type || 'fiscal',
-    });
+    }, req?.user);
   }
 
 
@@ -139,8 +150,8 @@ export class IncidentsController {
 
   @Get('risk-register/summary')
   @ApiOperation({ summary: 'Retrieve enterprise Risk Register master profile and scores' })
-  getRiskRegister(@Query() query: any) {
-    return this.incidentsService.getRiskRegister(query);
+  getRiskRegister(@Query() query: any, @Request() req) {
+    return this.incidentsService.getRiskRegister(query, req.user);
   }
 
   @Get('my-reported')
@@ -155,10 +166,36 @@ export class IncidentsController {
     return this.incidentsService.getTabCounts(req.user, scope_type);
   }
 
+  @Get('team/workspace')
+  @ApiOperation({ summary: 'Retrieve the assigned team portfolio, grouped risk signals, and scoped risk matrix' })
+  getTeamWorkspace(@Query() query: any, @Request() req) {
+    return this.incidentsService.getTeamWorkspace(req.user, query);
+  }
+
+  @Post('team/batch-review')
+  @ApiOperation({ summary: 'Start or complete a review for multiple incidents assigned to the same team' })
+  batchReviewTeam(@Body() dto: TeamBatchReviewDto, @Request() req) {
+    return this.incidentsService.batchReviewTeam(dto, req.user);
+  }
+
+  @Get(':id/attachments/:filename')
+  @ApiOperation({ summary: 'Download an incident attachment after record-level authorization' })
+  async getAttachment(
+    @Param('id') id: string,
+    @Param('filename') filename: string,
+    @Request() req,
+    @Res() res: Response,
+  ) {
+    const filePath = await this.incidentsService.getAttachmentPath(+id, filename, req.user);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.sendFile(filePath);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Retrieve a single risk incident by ID with review timeline' })
-  findOne(@Param('id') id: string) {
-    return this.incidentsService.findOne(+id);
+  findOne(@Param('id') id: string, @Request() req) {
+    return this.incidentsService.findOne(+id, req.user);
   }
 
   @Post('upload')
@@ -170,25 +207,54 @@ export class IncidentsController {
           cb(null, process.env.UPLOAD_DIR || './uploads');
         },
         filename: (req, file, cb) => {
+          const uploaderId = Number((req as any).user?.id || (req as any).user?.userId || 0);
+          if (!Number.isInteger(uploaderId) || uploaderId <= 0) {
+            return cb(new BadRequestException('ไม่พบตัวตนผู้ใช้อัปโหลด'), '');
+          }
           const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const ext = extname(file.originalname);
-          cb(null, `${uniqueSuffix}${ext}`);
+          const extensionByMime: Record<string, string> = {
+            'image/jpeg': '.jpg',
+            'image/png': '.png',
+            'image/webp': '.webp',
+          };
+          cb(null, `${uploaderId}-${uniqueSuffix}${extensionByMime[file.mimetype] || extname(file.originalname).toLowerCase()}`);
         },
       }),
       limits: {
         fileSize: 3 * 1024 * 1024, // 3MB
       },
       fileFilter: (req, file, cb) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
           return cb(new BadRequestException('อนุญาตให้อัปโหลดเฉพาะไฟล์รูปภาพเท่านั้น! (jpg, jpeg, png, webp)'), false);
         }
         cb(null, true);
       },
     }),
   )
-  uploadFiles(@UploadedFiles() files: any[]) {
+  async uploadFiles(@UploadedFiles() files: any[]) {
     if (!files || files.length === 0) {
       throw new BadRequestException('ไม่พบไฟล์ที่อัปโหลด');
+    }
+    const hasValidSignature = (file: any, bytes: Buffer): boolean => {
+      if (file.mimetype === 'image/jpeg') {
+        return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+      }
+      if (file.mimetype === 'image/png') {
+        return bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+      }
+      if (file.mimetype === 'image/webp') {
+        return bytes.subarray(0, 4).toString('ascii') === 'RIFF'
+          && bytes.subarray(8, 12).toString('ascii') === 'WEBP';
+      }
+      return false;
+    };
+    const validations = await Promise.all(files.map(async (file) => {
+      const bytes = await readFile(file.path);
+      return hasValidSignature(file, bytes);
+    }));
+    if (validations.some((valid) => !valid)) {
+      await Promise.all(files.map((file) => unlink(file.path).catch(() => undefined)));
+      throw new BadRequestException('เนื้อหาไฟล์ไม่ตรงกับชนิดรูปภาพที่อนุญาต');
     }
     return files.map(file => ({
       filename: file.filename,
@@ -205,8 +271,14 @@ export class IncidentsController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update an existing risk incident' })
-  update(@Param('id') id: string, @Body() updateDto: UpdateIncidentDto) {
-    return this.incidentsService.update(+id, updateDto);
+  update(@Param('id') id: string, @Body() updateDto: UpdateIncidentDto, @Request() req) {
+    return this.incidentsService.update(+id, updateDto, req.user);
+  }
+
+  @Patch(':id/classification')
+  @ApiOperation({ summary: 'Validate and confirm NRLS classification' })
+  confirmClassification(@Param('id') id: string, @Body() dto: ConfirmClassificationDto, @Request() req) {
+    return this.incidentsService.confirmClassification(+id, dto.reason, req.user);
   }
 
   @Patch(':id/status')
@@ -223,7 +295,7 @@ export class IncidentsController {
   @ApiOperation({ summary: 'Add a review note or cause analysis log' })
   addReview(
     @Param('id') id: string,
-    @Body() reviewDto: any,
+    @Body() reviewDto: CreateIncidentReviewDto,
     @Request() req
   ) {
     return this.incidentsService.addReview(+id, reviewDto, req.user);
@@ -241,17 +313,35 @@ export class IncidentsController {
 
   @Delete(':id')
   @Roles('admin')
-  @ApiOperation({ summary: 'Delete a risk incident' })
-  remove(@Param('id') id: string) {
-    return this.incidentsService.remove(+id);
+  @ApiOperation({ summary: 'Safely delete a duplicate incident with a retained audit record' })
+  remove(@Param('id') id: string, @Body() dto: DeleteIncidentDto, @Request() req) {
+    return this.incidentsService.remove(+id, dto, req.user);
   }
 
   @Post('ai-chat')
   @ApiOperation({ summary: 'Chat with AI assistant to extract incident data from natural language' })
   async aiChat(@Body() body: { messages: { role: string; text: string }[] }) {
+    const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
+    if (process.env.AI_ASSISTANT_ENABLED !== 'true' || !apiKey) {
+      throw new ServiceUnavailableException('AI assistant is disabled until the hospital explicitly enables its external data-processing policy');
+    }
+    if (!Array.isArray(body?.messages) || body.messages.length === 0) {
+      throw new BadRequestException('กรุณาระบุข้อความเหตุการณ์');
+    }
+
+    const safeMessages = body.messages.slice(-10).map((message) => ({
+      role: message.role === 'user' ? 'user' : 'model',
+      text: deidentifyIncidentText(message.text),
+    }));
+    const riskCandidates = await this.incidentsService.getAiRiskCandidates(
+      safeMessages.map((message) => message.text).join('\n'),
+    );
+
     const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: String(process.env.GEMINI_MODEL || 'gemini-3.6-flash').trim(),
+    });
 
     const systemPrompt = `Role & Persona:
 คุณคือ AI ผู้ช่วยอัจฉริยะสำหรับระบบบริหารความเสี่ยงโรงพยาบาล (Hospital Risk Management System - HRMS) หน้าที่หลักของคุณคือการวิเคราะห์ข้อความหรือเสียงสนทนาที่บุคลากรทางการแพทย์รายงานเหตุการณ์ความเสี่ยง (Natural Language) และสกัดข้อมูลเพื่อนำไปเตรียมกรอกลงในฟอร์มของระบบอัตโนมัติได้อย่างแม่นยำ
@@ -267,6 +357,7 @@ Instructions:
 
 2. ข้อมูลความเสี่ยง (Risk Details)
 - "riskstore_name": (ชื่อความเสี่ยง) วิเคราะห์เหตุการณ์และสรุปชื่อความเสี่ยงที่สอดคล้องกับเหตุการณ์มากที่สุด (เช่น ผู้ป่วยหกล้ม, จ่ายยาผิดพลาด, อุปกรณ์ชำรุด) เพื่อให้ระบบนำไปจับคู่กับ riskstore_id
+- "risk_suggestions": เสนอหัวข้อความเสี่ยง 1–3 ตัวเลือก โดยเลือกได้เฉพาะรหัสจากรายการมาตรฐานของโรงพยาบาลด้านล่าง ห้ามสร้างรหัสหรือชื่อขึ้นเอง เรียงจากสอดคล้องมากที่สุด หากข้อมูลยังไม่พอให้ส่ง []
 - "level_id": (ระดับความรุนแรง) ประเมินระดับความรุนแรงเบื้องต้นตามบริบท โดยใช้ตาราง A–I สำหรับอุบัติการณ์ทางคลินิก หรือ 1–5 สำหรับอุบัติการณ์ทั่วไป:
 
   === ระดับความรุนแรง ===
@@ -274,8 +365,11 @@ Instructions:
   [ทั่วไป] 1:ยังไม่เกิด/ไม่ถึงเป้าหมาย 2:ไม่เสียหาย/เสียหาย<5k 3:เสียหายชั่วคราว/5k-10k 4:เสียหายร้ายแรง/ร้องเรียนภายนอก/10k-50k 5:เสียหายถาวร/ฟ้องร้อง/>50k
   (หากข้อมูลไม่เพียงพอให้ระบุเป็น null)
 
-- "affected": (ผู้เสียหาย/ได้รับผลกระทบ) สกัดข้อมูลผู้ที่ได้รับผลกระทบจากเหตุการณ์ เป็น Array เช่น ["ผู้ป่วย"], ["เจ้าหน้าที่"], ["ผู้ป่วย", "ญาติ"] (หากไม่ระบุให้ใส่ ["ผู้ป่วย"] เป็น default)
-- "detail": (เหตุการณ์/รายละเอียดเพิ่มเติม) เรียบเรียงและสรุปใจความสำคัญของเหตุการณ์ที่เกิดขึ้น รวมถึงผลกระทบอย่างกระชับ ชัดเจน ด้วยภาษาทางการแพทย์ที่เหมาะสมสำหรับการลงบันทึกในระบบ
+- "affected": (ผู้เสียหาย/ได้รับผลกระทบ) สกัดข้อมูลผู้ที่ได้รับผลกระทบจากเหตุการณ์ เป็น Array เช่น ["ผู้ป่วย"], ["เจ้าหน้าที่"], ["ผู้ป่วย", "ญาติ"] หากไม่ระบุให้เป็น null ห้ามคาดเดา
+- "detail": เรียบเรียงรายละเอียดเป็นภาษาไทยทางการแบบบันทึกอุบัติการณ์ 2–5 ประโยค โดยเรียง เหตุการณ์ → การช่วยเหลือ/แก้ไขทันที → ผลลัพธ์ เท่าที่ผู้ใช้ให้ข้อมูล ใช้ถ้อยคำเป็นกลาง ไม่กล่าวโทษ ไม่เติมข้อเท็จจริง การวินิจฉัย ผลกระทบ หรือการรักษาที่ผู้ใช้ไม่ได้ระบุ และไม่ใส่ชื่อ HN AN เลขบัตร หรือเบอร์โทร
+
+รายการหัวข้อความเสี่ยงมาตรฐานที่อนุญาตให้เสนอ (ข้อมูลจริงจากระบบ):
+${JSON.stringify(riskCandidates)}
 
 Rules for Output:
 - แสดงผลลัพธ์เป็นโครงสร้าง JSON Format เท่านั้น ห้ามพิมพ์ข้อความอธิบายใดๆ นอกเหนือจาก JSON และห้ามใช้ markdown code fence (ห้ามใส่ \`\`\`json)
@@ -292,6 +386,9 @@ Rules for Output:
   "duration_name": "เช้า หรือ บ่าย หรือ ดึก หรือ null",
   "location_name": "ชื่อสถานที่หรือ null",
   "riskstore_name": "ชื่อความเสี่ยงหรือ null",
+  "risk_suggestions": [
+    { "nrls_code": "รหัสจากรายการที่ให้เท่านั้น", "confidence": 0-100, "reason": "เหตุผลสั้นๆ ที่เชื่อมกับข้อเท็จจริงในเหตุการณ์" }
+  ],
   "level_id": "A–I หรือ 1–5 หรือ null",
   "severity": "1–5 หรือ null",
   "affected": ["ผู้ป่วย"] หรือ null,
@@ -300,11 +397,11 @@ Rules for Output:
   "clarification_question": "คำถามหากข้อมูลไม่ครบ หรือ null"
 }`;
 
-    const history = body.messages.slice(0, -1).map(m => ({
+    const history = safeMessages.slice(0, -1).map(m => ({
       role: m.role === 'user' ? 'user' : 'model',
       parts: [{ text: m.text }],
     }));
-    const lastMessage = body.messages[body.messages.length - 1].text;
+    const lastMessage = safeMessages[safeMessages.length - 1].text;
 
     const chat = model.startChat({
       history: [
@@ -322,7 +419,11 @@ Rules for Output:
 
     try {
       const parsed = JSON.parse(cleaned);
-      return parsed;
+      const riskSuggestions = normalizeAiRiskSuggestions(parsed?.risk_suggestions, riskCandidates);
+      return {
+        ...parsed,
+        risk_suggestions: riskSuggestions,
+      };
     } catch {
       return { clarification_question: 'ขออภัยค่ะ เกิดข้อผิดพลาดในการประมวลผล กรุณาลองอีกครั้งนะคะ', raw: cleaned };
     }

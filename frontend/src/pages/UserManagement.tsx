@@ -27,7 +27,9 @@ interface ManagedUser {
   positionId: number | null;
   positionName: string | null;
   teamId: number | null;
+  teamName: string | null;
   role: Role;
+  rmScope: string | null;
   active: boolean;
   lastLoginAt: number | null;
   createdAt: number;
@@ -35,7 +37,8 @@ interface ManagedUser {
 
 interface Option { id: number; name: string }
 interface RoleOption { id: Role; name: string }
-interface Metadata { departments: Option[]; positions: Option[]; roles: RoleOption[] }
+interface RmScopeOption { id: string; name: string }
+interface Metadata { departments: Option[]; positions: Option[]; teams: Option[]; roles: RoleOption[]; rmScopes: RmScopeOption[] }
 
 interface UserForm {
   username: string;
@@ -48,6 +51,7 @@ interface UserForm {
   positionId: string;
   teamId: string;
   role: Role;
+  rmScope: string;
   active: boolean;
 }
 
@@ -62,6 +66,7 @@ const emptyForm: UserForm = {
   positionId: '',
   teamId: '',
   role: 'staff',
+  rmScope: 'department',
   active: true,
 };
 
@@ -95,7 +100,7 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
 
 export default function UserManagement() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
-  const [metadata, setMetadata] = useState<Metadata>({ departments: [], positions: [], roles: [] });
+  const [metadata, setMetadata] = useState<Metadata>({ departments: [], positions: [], teams: [], roles: [], rmScopes: [] });
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -155,6 +160,7 @@ export default function UserManagement() {
       positionId: user.positionId?.toString() || '',
       teamId: user.teamId?.toString() || '',
       role: user.role,
+      rmScope: user.rmScope || 'department',
       active: user.active,
     });
     setEditing(user);
@@ -184,6 +190,7 @@ export default function UserManagement() {
     positionId: Number(form.positionId),
     teamId: form.teamId ? Number(form.teamId) : null,
     role: form.role,
+    rmScope: form.role === 'rm_committee' || form.role === 'head' ? form.rmScope : null,
     active: form.active,
   });
 
@@ -303,6 +310,11 @@ export default function UserManagement() {
                   </td>
                   <td className="px-5 py-4">
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${roleStyles[user.role]}`}>{roleName(user.role)}</span>
+                    {(user.role === 'head' || user.role === 'rm_committee') && (
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        {user.rmScope === 'hospital' ? 'ทั้งโรงพยาบาล' : user.rmScope === 'group' ? 'ระดับกลุ่มงาน' : 'เฉพาะหน่วยงาน'}
+                      </p>
+                    )}
                   </td>
                   <td className="px-5 py-4">
                     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${user.active ? 'text-emerald-600' : 'text-red-500'}`}>
@@ -354,11 +366,12 @@ export default function UserManagement() {
               )}
               <Field label="เลขประจำตัวประชาชน 13 หลัก" required><input inputMode="numeric" minLength={13} maxLength={13} value={form.cid} onChange={(event) => setForm({ ...form, cid: event.target.value.replace(/\D/g, '') })} required className="form-input" /></Field>
               <Field label="ชื่อ-นามสกุล" required><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required className="form-input" /></Field>
-              <Field label="สิทธิ์การใช้งาน" required><select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as Role })} className="form-input">{metadata.roles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+              <Field label="สิทธิ์การใช้งาน" required><select value={form.role} onChange={(event) => { const role = event.target.value as Role; setForm({ ...form, role, rmScope: role === 'head' && form.rmScope === 'hospital' ? 'department' : form.rmScope }); }} className="form-input">{metadata.roles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+              {(form.role === 'rm_committee' || form.role === 'head') && <Field label={form.role === 'head' ? 'ขอบเขตการบริหารของหัวหน้างาน' : 'ขอบเขตการมองเห็นของ RM'} required><select value={form.rmScope} onChange={(event) => setForm({ ...form, rmScope: event.target.value })} className="form-input">{metadata.rmScopes.filter((item) => form.role === 'rm_committee' || item.id !== 'hospital').map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>}
               <Field label="หน่วยงานหลัก" required><select value={form.departmentId} onChange={(event) => setForm({ ...form, departmentId: event.target.value })} required className="form-input"><option value="">เลือกหน่วยงาน</option>{metadata.departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
               <Field label="หน่วยงานรอง"><select value={form.departmentId2} onChange={(event) => setForm({ ...form, departmentId2: event.target.value })} className="form-input"><option value="">ไม่มี</option>{metadata.departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
               <Field label="ตำแหน่ง" required><select value={form.positionId} onChange={(event) => setForm({ ...form, positionId: event.target.value })} required className="form-input"><option value="">เลือกตำแหน่ง</option>{metadata.positions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-              <Field label="รหัสทีม (ถ้ามี)"><input type="number" min="1" value={form.teamId} onChange={(event) => setForm({ ...form, teamId: event.target.value })} className="form-input" /></Field>
+              <Field label="ทีมนำที่สังกัด/รับงานร่วมทบทวน (ถ้ามี)"><select value={form.teamId} onChange={(event) => setForm({ ...form, teamId: event.target.value })} className="form-input"><option value="">ไม่สังกัดทีมนำ</option>{metadata.teams.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
             </div>
             {editing !== 'new' && <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4" /><span className="text-sm font-semibold text-slate-700 dark:text-slate-200">เปิดใช้งานบัญชีนี้</span></label>}
             {error && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{error}</div>}

@@ -11,6 +11,8 @@ import {
 } from 'class-validator';
 import { USER_ROLES } from './create-user.dto';
 import type { UserRole } from './create-user.dto';
+import { RM_SCOPES } from '../../auth/rm-scope.utils';
+import type { RmScope } from '../../auth/rm-scope.utils';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -54,6 +56,10 @@ export class UpdateUserDto {
   @IsOptional()
   @IsIn(USER_ROLES)
   role?: UserRole;
+
+  @IsOptional()
+  @IsIn(RM_SCOPES)
+  rmScope?: RmScope | null;
 
   @IsOptional()
   @IsBoolean()

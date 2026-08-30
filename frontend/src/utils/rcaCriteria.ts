@@ -20,6 +20,7 @@ export interface CriteriaEvaluationResult {
   badge_text: string;
 }
 
+// Display-only policy descriptions. Eligibility is returned by the backend on Incident.
 export const WANG_CHAO_RCA_CRITERIA = [
   {
     id: 1,
@@ -58,64 +59,6 @@ export const WANG_CHAO_RCA_CRITERIA = [
     suggestedMode: 'mini' as const,
   },
 ];
-
-export function evaluateRcaEligibility(
-  incident: IncidentData,
-  nineStandardRiskCodes: string[] = []
-): CriteriaEvaluationResult {
-  const matched: string[] = [];
-  const level = (incident.level_id || '').toUpperCase();
-  const isHigh = ['G', 'H', 'I', '4', '5'].includes(level);
-  const isModerateOrHigher = ['C', 'D', 'E', 'F', 'G', 'H', 'I', '2', '3', '4', '5'].includes(level);
-
-  // 1. Nine Standards Check
-  if (incident.riskstore_id && nineStandardRiskCodes.includes(String(incident.riskstore_id)) && isModerateOrHigher) {
-    matched.push('ข้อ 1: มาตรฐานสำคัญจำเป็น 9 ด้าน (ระดับ C-I)');
-  }
-
-  // 2. High Severity Check
-  if (isHigh) {
-    matched.push(`ข้อ 2: ความรุนแรงระดับสูง (${level}) ส่งผลต่อชีวิตหรือทุพพลภาพ`);
-  }
-
-  // 3. Trigger Tool / Sec 41
-  if (incident.source_trigger || incident.is_sec41) {
-    matched.push('ข้อ 3: ตรวจพบจาก Trigger Tool หรือข้อร้องเรียน ม.41 สปสช.');
-  }
-
-  // 6. High Potential Harm Near Miss
-  if (incident.is_potential_harm) {
-    matched.push('ข้อ 6: Near Miss ร้ายแรงที่อาจก่อให้เกิดอันตรายรุนแรง (High Potential Harm)');
-  }
-
-  const rca_required = matched.length > 0;
-  let recommended_mode: 'mini' | 'concise' | 'standard' = 'mini';
-
-  if (isHigh || incident.source_trigger || incident.is_sec41) {
-    recommended_mode = 'standard';
-  } else if (rca_required) {
-    recommended_mode = 'mini';
-  }
-
-  let badge_color = 'bg-slate-100 text-slate-600 border-slate-200';
-  let badge_text = 'ไม่เข้าเกณฑ์ RCA';
-
-  if (recommended_mode === 'standard') {
-    badge_color = 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30';
-    badge_text = '⚠️ ต้องทำ Standard Full RCA';
-  } else if (recommended_mode === 'mini') {
-    badge_color = 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30';
-    badge_text = '🧀 แนะนำทำ Mini RCA / ทบทวน Swiss Cheese';
-  }
-
-  return {
-    rca_required,
-    matched_criteria: matched,
-    recommended_mode,
-    badge_color,
-    badge_text,
-  };
-}
 
 export const SWISS_CHEESE_LAYERS = [
   {

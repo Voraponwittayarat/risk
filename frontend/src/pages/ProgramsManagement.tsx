@@ -22,7 +22,7 @@ const ProgramsManagement: React.FC = () => {
 
   const fetchPrograms = async () => {
     try {
-      const response = await fetch("http://localhost:3000/programs", {
+      const response = await fetch("/programs", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -55,7 +55,7 @@ const ProgramsManagement: React.FC = () => {
 
   const handleSave = async (id: number) => {
     try {
-      const response = await fetch(`http://localhost:3000/programs/${id}`, {
+      const response = await fetch(`/programs/${id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -108,7 +108,7 @@ const ProgramsManagement: React.FC = () => {
 
     if (programName) {
       try {
-        const response = await fetch("http://localhost:3000/programs", {
+        const response = await fetch("/programs", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

@@ -3,6 +3,8 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import * as nodemailer from 'nodemailer';
+import { canonicalRole, legacyFieldsForRole } from './role.utils';
+import { normalizeRmScope } from './rm-scope.utils';
 
 @Injectable()
 export class AuthService {
@@ -43,10 +45,10 @@ export class AuthService {
         id: dbUser.id,
         cid: dbUser.cid || '',
         member_name: dbUser.username,
-        department_id1: '1', // default dept
-        priority: dbUser.role === 1 ? '1' : '5',
-        accessrules: dbUser.role === 1 ? '1' : null,
-        rm_status: dbUser.role === 1 ? '1' : null,
+        department_id1: 1,
+        department_id2: 0,
+        role: canonicalRole(undefined, dbUser.role),
+        rm_scope: null,
         team_id: 1,
       } as any;
     }
@@ -54,6 +56,7 @@ export class AuthService {
     // 4. Find Department Group to determine scope
     let departmentGroup: number | null = null;
     let departmentName: string | null = null;
+    let teamName: string | null = null;
     if (member.department_id1) {
       const dept = await this.prisma.department.findUnique({
         where: { id: member.department_id1 }
@@ -63,16 +66,14 @@ export class AuthService {
         departmentName = dept.depart_name;
       }
     }
+    if (member.team_id) {
+      const team = await this.prisma.team.findUnique({ where: { id: member.team_id } });
+      teamName = team?.team_name || null;
+    }
 
     // 5. Create JWT Payload
-    const accessrules = dbUser.role === 1 ? '1' : member.accessrules;
-    const role = dbUser.role === 1
-      ? 'admin'
-      : member.rm_status === '1'
-        ? 'rm_committee'
-        : member.priority === '1'
-          ? 'head'
-          : 'staff';
+    const role = canonicalRole(member.role, dbUser.role);
+    const rmScope = normalizeRmScope(role, member.rm_scope);
 
     const payload = {
       sub: dbUser.id,
@@ -83,11 +84,10 @@ export class AuthService {
       departmentName: departmentName,
       departmentId2: member.department_id2,
       departmentGroup: departmentGroup,
-      priority: member.priority,
-      accessrules,
-      rmStatus: member.rm_status,
       teamId: member.team_id,
+      teamName,
       role,
+      rmScope,
       require_password_change: (dbUser as any).require_password_change || false,
     };
 
@@ -100,10 +100,9 @@ export class AuthService {
         department_id: member.department_id1,
         department_id2: member.department_id2,
         role,
-        accessrules,
-        rmStatus: member.rm_status,
-        priority: member.priority,
         teamId: member.team_id,
+        teamName,
+        rmScope,
         require_password_change: (dbUser as any).require_password_change || false,
       }
     };
@@ -223,11 +222,8 @@ export class AuthService {
     const now = Math.floor(Date.now() / 1000);
     const crypto = require('crypto');
 
-    // determine role based on member table
-    let role = 99; // staff
-    if (member.accessrules === '1' || member.accessrules === 'admin') role = 1;
-    else if (member.rm_status === '1') role = 10;
-    else if (member.priority === '1') role = 20;
+    const role = canonicalRole(member.role);
+    const legacy = legacyFieldsForRole(role);
 
     const user = await this.prisma.user.create({
       data: {
@@ -237,7 +233,7 @@ export class AuthService {
         cid: cid.trim(),
         auth_key: crypto.randomBytes(16).toString('hex'),
         confirmed_at: now,
-        role: role,
+        role: legacy.userRole,
         created_at: now,
         updated_at: now,
       },

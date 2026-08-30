@@ -32,20 +32,20 @@ export class CreateIncidentDto {
   @IsInt()
   user_ir?: number;
 
-  @ApiPropertyOptional({ description: 'Program ID' })
-  @IsOptional()
-  @IsInt()
-  program_id?: number;
-
   @ApiProperty({ description: 'Severity level ID' })
   @IsNotEmpty()
   @IsString()
   level_id: string;
 
-  @ApiProperty({ description: 'Risk store ID' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ description: 'Optional hospital local risk ID mapped to NRLS' })
+  @IsOptional()
   @IsInt()
-  riskstore_id: number;
+  riskstore_id?: number | null;
+
+  @ApiPropertyOptional({ description: 'NRLS master code; required for incidents from 2026-10-01 onward' })
+  @IsOptional()
+  @IsString()
+  nrls_code?: string | null;
 
   @ApiPropertyOptional({ description: 'Detailed description of the incident' })
   @IsOptional()

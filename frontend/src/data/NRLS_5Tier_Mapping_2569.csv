@@ -1,0 +1,36 @@
+factor_code,factor_category,factor_name_en,factor_name_th,primary_tier,primary_tier_name
+F0001,Staff Factors,Staff Factors: Fatigue,ความเหนื่อยล้า,1,Individuals
+F0002,Staff Factors,Staff Factors: Stress,ความเครียด,1,Individuals
+F0003,Staff Factors,Staff Factors: Inattention,ความไม่ใส่ใจ,1,Individuals
+F0004,Staff Factors,"Staff Factors: Competence, Knowledge, Skills, Experience","สมรรถนะ, ความรู้, ทักษะ, ประสบการณ์",1,Individuals
+F0005,Staff Factors,Staff Factors: Cognitive bias,อคติทางความคิด,1,Individuals
+F0007,Staff Factors,Staff Factors: Health issues,ปัญหาสุขภาพ,1,Individuals
+F0008,Staff Factors,"Staff Factors: Attitude, Mindset, Culture","ทัศนคติ, กรอบความคิด, วัฒนธรรม",1,Individuals
+F0010,Patient Factors,Patient Factors: Clinical condition,ภาวะทางคลินิก,1,Individuals
+F0011,Patient Factors,Patient Factors: Medication,ยาที่ผู้ป่วยได้รับ,1,Individuals
+F0012,Patient Factors,"Patient Factors: Language, sociocultural","ภาษา, สังคมวัฒนธรรม",1,Individuals
+F0013,Patient Factors,Patient Factors: Informed & literacy,การได้รับข้อมูลและการรู้หนังสือ,1,Individuals
+F0037,Patient Factors,Patient Factors: Individual conditions,สภาวะเฉพาะบุคคล,1,Individuals
+F0014,Nature of Work,Nature of Work: Work process Complexity,ความซับซ้อนของกระบวนการทำงาน,2,Work & Team
+F0015,Nature of Work,Nature of Work: Competing tasks,งานที่ต้องแข่งขันกัน,2,Work & Team
+F0016,Nature of Work,Nature of Work: Interruptions,การขัดจังหวะ,2,Work & Team
+F0017,Nature of Work,Nature of Work: Physical/Cognitive requirements,ความต้องการทางกายภาพ/สติปัญญา,2,Work & Team
+F0018,Team,Team: Complexity of team,ความซับซ้อนของทีม,2,Work & Team
+F0019,Team,Team: Team status,สภาวะของทีม,2,Work & Team
+F0020,Communication,Communication: Supervisor to staff,หัวหน้างานถึงเจ้าหน้าที่,2,Work & Team
+F0021,Communication,Communication: Among staff or team members,ระหว่างเจ้าหน้าที่ หรือ สมาชิกทีม,2,Work & Team
+F0022,Communication,Communication: Staff to patient (or family),เจ้าหน้าที่ถึงผู้ป่วย (หรือครอบครัวผู้ป่วย),2,Work & Team
+F0023,Supervision/support,Supervision/support: Clinical supervision,ด้านคลินิก,3,Environment
+F0024,Supervision/support,Supervision/support: Managerial supervision,ด้านการจัดการ,3,Environment
+F0025,Policies & procedures/Clinical protocols,Policies & procedures/Clinical protocols: Presence of policies,การมีนโยบาย,4,Management
+F0026,Policies & procedures/Clinical protocols,Policies & procedures/Clinical protocols: Clarity of policies,ความชัดเจนของนโยบาย,4,Management
+F0027,Policies & procedures/Clinical protocols,"Policies & procedures/Clinical protocols: Lack of compliance to policies, GL or SOP","การไม่ปฏิบัติตามนโยบาย, แนวปฏิบัติ หรือมาตรฐานการปฏิบัติงาน",4,Management
+F0028,Data & Information,Data & Information: Availability,ความพร้อมใช้งาน,3,Environment
+F0029,Data & Information,Data & Information: Accuracy,ความแม่นยำ,3,Environment
+F0030,Data & Information,Data & Information: Legibility,ความชัดเจน,3,Environment
+F0031,Equipment/device,Equipment/device: Function,การทำงาน,3,Environment
+F0032,Equipment/device,Equipment/device: Design,การออกแบบ,3,Environment
+F0033,Equipment/device,Equipment/device: Availability,ความพร้อมใช้งาน,3,Environment
+F0034,Equipment/device,Equipment/device: Maintenance,การบำรุงรักษา,3,Environment
+F0035,Environment,"Environment: Culture of safety, Management, Poor engineer control","วัฒนธรรมความปลอดภัย, การจัดการ, การควบคุมของวิศวกรที่ไม่ดี",4,Management
+F0036,Environment,"Environment: Physical surroundings (e.g., lighting, noise)","สภาพแวดล้อมทางกายภาพ (เช่น แสงสว่าง, เสียงรบกวน)",3,Environment

@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { 
   Activity, ShieldAlert, AlertTriangle, TrendingUp, 
-  Clock, AlertOctagon, Plus, ArrowRight, ExternalLink, ChevronRight,
+  Clock, AlertOctagon, Plus, ExternalLink, ChevronRight,
   FileText, CheckCircle2, HeartHandshake,
   LayoutGrid, PlusCircle, ClipboardList, ShieldCheck, Sparkles, 
-  BarChart3, PieChart, Users, UserCheck, FolderKanban, Settings, FileCheck
+  BarChart3, PieChart, Users, UserCheck, FolderKanban, Settings, FileCheck, Search
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getStatusInfo, getSeverityBadge, isSentinelEvent } from '../utils/statusAdapter';
+import { getStatusInfo, getSeverityBadge } from '../utils/statusAdapter';
 import { format } from 'date-fns';
 
 const greetings = [
@@ -56,8 +56,50 @@ const DetailRow = ({ label, count, colorClass, to }: { label: string; count: num
   return to ? <Link to={to}>{content}</Link> : content;
 };
 
+type DonutSegment = { label: string; value: number; color: string };
+
+const SeverityDonut = ({ title, subtitle, segments }: { title: string; subtitle: string; segments: DonutSegment[] }) => {
+  const visibleSegments = segments.filter((segment) => segment.value > 0);
+  const total = visibleSegments.reduce((sum, segment) => sum + segment.value, 0);
+  let cursor = 0;
+  const stops = visibleSegments.map((segment) => {
+    const start = cursor;
+    cursor += total > 0 ? (segment.value / total) * 360 : 0;
+    return `${segment.color} ${start}deg ${cursor}deg`;
+  });
+  const background = total > 0 ? `conic-gradient(${stops.join(', ')})` : '#e2e8f0';
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs dark:border-slate-700 dark:bg-slate-800">
+      <div className="border-b border-blue-500/20 bg-blue-600 px-5 py-3 text-white">
+        <h3 className="font-bold">{title}</h3>
+        <p className="mt-0.5 text-[11px] text-blue-100">{subtitle}</p>
+      </div>
+      <div className="p-5">
+        <div className="mb-4 flex flex-wrap justify-center gap-x-3 gap-y-2">
+          {segments.map((segment) => (
+            <div key={segment.label} className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+              <span className="h-2.5 w-5 rounded-sm" style={{ backgroundColor: segment.color }} />
+              <span>{segment.label}</span>
+            </div>
+          ))}
+        </div>
+        <div className="relative mx-auto flex h-48 w-48 items-center justify-center rounded-full" style={{ background }}>
+          <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-white shadow-inner dark:bg-slate-800">
+            <strong className="text-3xl text-slate-900 dark:text-white">{total.toLocaleString()}</strong>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">เหตุการณ์</span>
+          </div>
+        </div>
+        {total === 0 && <p className="mt-4 text-center text-xs text-slate-400">ยังไม่มีข้อมูลในขอบเขตที่คุณดูแล</p>}
+      </div>
+    </div>
+  );
+};
+
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
+  const [reportSearch, setReportSearch] = useState('');
   const [randomGreeting] = useState(() => greetings[Math.floor(Math.random() * greetings.length)]);
   const [stats, setStats] = useState({
     total: 0,
@@ -69,6 +111,13 @@ export default function Dashboard() {
     sentinelClinical: 0,
     sentinelGeneral: 0,
     sentinelTotal: 0,
+    byLevel: {} as Record<string, number>,
+    activeSeverityByGoal: {
+      clinical: {},
+      patient: {},
+      personnel: {},
+      organization: {},
+    } as Record<string, Record<string, number>>,
   });
 
   // State for My Reported Incidents
@@ -88,7 +137,12 @@ export default function Dashboard() {
         const response = await axios.get('/incidents/stats', {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
-        setStats(response.data);
+        setStats((current) => ({
+          ...current,
+          ...response.data,
+          byLevel: response.data?.byLevel || {},
+          activeSeverityByGoal: response.data?.activeSeverityByGoal || current.activeSeverityByGoal,
+        }));
       } catch (error) {
         console.error('Failed to fetch stats', error);
       }
@@ -122,11 +176,38 @@ export default function Dashboard() {
   }, [selectedFiscalYear]);
 
   const statCards = [
-    { title: 'เรื่องทั้งหมดที่ดูแลอยู่', value: stats.total, icon: Activity, colorClass: 'bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400', to: '/incidents' },
+    { title: 'เรื่องทั้งหมดที่ดูแลอยู่', value: stats.total, icon: Activity, colorClass: 'bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400', to: '/incidents/dept?tab=all' },
     { title: 'รอการยืนยัน', value: stats.pending, icon: Clock, colorClass: 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400', to: '/incidents/pending' },
-    { title: 'กำลังดำเนินการแก้ไข', value: stats.confirmed, icon: AlertTriangle, colorClass: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400', to: '/incidents' },
-    { title: 'เรื่องที่ต้องดูแลพิเศษ', value: stats.sentinelTotal, icon: ShieldAlert, colorClass: 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400', to: '/incidents' },
+    { title: 'กำลังดำเนินการแก้ไข', value: stats.confirmed, icon: AlertTriangle, colorClass: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400', to: '/incidents/dept?tab=ตรวจสอบ' },
+    { title: 'เรื่องที่ต้องดูแลพิเศษ', value: stats.sentinelTotal, icon: ShieldAlert, colorClass: 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400', to: '/incidents/dept?tab=sentinel' },
   ];
+
+  const clinicalColors: Record<string, string> = {
+    A: '#06b6d4', B: '#14b8a6', C: '#22c55e', D: '#84cc16', E: '#eab308',
+    F: '#f59e0b', G: '#f97316', H: '#ef4444', I: '#b91c1c',
+  };
+  const generalColors: Record<string, string> = {
+    '1': '#0f9f9a', '2': '#22c55e', '3': '#facc15', '4': '#f97316', '5': '#dc2626',
+  };
+  const goalSegments = (goal: string, levels: string[], colors: Record<string, string>): DonutSegment[] =>
+    levels.map((level) => ({
+      label: level,
+      value: stats.activeSeverityByGoal?.[goal]?.[level] || 0,
+      color: colors[level],
+    }));
+  const clinicalSegments = goalSegments('clinical', ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'], clinicalColors);
+  const patientSegments = goalSegments('patient', ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'], clinicalColors);
+  const personnelSegments = goalSegments('personnel', ['1', '2', '3', '4', '5'], generalColors);
+  const organizationSegments = goalSegments('organization', ['1', '2', '3', '4', '5'], generalColors);
+  const clinicalEF = (stats.byLevel.E || 0) + (stats.byLevel.F || 0);
+  const clinicalGHI = (stats.byLevel.G || 0) + (stats.byLevel.H || 0) + (stats.byLevel.I || 0);
+  const general45 = (stats.byLevel['4'] || 0) + (stats.byLevel['5'] || 0);
+
+  const handleReportSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    const query = reportSearch.trim();
+    navigate(query ? `/incidents/dept?search=${encodeURIComponent(query)}` : '/incidents/dept');
+  };
 
   return (
     <div className="space-y-6 pb-16">
@@ -182,11 +263,73 @@ export default function Dashboard() {
         </Link>
       </div>
 
+      {/* Report search, inspired by the legacy HRMS home screen */}
+      <form onSubmit={handleReportSearch} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-700 dark:bg-slate-800">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <input
+              value={reportSearch}
+              onChange={(event) => setReportSearch(event.target.value)}
+              placeholder="ค้นหารหัสรายงาน รหัสอุบัติการณ์ หรือคำสำคัญในรายงาน"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+            />
+          </div>
+          <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-7 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700">
+            <Search className="h-4 w-4" /> ค้นหา
+          </button>
+        </div>
+      </form>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((stat, index) => (
           <StatCard key={index} {...stat} />
         ))}
+      </div>
+
+      {/* Monitoring summary and safety-goal charts */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <div className="space-y-6 xl:col-span-5">
+          <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-xs dark:border-emerald-900 dark:bg-slate-800">
+            <div className="flex items-center justify-between bg-emerald-600 px-5 py-3 text-white">
+              <div>
+                <h2 className="font-bold">ติดตามและเฝ้าระวังรายงานอุบัติการณ์ความเสี่ยง</h2>
+                <p className="text-[11px] text-emerald-100">สถานะล่าสุดในขอบเขตที่คุณรับผิดชอบ</p>
+              </div>
+              <Activity className="h-5 w-5" />
+            </div>
+            <div className="space-y-1 p-4">
+              <DetailRow label="อุบัติการณ์ทั้งหมดในขอบเขต" count={stats.total} colorClass="bg-slate-500" to="/incidents/dept?tab=all" />
+              <DetailRow label="อุบัติการณ์รอยืนยัน" count={stats.pending} colorClass="bg-blue-500" to="/incidents/pending" />
+              <DetailRow label="ยืนยันแล้ว / รอดำเนินการ" count={stats.confirmed} colorClass="bg-emerald-500" to="/incidents/dept?tab=ตรวจสอบ" />
+              <DetailRow label="อยู่ระหว่างทบทวน / RCA" count={stats.reviewing} colorClass="bg-amber-500" to="/incidents/dept?tab=ทบทวน" />
+              <DetailRow label="ปิดเคสเรียบร้อยแล้ว" count={stats.closed} colorClass="bg-indigo-500" to="/incidents/dept?tab=จำหน่าย" />
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-orange-200 bg-white shadow-xs dark:border-orange-900 dark:bg-slate-800">
+            <div className="flex items-center justify-between bg-orange-500 px-5 py-3 text-white">
+              <div>
+                <h2 className="font-bold">เฝ้าระวังอุบัติการณ์ความเสี่ยงรุนแรง</h2>
+                <p className="text-[11px] text-orange-100">รายการที่ต้องได้รับการดูแลเป็นพิเศษ</p>
+              </div>
+              <AlertOctagon className="h-5 w-5" />
+            </div>
+            <div className="space-y-1 p-4">
+              <DetailRow label="ด้านคลินิก ระดับ E–F" count={clinicalEF} colorClass="bg-orange-500" to="/incidents/dept?tab=all&level_id=clinical_ef" />
+              <DetailRow label="ด้านคลินิก ระดับ G–I" count={clinicalGHI} colorClass="bg-rose-500" to="/incidents/dept?tab=all&level_id=clinical_ghi" />
+              <DetailRow label="ด้านองค์กร ระดับ 4–5" count={general45} colorClass="bg-red-500" to="/incidents/dept?tab=all&level_id=general_45" />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:col-span-7">
+          <SeverityDonut title="Clinical Safety Goals" subtitle="อยู่ระหว่างการแก้ไข • ระดับ A–I" segments={clinicalSegments} />
+          <SeverityDonut title="Patient Safety Goals" subtitle="อยู่ระหว่างการแก้ไข • รหัส CP • ระดับ A–I" segments={patientSegments} />
+          <SeverityDonut title="Personnel Safety Goals" subtitle="อยู่ระหว่างการแก้ไข • รหัส GP • ระดับ 1–5" segments={personnelSegments} />
+          <SeverityDonut title="Organization Safety Goals" subtitle="อยู่ระหว่างการแก้ไข • รหัส GO • ระดับ 1–5" segments={organizationSegments} />
+        </div>
       </div>
 
       {/* Quick Navigation Shortcuts Grid */}
@@ -523,7 +666,7 @@ export default function Dashboard() {
                     {myReportedData.incidents.slice(0, 5).map((inc: any) => {
                       const statusInfo = getStatusInfo(inc.status_risk);
                       const severity = getSeverityBadge(inc.level_id, inc.riskstore_id);
-                      const isSentinel = isSentinelEvent(inc.level_id, inc.riskstore_id);
+                      const isSentinel = Boolean(inc.rca_required);
                       return (
                         <tr 
                           key={inc.id}
@@ -575,67 +718,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 2 Main Categorized Monitoring Panels */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ความคืบหน้าของงานที่เราดูแล */}
-        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xs border border-slate-100 dark:border-slate-700/80 flex flex-col overflow-hidden">
-          <div className="bg-blue-600 text-white px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
-                <Activity className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="font-bold text-base tracking-wide">ความคืบหน้าของงานที่เราดูแล</h2>
-                <p className="text-xs text-blue-100">สรุปให้ฟังว่าตอนนี้แต่ละเรื่องอยู่ขั้นตอนไหนบ้าง</p>
-              </div>
-            </div>
-            <Link to="/incidents" className="text-xs text-white/90 hover:text-white flex items-center gap-1 font-medium">
-              ดูทั้งหมด <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          <div className="p-5 space-y-2 flex-1 flex flex-col justify-around">
-            <DetailRow label="1. เรื่องใหม่เพิ่งเข้ามา (รอการดูแล)" count={stats.pending} colorClass="bg-amber-400 text-amber-950 font-bold" to="/incidents/pending" />
-            <DetailRow label="2. รับทราบเรื่องแล้ว (กำลังจัดการ)" count={stats.confirmed} colorClass="bg-blue-500" to="/incidents" />
-            <DetailRow label="3. กำลังหาวิธีแก้ไขให้ดีที่สุด" count={stats.reviewing} colorClass="bg-indigo-500" to="/incidents" />
-            <DetailRow label="4. จัดการเรียบร้อยแล้ว (สบายใจได้)" count={stats.closed} colorClass="bg-sky-500" to="/incidents" />
-            <DetailRow label="5. ตรวจสอบแล้วไม่มีปัญหา (ยกเลิกเรื่อง)" count={stats.notRisk} colorClass="bg-slate-400" to="/incidents" />
-          </div>
-        </div>
-
-        {/* เรื่องสำคัญที่ต้องใส่ใจเป็นพิเศษ */}
-        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xs border border-slate-100 dark:border-slate-700/80 flex flex-col overflow-hidden">
-          <div className="bg-gradient-to-r from-rose-500 to-pink-600 text-white px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
-                <AlertOctagon className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="font-bold text-base tracking-wide">เรื่องสำคัญที่ต้องใส่ใจเป็นพิเศษ</h2>
-                <p className="text-xs text-rose-100">เพื่อให้มั่นใจว่าเราจะแก้ปัญหาได้อย่างยั่งยืน</p>
-              </div>
-            </div>
-            <Link 
-              to="/rca/list" 
-              className="text-xs text-white/90 hover:text-white flex items-center gap-1 font-semibold underline"
-            >
-              เปิดโปรแกรม RCA <ArrowRight className="w-3 h-3" />
-            </Link>
-          </div>
-
-          <div className="p-5 space-y-2 flex-1 flex flex-col justify-around">
-            <DetailRow label="ด้านการดูแลผู้ป่วย (ระดับ E ขึ้นไป)" count={stats.sentinelClinical} colorClass="bg-rose-500" to="/incidents" />
-            <DetailRow label="ด้านระบบและองค์กร (ระดับ 3 ขึ้นไป)" count={stats.sentinelGeneral} colorClass="bg-amber-500" to="/incidents" />
-            
-            <div className="mt-2 p-4 bg-rose-50/70 dark:bg-rose-950/20 rounded-2xl border border-rose-100 dark:border-rose-900/30 text-xs text-rose-800 dark:text-rose-300 flex items-start gap-2.5">
-              <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-rose-500" />
-              <span>
-                สำหรับเคสสำคัญเหล่านี้ ทีมของเราจะรีบเข้าไปดูแลและร่วมกันหาวิธีป้องกันไม่ให้เกิดขึ้นซ้ำในอนาคตครับ
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

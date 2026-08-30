@@ -6,11 +6,14 @@ interface StandardRiskSelectorProps {
   onSelect: (nrlsCode: string | null, localRiskId: number | null, nrlsRisk?: any) => void;
   selectedNrlsCode?: string | null;
   selectedLocalRiskId?: number | null;
+  required?: boolean;
 }
 
 export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({ 
   onSelect, 
-  selectedNrlsCode
+  selectedNrlsCode,
+  selectedLocalRiskId,
+  required = true,
 }) => {
   const [standardRisks, setStandardRisks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,9 +82,19 @@ export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({
     }
   }, [selectedNrlsCode, standardRisks]);
 
+  useEffect(() => {
+    if (!selectedNrls || !selectedLocalRiskId) {
+      setSelectedLocal(null);
+      return;
+    }
+    setSelectedLocal(selectedNrls.local_risks?.find((r: any) => Number(r.riskstore_id) === Number(selectedLocalRiskId)) || null);
+  }, [selectedNrls, selectedLocalRiskId]);
+
   const filteredNrls = standardRisks.filter(r => 
     r.nrls_code.toLowerCase().includes(nrlsSearch.toLowerCase()) ||
-    r.name.toLowerCase().includes(nrlsSearch.toLowerCase())
+    r.name.toLowerCase().includes(nrlsSearch.toLowerCase()) ||
+    r.program?.program_name?.toLowerCase().includes(nrlsSearch.toLowerCase()) ||
+    r.group?.toLowerCase().includes(nrlsSearch.toLowerCase())
   );
 
   const filteredLocal = selectedNrls?.local_risks?.filter((lr: any) => 
@@ -111,7 +124,11 @@ export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({
       {/* 1. Standard Risk Selection */}
       <div className="relative" ref={nrlsRef}>
         <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
-          เป็นอุบัติการณ์เรื่องใด** :
+          ความเสี่ยงตามมาตรฐาน NRLS {required ? (
+            <span className="text-red-500">*</span>
+          ) : (
+            <span className="font-normal text-slate-400">(แนะนำ แต่ยังไม่บังคับสำหรับเหตุการณ์ก่อน 1 ต.ค. 2569)</span>
+          )}
         </label>
         
         <div className="flex gap-2 items-center">
@@ -159,6 +176,7 @@ export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({
                   className="px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border-b border-slate-50 dark:border-slate-700/50"
                 >
                   <span className="font-semibold text-blue-600 dark:text-blue-400">{risk.nrls_code}</span> : {risk.name}
+                  <div className="text-[11px] text-slate-500 mt-0.5">{risk.program?.program_name || 'ยังไม่กำหนดโปรแกรม'} • {String(risk.nrls_code).startsWith('C') ? 'Clinical' : 'General'}</div>
                 </div>
               ))}
               {filteredNrls.length === 0 && (
@@ -171,9 +189,16 @@ export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({
 
       {/* 2. Local Risk Selection (only shown if nrls is selected) */}
       {selectedNrls && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div className="rounded-lg bg-white dark:bg-slate-900 border p-3"><span className="text-slate-500">โปรแกรม (กำหนดโดย NRLS)</span><div className="font-bold mt-1">{selectedNrls.program?.program_name || '-'}</div></div>
+          <div className="rounded-lg bg-white dark:bg-slate-900 border p-3"><span className="text-slate-500">ประเภท</span><div className="font-bold mt-1">{String(selectedNrls.nrls_code).startsWith('C') ? 'Clinical' : 'General'}</div></div>
+        </div>
+      )}
+
+      {selectedNrls && (
         <div className="relative" ref={localRef}>
           <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            เป็นอุบัติการณ์เรื่องย่อยภายใน รพ. เรื่องใด <span className="text-slate-400 font-normal">(ไม่บังคับ)</span> :
+            ชื่อความเสี่ยงเดิมของโรงพยาบาล <span className="text-slate-400 font-normal">(ไม่บังคับ)</span>
           </label>
           <div 
             onClick={() => setIsLocalDropdownOpen(true)}

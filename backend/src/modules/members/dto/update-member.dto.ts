@@ -5,5 +5,6 @@ export class UpdateMemberDto {
   positionId?: number;
   teamId?: number;
   role?: string;
+  rmScope?: string | null;
   active?: boolean;
 }

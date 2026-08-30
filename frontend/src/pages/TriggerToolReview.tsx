@@ -7,7 +7,6 @@ import {
   Edit2,
   Trash2,
   CheckCircle2,
-  AlertTriangle,
   Send,
   RefreshCw,
   Search,
@@ -16,8 +15,10 @@ import {
   X,
   Layers,
   Sparkles,
+  Eye,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { StandardRiskSelector } from '../components/StandardRiskSelector';
 
 interface TriggerMaster {
   id: number;
@@ -54,8 +55,25 @@ interface ReviewRecord {
   severity_level?: string;
   preventability?: string;
   ae_description?: string;
+  risk_confirmation_status?: string;
+  riskregister_id?: number;
+  riskregister_id_risk?: number;
+  nrls_code?: string;
+  nrls_name_snapshot?: string;
   standard_rca_id?: string;
   findings: TriggerFinding[];
+  incident?: {
+    id: number;
+    id_risk: number;
+    status_risk?: string;
+    level_id?: string;
+    nrls_code?: string;
+    nrls_name_snapshot?: string;
+    classification_status?: string;
+    rca_required?: boolean;
+    rca_status?: string;
+    rca_case_id?: string;
+  } | null;
 }
 
 export default function TriggerToolReview() {
@@ -89,9 +107,61 @@ export default function TriggerToolReview() {
   const [triggerDetails, setTriggerDetails] = useState<Record<number, string>>({});
   const [hasAe, setHasAe] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [severityLevel, setSeverityLevel] = useState('E');
+  const [riskConfirmed, setRiskConfirmed] = useState(false);
+  const [selectedNrlsCode, setSelectedNrlsCode] = useState<string | null>(null);
+  const [selectedLocalRiskId, setSelectedLocalRiskId] = useState<number | null>(null);
+  const [selectedRiskKind, setSelectedRiskKind] = useState<'clinical' | 'general' | null>(null);
+  const [severityLevel, setSeverityLevel] = useState('');
   const [preventability, setPreventability] = useState('ป้องกันได้ (Preventable)');
   const [aeDescription, setAeDescription] = useState('');
+  const [savingReview, setSavingReview] = useState(false);
+  const [reviewToConfirm, setReviewToConfirm] = useState<ReviewRecord | null>(null);
+
+  const resetReviewForm = () => {
+    setSelectedTriggers([]);
+    setTriggerDetails({});
+    setHasAe(false);
+    setHasError(false);
+    setRiskConfirmed(false);
+    setSelectedNrlsCode(null);
+    setSelectedLocalRiskId(null);
+    setSelectedRiskKind(null);
+    setSeverityLevel('');
+    setAeDescription('');
+    setFormHn('');
+    setFormAn('');
+    setFormAdmitDate('');
+    setFormDischargeDate('');
+    setFormDiagnosis('');
+  };
+
+  const handleRiskTopicSelect = (nrlsCode: string | null, localRiskId: number | null, nrlsRisk?: any) => {
+    setSelectedNrlsCode(nrlsCode);
+    setSelectedLocalRiskId(localRiskId);
+    if (!nrlsCode) {
+      setSelectedRiskKind(null);
+      setSeverityLevel('');
+      return;
+    }
+    const group = String(nrlsRisk?.group || '').toUpperCase();
+    const nextKind: 'clinical' | 'general' = nrlsCode.startsWith('C') || group.includes('CLINICAL') || group.includes('คลินิก')
+      ? 'clinical'
+      : 'general';
+    setSelectedRiskKind((currentKind) => {
+      if (currentKind && currentKind !== nextKind) setSeverityLevel('');
+      return nextKind;
+    });
+  };
+
+  const openExistingReviewConfirmation = (review: ReviewRecord) => {
+    setRiskConfirmed(false);
+    setSelectedNrlsCode(null);
+    setSelectedLocalRiskId(null);
+    setSelectedRiskKind(null);
+    setSeverityLevel('');
+    setAeDescription(review.ae_description || '');
+    setReviewToConfirm(review);
+  };
 
   // Fetch Master triggers
   const fetchMaster = async () => {
@@ -175,6 +245,26 @@ export default function TriggerToolReview() {
       alert('กรุณาระบุ HN และชื่อผู้ทบทวน');
       return;
     }
+    if (selectedTriggers.length === 0) {
+      alert('กรุณาเลือก Trigger ที่ตรวจพบอย่างน้อย 1 รายการ');
+      return;
+    }
+    if (!riskConfirmed) {
+      alert('กรุณากดยืนยันว่าเป็นความเสี่ยงก่อนสร้างรายงานอุบัติการณ์');
+      return;
+    }
+    if (!selectedNrlsCode) {
+      alert('กรุณาเลือกหัวข้อความเสี่ยงตามมาตรฐาน NRLS');
+      return;
+    }
+    if (!severityLevel) {
+      alert('กรุณาเลือกระดับความรุนแรงของความเสี่ยง');
+      return;
+    }
+    if (!aeDescription.trim()) {
+      alert('กรุณาระบุรายละเอียดเหตุการณ์/ข้อเท็จจริงที่พบจากเวชระเบียน');
+      return;
+    }
 
     const safeList = Array.isArray(masterList) ? masterList : [];
     const findings: TriggerFinding[] = selectedTriggers.map((tId) => {
@@ -197,16 +287,23 @@ export default function TriggerToolReview() {
       has_trigger: findings.length > 0,
       has_adverse_event: hasAe,
       has_error: hasError,
-      severity_level: hasAe ? severityLevel : undefined,
+      severity_level: severityLevel,
       preventability: hasAe ? preventability : undefined,
-      ae_description: aeDescription || undefined,
+      ae_description: aeDescription.trim(),
+      risk_confirmed: riskConfirmed,
+      nrls_code: selectedNrlsCode,
+      riskstore_id: selectedLocalRiskId,
+      department_id: String(user?.department_id || ''),
       findings,
     };
 
     try {
+      setSavingReview(true);
       const res = await axios.post('/trigger-tools/reviews', payload);
       setIsReviewModalOpen(false);
-      fetchReviews();
+      await fetchReviews();
+      const rmNo = res.data?.incident?.id_risk || res.data?.riskregister_id_risk || res.data?.incident?.id;
+      alert(`บันทึกการทบทวนและสร้างรายงานอุบัติการณ์ 1 รายการเรียบร้อยแล้ว${rmNo ? `\nRM No. ${rmNo}` : ''}`);
 
       // If Adverse Event or Error detected, prompt user to forward to Standard RCA immediately
       if (hasAe || hasError) {
@@ -214,8 +311,10 @@ export default function TriggerToolReview() {
           handleForwardToRca(res.data.id);
         }
       }
-    } catch (err) {
-      alert('เกิดข้อผิดพลาดในการบันทึกการทบทวน');
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกการทบทวน');
+    } finally {
+      setSavingReview(false);
     }
   };
 
@@ -231,6 +330,34 @@ export default function TriggerToolReview() {
       alert('ไม่สามารถส่งต่อไปยัง Standard RCA ได้');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleConfirmExistingReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewToConfirm) return;
+    if (!riskConfirmed || !selectedNrlsCode || !severityLevel || !aeDescription.trim()) {
+      alert('กรุณายืนยันความเสี่ยง เลือกหัวข้อ NRLS ระดับความรุนแรง และระบุข้อเท็จจริงให้ครบ');
+      return;
+    }
+    try {
+      setSavingReview(true);
+      const res = await axios.post(`/trigger-tools/reviews/${reviewToConfirm.id}/confirm-risk`, {
+        risk_confirmed: true,
+        nrls_code: selectedNrlsCode,
+        riskstore_id: selectedLocalRiskId,
+        severity_level: severityLevel,
+        ae_description: aeDescription.trim(),
+        department_id: String(user?.department_id || ''),
+      });
+      setReviewToConfirm(null);
+      await fetchReviews();
+      const rmNo = res.data?.incident?.id_risk || res.data?.riskregister_id_risk || res.data?.incident?.id;
+      alert(`${res.data?.message || 'สร้าง Incident เรียบร้อยแล้ว'}${rmNo ? `\nRM No. ${rmNo}` : ''}`);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'ไม่สามารถยืนยันความเสี่ยงและสร้าง Incident ได้');
+    } finally {
+      setSavingReview(false);
     }
   };
 
@@ -273,20 +400,14 @@ export default function TriggerToolReview() {
             การทบทวนเวชระเบียนด้วย Trigger Tool
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
-            เครื่องมือค้นหาเหตุการณ์ไม่พึงประสงค์ (Adverse Event) และความคลาดเคลื่อน (Error) เชิงรุกจากเวชระเบียน พร้อมส่งต่อเข้าสู่กระบวนการ Standard RCA
+            การทบทวนที่ยืนยันความเสี่ยงจะสร้างรายงานอุบัติการณ์ 1 รายการ เลือกหัวข้อ NRLS และติดตามต่อใน Workflow ความเสี่ยงเดียวกับการรายงานปกติ
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 shrink-0">
           <button
             onClick={() => {
-              setSelectedTriggers([]);
-              setTriggerDetails({});
-              setHasAe(false);
-              setHasError(false);
-              setAeDescription('');
-              setFormHn('');
-              setFormAn('');
+              resetReviewForm();
               setIsReviewModalOpen(true);
             }}
             className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs flex items-center gap-2 transition-all cursor-pointer"
@@ -368,7 +489,7 @@ export default function TriggerToolReview() {
                     <th className="px-4 py-3.5">HN / AN</th>
                     <th className="px-4 py-3.5">การวินิจฉัย</th>
                     <th className="px-4 py-3.5">Trigger ที่ตรวจพบ</th>
-                    <th className="px-4 py-3.5 text-center">ผลการประเมิน AE</th>
+                    <th className="px-4 py-3.5 text-center">ผลยืนยัน / Incident</th>
                     <th className="px-4 py-3.5 text-center">สถานะ Standard RCA</th>
                     <th className="px-4 py-3.5 text-right">การจัดการ</th>
                   </tr>
@@ -428,21 +549,42 @@ export default function TriggerToolReview() {
                         </td>
 
                         <td className="px-4 py-3.5 text-center">
-                          {r.has_adverse_event ? (
-                            <div className="inline-flex flex-col items-center">
-                              <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 flex items-center gap-1">
-                                <AlertTriangle size={11} /> พบ AE ({r.severity_level || 'E'})
+                          {r.incident ? (
+                            <div className="inline-flex flex-col items-center gap-1">
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                                <CheckCircle2 size={11} /> ยืนยันเป็นความเสี่ยง
                               </span>
-                              <span className="text-[10px] text-slate-400 mt-0.5">{r.preventability}</span>
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/incidents/${r.incident?.id}`)}
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:underline dark:text-blue-400"
+                              >
+                                <Eye size={11} /> RM No. {r.incident.id_risk || r.incident.id} · {r.incident.status_risk || 'รายงาน'}
+                              </button>
+                              <span className="max-w-[190px] truncate text-[10px] text-slate-500" title={r.nrls_name_snapshot || r.incident.nrls_name_snapshot || r.nrls_code || r.incident.nrls_code}>
+                                {r.nrls_code || r.incident.nrls_code} {(r.nrls_name_snapshot || r.incident.nrls_name_snapshot) ? `: ${r.nrls_name_snapshot || r.incident.nrls_name_snapshot}` : ''}
+                              </span>
+                              {(r.has_adverse_event || r.has_error) && (
+                                <span className="text-[10px] font-semibold text-rose-500">
+                                  {r.has_adverse_event ? `พบ AE (${r.severity_level})` : 'พบ Error'}
+                                </span>
+                              )}
                             </div>
-                          ) : r.has_error ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                              พบ Error
-                            </span>
                           ) : (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                              ปกติ (No AE)
-                            </span>
+                            <div className="inline-flex max-w-[190px] flex-col items-center gap-1.5">
+                              <span className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                                รายการเดิม ยังไม่ได้สร้าง Incident
+                              </span>
+                              {r.findings?.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => openExistingReviewConfirmation(r)}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-emerald-700"
+                                >
+                                  <CheckCircle2 size={11} /> ยืนยันความเสี่ยง
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
 
@@ -467,17 +609,29 @@ export default function TriggerToolReview() {
                         </td>
 
                         <td className="px-4 py-3.5 text-right">
-                          <button
-                            onClick={async () => {
-                              if (window.confirm('ต้องการลบประวัติการทบทวนนี้หรือไม่?')) {
-                                await axios.delete(`/trigger-tools/reviews/${r.id}`);
-                                fetchReviews();
-                              }
-                            }}
-                            className="p-1 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {r.incident ? (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/incidents/${r.incident?.id}`)}
+                              className="p-1 text-blue-500 hover:text-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+                              title="เปิดรายงานอุบัติการณ์"
+                            >
+                              <Eye size={14} />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                if (window.confirm('ต้องการลบประวัติการทบทวนนี้หรือไม่?')) {
+                                  await axios.delete(`/trigger-tools/reviews/${r.id}`);
+                                  fetchReviews();
+                                }
+                              }}
+                              className="p-1 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                              title="ลบรายการที่ยังไม่เชื่อม Incident"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -739,7 +893,7 @@ export default function TriggerToolReview() {
                   บันทึกผลการทบทวนเวชระเบียน (Trigger Tool Review Form)
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  เลือกรายการ Trigger ที่ตรวจพบ พร้อมประเมินว่าเกิด Adverse Event หรือ Error หรือไม่
+                  เมื่อยืนยันและบันทึก ระบบจะสร้างรายงานอุบัติการณ์ 1 รายการ พร้อมเลข RM สำหรับติดตามต่อ
                 </p>
               </div>
               <button
@@ -951,25 +1105,8 @@ export default function TriggerToolReview() {
                 </div>
 
                 {hasAe && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-rose-200/60 dark:border-rose-900/60">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        ระดับความรุนแรงของอันตราย (Severity Level) *
-                      </label>
-                      <select
-                        value={severityLevel}
-                        onChange={(e) => setSeverityLevel(e.target.value)}
-                        className="w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-rose-300 dark:border-rose-800 text-slate-900 dark:text-white font-bold"
-                      >
-                        <option value="E">ระดับ E: เกิดอันตรายชั่วคราว ต้องให้การบำบัดรักษา</option>
-                        <option value="F">ระดับ F: เกิดอันตรายชั่วคราว ต้องนอน รพ. หรืออยู่นานขึ้น</option>
-                        <option value="G">ระดับ G: เกิดอันตรายถาวรแก่ผู้ป่วย</option>
-                        <option value="H">ระดับ H: ต้องทำการช่วยชีวิต (CPR / Life-support)</option>
-                        <option value="I">ระดับ I: เป็นสาเหตุทำให้ผู้ป่วยเสียชีวิต</option>
-                      </select>
-                    </div>
-
-                    <div>
+                  <div className="pt-2 border-t border-rose-200/60 dark:border-rose-900/60">
+                    <div className="max-w-md">
                       <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                         การป้องกันได้ (Preventability)
                       </label>
@@ -983,18 +1120,97 @@ export default function TriggerToolReview() {
                         <option value="ป้องกันไม่ได้ (Non-preventable)">ป้องกันไม่ได้ (Non-preventable)</option>
                       </select>
                     </div>
+                  </div>
+                )}
 
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        คำอธิบายสรุป Adverse Event และผลกระทบต่อผู้ป่วย
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    รายละเอียดเหตุการณ์ / ข้อเท็จจริงที่พบจากเวชระเบียน *
+                  </label>
+                  <textarea
+                    rows={3}
+                    required
+                    placeholder="ระบุสิ่งที่เกิดขึ้น ลำดับเหตุการณ์ และผลกระทบ เช่น ผู้ป่วยได้รับยาเกินขนาดจน BP drop ต้อง refer..."
+                    value={aeDescription}
+                    onChange={(e) => setAeDescription(e.target.value)}
+                    className="w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-rose-300 dark:border-rose-800 text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              {/* Section 4: Confirm and classify risk */}
+              <div className="space-y-4 rounded-2xl border-2 border-emerald-300 bg-emerald-50/50 p-4 dark:border-emerald-800 dark:bg-emerald-950/20">
+                <div>
+                  <h4 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                    <CheckCircle2 className="h-4 w-4" />
+                    4. ยืนยันความเสี่ยงและเลือกเรื่องที่เป็นความเสี่ยง
+                  </h4>
+                  <p className="mt-1 text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
+                    การบันทึกครั้งนี้เทียบเท่าการรายงานอุบัติการณ์ 1 ครั้ง ระบบจะออกเลข RM และส่งเข้ารายการ “อุบัติการณ์รอยืนยัน” โดยอัตโนมัติ
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setRiskConfirmed((value) => !value)}
+                  className={`flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-all ${
+                    riskConfirmed
+                      ? 'border-emerald-500 bg-emerald-100/80 text-emerald-900 shadow-sm dark:bg-emerald-950/50 dark:text-emerald-100'
+                      : 'border-slate-300 bg-white text-slate-700 hover:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
+                  }`}
+                >
+                  <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${riskConfirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400'}`}>
+                    {riskConfirmed && <CheckCircle2 className="h-3.5 w-3.5" />}
+                  </span>
+                  <span>
+                    <span className="block text-sm font-black">ยืนยันว่าผลการทบทวนนี้เป็นความเสี่ยง</span>
+                    <span className="mt-0.5 block text-[11px] font-normal opacity-80">ผู้ทบทวนตรวจสอบข้อเท็จจริงแล้ว และประสงค์สร้าง Incident 1 รายการ</span>
+                  </span>
+                </button>
+
+                {riskConfirmed && (
+                  <div className="space-y-4 border-t border-emerald-200 pt-4 dark:border-emerald-900">
+                    <StandardRiskSelector
+                      selectedNrlsCode={selectedNrlsCode}
+                      selectedLocalRiskId={selectedLocalRiskId}
+                      required
+                      onSelect={handleRiskTopicSelect}
+                    />
+
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        ระดับความรุนแรงของความเสี่ยง *
                       </label>
-                      <textarea
-                        rows={2}
-                        placeholder="ระบุสิ่งที่เกิดขึ้น เช่น ผู้ป่วยได้รับยาเกินขนาดจน BP drop ต้อง refer..."
-                        value={aeDescription}
-                        onChange={(e) => setAeDescription(e.target.value)}
-                        className="w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-rose-300 dark:border-rose-800 text-slate-900 dark:text-white"
-                      />
+                      <select
+                        required
+                        disabled={!selectedRiskKind}
+                        value={severityLevel}
+                        onChange={(e) => setSeverityLevel(e.target.value)}
+                        className="w-full rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-emerald-800 dark:bg-slate-800 dark:text-white dark:disabled:bg-slate-900"
+                      >
+                        <option value="">{selectedRiskKind ? 'เลือกระดับความรุนแรง...' : 'เลือกหัวข้อความเสี่ยง NRLS ก่อน'}</option>
+                        {selectedRiskKind === 'clinical' ? (
+                          <>
+                            <option value="A">A: ยังไม่เกิดความคลาดเคลื่อน</option>
+                            <option value="B">B: เกิดความคลาดเคลื่อน แต่ยังไม่ถึงผู้ป่วย</option>
+                            <option value="C">C: ถึงผู้ป่วย แต่ไม่เกิดอันตราย</option>
+                            <option value="D">D: ถึงผู้ป่วย ต้องเฝ้าระวัง/ป้องกันอันตราย</option>
+                            <option value="E">E: อันตรายชั่วคราว ต้องให้การรักษา</option>
+                            <option value="F">F: อันตรายชั่วคราว ต้องนอน รพ. หรืออยู่นานขึ้น</option>
+                            <option value="G">G: อันตรายถาวร</option>
+                            <option value="H">H: ต้องช่วยชีวิต</option>
+                            <option value="I">I: เสียชีวิต</option>
+                          </>
+                        ) : selectedRiskKind === 'general' ? (
+                          <>
+                            <option value="1">1: ผลกระทบเล็กน้อย</option>
+                            <option value="2">2: ผลกระทบต่ำ</option>
+                            <option value="3">3: ผลกระทบปานกลาง</option>
+                            <option value="4">4: ผลกระทบสูง</option>
+                            <option value="5">5: ผลกระทบรุนแรงมาก</option>
+                          </>
+                        ) : null}
+                      </select>
                     </div>
                   </div>
                 )}
@@ -1011,9 +1227,115 @@ export default function TriggerToolReview() {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-lg shadow-blue-600/30 flex items-center gap-2"
+                  disabled={savingReview}
+                  className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 text-white text-xs font-bold shadow-lg shadow-blue-600/30 flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <CheckCircle2 size={16} /> บันทึกผลการทบทวน
+                  {savingReview ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                  {savingReview ? 'กำลังสร้าง Incident...' : 'ยืนยันและสร้าง Incident 1 รายการ'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm a historical Trigger Tool review and create its one Incident */}
+      {reviewToConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-xs">
+          <div className="my-8 w-full max-w-3xl space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-start justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
+              <div>
+                <h3 className="flex items-center gap-2 text-lg font-black text-slate-900 dark:text-white">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  ยืนยันความเสี่ยงจากรายการทบทวนเดิม
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Review #{reviewToConfirm.id} · HN {reviewToConfirm.hn} · {new Date(reviewToConfirm.review_date).toLocaleDateString('th-TH')}
+                </p>
+              </div>
+              <button type="button" onClick={() => setReviewToConfirm(null)} className="text-slate-400 hover:text-slate-600" disabled={savingReview}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmExistingReview} className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs dark:border-slate-800 dark:bg-slate-800/50">
+                <div className="font-bold text-slate-800 dark:text-slate-100">Trigger ที่พบ</div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {reviewToConfirm.findings.map((finding) => (
+                    <span key={finding.id || finding.trigger_id} className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 font-semibold text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                      {finding.trigger_name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setRiskConfirmed((value) => !value)}
+                className={`flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-all ${riskConfirmed ? 'border-emerald-500 bg-emerald-100/80 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100' : 'border-slate-300 text-slate-700 hover:border-emerald-400 dark:border-slate-700 dark:text-slate-200'}`}
+              >
+                <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${riskConfirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400'}`}>
+                  {riskConfirmed && <CheckCircle2 className="h-3.5 w-3.5" />}
+                </span>
+                <span>
+                  <span className="block text-sm font-black">ยืนยันว่ารายการทบทวนนี้เป็นความเสี่ยง</span>
+                  <span className="mt-0.5 block text-[11px] font-normal opacity-80">เมื่อบันทึก ระบบจะสร้าง Incident 1 รายการและออกเลข RM</span>
+                </span>
+              </button>
+
+              {riskConfirmed && (
+                <>
+                  <StandardRiskSelector
+                    selectedNrlsCode={selectedNrlsCode}
+                    selectedLocalRiskId={selectedLocalRiskId}
+                    required
+                    onSelect={handleRiskTopicSelect}
+                  />
+
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">ระดับความรุนแรง *</label>
+                    <select
+                      required
+                      disabled={!selectedRiskKind}
+                      value={severityLevel}
+                      onChange={(e) => setSeverityLevel(e.target.value)}
+                      className="w-full rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 disabled:bg-slate-100 disabled:text-slate-400 dark:border-emerald-800 dark:bg-slate-800 dark:text-white"
+                    >
+                      <option value="">{selectedRiskKind ? 'เลือกระดับความรุนแรง...' : 'เลือกหัวข้อความเสี่ยง NRLS ก่อน'}</option>
+                      {selectedRiskKind === 'clinical' ? (
+                        <>
+                          {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].map((level) => <option key={level} value={level}>ระดับ {level}</option>)}
+                        </>
+                      ) : selectedRiskKind === 'general' ? (
+                        <>
+                          {['1', '2', '3', '4', '5'].map((level) => <option key={level} value={level}>ระดับ {level}</option>)}
+                        </>
+                      ) : null}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">รายละเอียดเหตุการณ์ / ข้อเท็จจริง *</label>
+                    <textarea
+                      rows={3}
+                      required
+                      value={aeDescription}
+                      onChange={(e) => setAeDescription(e.target.value)}
+                      placeholder="ระบุข้อเท็จจริงที่พบจากเวชระเบียน"
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+                <button type="button" onClick={() => setReviewToConfirm(null)} disabled={savingReview} className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-300">
+                  ยกเลิก
+                </button>
+                <button type="submit" disabled={savingReview} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-emerald-700 disabled:opacity-60">
+                  {savingReview ? <RefreshCw size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                  {savingReview ? 'กำลังสร้าง Incident...' : 'ยืนยันและสร้าง Incident 1 รายการ'}
                 </button>
               </div>
             </form>

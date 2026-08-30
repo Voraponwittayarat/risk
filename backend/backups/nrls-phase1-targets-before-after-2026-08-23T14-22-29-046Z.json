@@ -1,0 +1,137 @@
+{
+  "created_at": "2026-08-23T14:22:29.048Z",
+  "before": [
+    {
+      "id": 13554,
+      "id_risk": 13580,
+      "nrls_code": "CPE201",
+      "riskstore_id": 1,
+      "local_nrls": "CPI203",
+      "program_id": null,
+      "nrls_program": 6,
+      "level_id": "1",
+      "classification_status": "PENDING",
+      "nrls_name_snapshot": null,
+      "nrls_name": "Sepsis with death"
+    },
+    {
+      "id": 13555,
+      "id_risk": 13581,
+      "nrls_code": "CPE201",
+      "riskstore_id": 1,
+      "local_nrls": "CPI203",
+      "program_id": null,
+      "nrls_program": 6,
+      "level_id": "4",
+      "classification_status": "PENDING",
+      "nrls_name_snapshot": null,
+      "nrls_name": "Sepsis with death"
+    },
+    {
+      "id": 13556,
+      "id_risk": 13582,
+      "nrls_code": "PT/02",
+      "riskstore_id": 297,
+      "local_nrls": "CPP405",
+      "program_id": null,
+      "nrls_program": null,
+      "level_id": "D",
+      "classification_status": "PENDING",
+      "nrls_name_snapshot": null,
+      "nrls_name": null
+    },
+    {
+      "id": 13557,
+      "id_risk": 13583,
+      "nrls_code": "CPE201",
+      "riskstore_id": 1,
+      "local_nrls": "CPI203",
+      "program_id": null,
+      "nrls_program": 6,
+      "level_id": "3",
+      "classification_status": "PENDING",
+      "nrls_name_snapshot": null,
+      "nrls_name": "Sepsis with death"
+    },
+    {
+      "id": 13558,
+      "id_risk": 13584,
+      "nrls_code": "CPP301",
+      "riskstore_id": 383,
+      "local_nrls": "CPE407",
+      "program_id": null,
+      "nrls_program": 6,
+      "level_id": "B",
+      "classification_status": "PENDING",
+      "nrls_name_snapshot": null,
+      "nrls_name": "Misdiagnosis or delay diagnosis"
+    }
+  ],
+  "after": [
+    {
+      "id": 13554,
+      "id_risk": 13580,
+      "nrls_code": "CPE201",
+      "riskstore_id": null,
+      "local_nrls": null,
+      "program_id": 6,
+      "nrls_program": 6,
+      "level_id": "1",
+      "classification_status": "NEEDS_REVIEW",
+      "nrls_name_snapshot": "Sepsis with death",
+      "nrls_name": "Sepsis with death"
+    },
+    {
+      "id": 13555,
+      "id_risk": 13581,
+      "nrls_code": "CPE201",
+      "riskstore_id": null,
+      "local_nrls": null,
+      "program_id": 6,
+      "nrls_program": 6,
+      "level_id": "4",
+      "classification_status": "NEEDS_REVIEW",
+      "nrls_name_snapshot": "Sepsis with death",
+      "nrls_name": "Sepsis with death"
+    },
+    {
+      "id": 13556,
+      "id_risk": 13582,
+      "nrls_code": "CPP405",
+      "riskstore_id": 297,
+      "local_nrls": "CPP405",
+      "program_id": 6,
+      "nrls_program": 6,
+      "level_id": "D",
+      "classification_status": "NEEDS_REVIEW",
+      "nrls_name_snapshot": "ตกเตียง/fall",
+      "nrls_name": "ตกเตียง/fall"
+    },
+    {
+      "id": 13557,
+      "id_risk": 13583,
+      "nrls_code": "CPE201",
+      "riskstore_id": null,
+      "local_nrls": null,
+      "program_id": 6,
+      "nrls_program": 6,
+      "level_id": "3",
+      "classification_status": "NEEDS_REVIEW",
+      "nrls_name_snapshot": "Sepsis with death",
+      "nrls_name": "Sepsis with death"
+    },
+    {
+      "id": 13558,
+      "id_risk": 13584,
+      "nrls_code": "CPP301",
+      "riskstore_id": null,
+      "local_nrls": null,
+      "program_id": 6,
+      "nrls_program": 6,
+      "level_id": "B",
+      "classification_status": "NEEDS_REVIEW",
+      "nrls_name_snapshot": "Misdiagnosis or delay diagnosis",
+      "nrls_name": "Misdiagnosis or delay diagnosis"
+    }
+  ]
+}

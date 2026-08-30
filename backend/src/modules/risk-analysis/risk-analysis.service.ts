@@ -1,12 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { maxWithNrlsCutover, NRLS_CUTOVER_DATE, NRLS_CUTOVER_DATE_THAI } from '../incidents/nrls-cutover-policy';
+import { clampMatrixValue, riskLevelFor, RiskLevel } from '../../common/risk-matrix-policy';
 
 export class CreateRiskAnalysisDto {
   risk_code: string;
+  nrls_code: string;
   risk_title: string;
   risk_description?: string;
   source?: string;
-  scope_level?: 'hospital' | 'department';
+  scope_level?: 'hospital' | 'group' | 'department';
+  scope_identifier?: string;
   department_id: string;
   program_id?: number;
   category_name?: string;
@@ -27,10 +31,12 @@ export class CreateRiskAnalysisDto {
 
 export class UpdateRiskAnalysisDto {
   risk_code?: string;
+  nrls_code?: string;
   risk_title?: string;
   risk_description?: string;
   source?: string;
-  scope_level?: 'hospital' | 'department';
+  scope_level?: 'hospital' | 'group' | 'department';
+  scope_identifier?: string;
   department_id?: string;
   program_id?: number;
   category_name?: string;
@@ -54,6 +60,8 @@ export class UpdateRiskAnalysisDto {
 
 export class CreateRiskReviewDto {
   review_date: string;
+  period_start?: string;
+  period_end?: string;
   result_of_review: string;
   incident_count_in_period?: number;
   current_likelihood: number;
@@ -68,11 +76,24 @@ export class CreateRiskReviewDto {
 export class RiskAnalysisService {
   constructor(private prisma: PrismaService) {}
 
-  private calculateRiskLevel(score: number): 'green' | 'yellow' | 'orange' | 'red' {
-    if (score >= 15) return 'red'; // Extreme
-    if (score >= 9) return 'orange'; // High
-    if (score >= 4) return 'yellow'; // Medium
-    return 'green'; // Low
+  private calculateRiskLevel(likelihood: number, consequence: number): RiskLevel {
+    return riskLevelFor(likelihood, consequence);
+  }
+
+  private async scopeDepartments(user: any): Promise<string[] | null> {
+    if (user?.role === 'admin' || (user?.role === 'rm_committee' && user?.rmScope === 'hospital')) return null;
+    if ((user?.role === 'rm_committee' && user?.rmScope === 'group') || user?.role === 'head') {
+      const rows = await this.prisma.department.findMany({ where: { depart_group_id: Number(user?.departmentGroup) }, select: { id: true } });
+      return rows.map((r) => String(r.id));
+    }
+    return [user?.departmentId, user?.departmentId2].filter(Boolean).map(String);
+  }
+
+  private async assertProfileScope(profile: any, user: any) {
+    const allowed = await this.scopeDepartments(user);
+    if (allowed && profile.scope_level !== 'hospital' && !allowed.includes(String(profile.department_id))) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึง Risk Profile นอกขอบเขต');
+    }
   }
 
   async findAll(query: {
@@ -83,14 +104,17 @@ export class RiskAnalysisService {
     risk_level?: string;
     search?: string;
     due_soon?: boolean;
-  }) {
+  }, user?: any) {
     const where: any = {};
+    const allowed = await this.scopeDepartments(user);
+    if (allowed) where.department_id = { in: allowed };
 
     if (query.scope_level && query.scope_level !== 'all') {
       where.scope_level = query.scope_level;
     }
 
     if (query.department_id && query.department_id !== 'all') {
+      if (allowed && !allowed.includes(String(query.department_id))) throw new ForbiddenException('ไม่มีสิทธิ์ดูหน่วยงานนี้');
       where.department_id = query.department_id;
     }
 
@@ -151,7 +175,7 @@ export class RiskAnalysisService {
     }));
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, user?: any) {
     const risk = await this.prisma.riskanalysis.findUnique({
       where: { id },
       include: {
@@ -164,28 +188,17 @@ export class RiskAnalysisService {
     if (!risk) {
       throw new NotFoundException(`Risk profile with ID ${id} not found`);
     }
+    await this.assertProfileScope(risk, user);
 
     const department = await this.prisma.department.findUnique({
       where: { id: Number(risk.department_id) || 1 },
     });
 
-    // Count related reported incidents from riskregister
-    // Matching by keywords or department
-    const keywords = risk.risk_title.split(' ').filter((w) => w.length > 3);
-    const orConditions: any[] = [];
-    if (keywords.length > 0) {
-      keywords.forEach((kw) => {
-        orConditions.push({ detail: { contains: kw } });
-        orConditions.push({ problem_basic: { contains: kw } });
-      });
-    }
-
     let linkedIncidents: any[] = [];
-    if (orConditions.length > 0) {
+    if (risk.nrls_code) {
+      const scopeWhere = risk.scope_level === 'department' ? { department_id: risk.department_id } : {};
       linkedIncidents = await this.prisma.riskregister.findMany({
-        where: {
-          OR: orConditions,
-        },
+        where: { nrls_code: risk.nrls_code, ...scopeWhere },
         take: 10,
         orderBy: { date_report: 'desc' },
         select: {
@@ -207,7 +220,7 @@ export class RiskAnalysisService {
     };
   }
 
-  async getStats(query: { scope_level?: string; department_id?: string }) {
+  async getStats(query: { scope_level?: string; department_id?: string }, user?: any) {
     const where: any = {};
     if (query.scope_level && query.scope_level !== 'all') {
       where.scope_level = query.scope_level;
@@ -216,6 +229,8 @@ export class RiskAnalysisService {
       where.department_id = query.department_id;
     }
 
+    const allowed = await this.scopeDepartments(user);
+    if (allowed) where.department_id = { in: allowed };
     const allRisks = await this.prisma.riskanalysis.findMany({ where });
 
     const total = allRisks.length;
@@ -263,11 +278,18 @@ export class RiskAnalysisService {
     };
   }
 
-  async create(dto: CreateRiskAnalysisDto, userId?: number) {
-    const l = Math.min(5, Math.max(1, Number(dto.initial_likelihood) || 1));
-    const c = Math.min(5, Math.max(1, Number(dto.initial_consequence) || 1));
+  async create(dto: CreateRiskAnalysisDto, user?: any) {
+    if (!dto.nrls_code) throw new BadRequestException('Risk Profile ใหม่ต้องระบุ nrls_code');
+    if (dto.scope_level === 'hospital' && !['admin', 'rm_committee'].includes(user?.role)) {
+      throw new ForbiddenException('Risk Profile ระดับโรงพยาบาลสร้างได้เฉพาะ RM/Admin');
+    }
+    const nrls = await this.prisma.nRLS_riskstore.findUnique({ where: { nrls_code: dto.nrls_code } });
+    if (!nrls) throw new BadRequestException('ไม่พบ nrls_code ใน master');
+    await this.assertProfileScope({ scope_level: dto.scope_level || 'department', department_id: String(dto.department_id || '1') }, user);
+    const l = clampMatrixValue(dto.initial_likelihood);
+    const c = clampMatrixValue(dto.initial_consequence);
     const score = l * c;
-    const level = this.calculateRiskLevel(score);
+    const level = this.calculateRiskLevel(l, c);
 
     const freq = Number(dto.review_frequency_months) || 3;
     const nextReview = new Date();
@@ -275,13 +297,16 @@ export class RiskAnalysisService {
 
     return this.prisma.riskanalysis.create({
       data: {
-        risk_code: dto.risk_code,
-        risk_title: dto.risk_title,
+        risk_code: dto.risk_code || dto.nrls_code,
+        nrls_code: dto.nrls_code,
+        nrls_name_snapshot: nrls.name,
+        risk_title: nrls.name,
         risk_description: dto.risk_description || '',
         source: dto.source || 'มาตรฐานสำคัญ 9 ด้าน',
         scope_level: dto.scope_level || 'department',
         department_id: String(dto.department_id || '1'),
-        program_id: dto.program_id ? Number(dto.program_id) : null,
+        scope_identifier: dto.scope_identifier || (dto.scope_level === 'hospital' ? 'HOSPITAL' : String(dto.department_id || '1')),
+        program_id: nrls.program_id,
         category_name: dto.category_name || 'Clinical Risk (ทางคลินิก)',
         safety_goal: dto.safety_goal || '',
         essential_std: dto.essential_std || '',
@@ -300,32 +325,40 @@ export class RiskAnalysisService {
         next_review_date: nextReview,
         residual_risk_level: level,
         status: dto.status || 'open',
-        created_by: userId || null,
+        created_by: Number(user?.id) || null,
         created_at: new Date(),
         updated_at: new Date(),
       },
     });
   }
 
-  async update(id: number, dto: UpdateRiskAnalysisDto) {
+  async update(id: number, dto: UpdateRiskAnalysisDto, user?: any) {
     const existing = await this.prisma.riskanalysis.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException(`Risk profile with ID ${id} not found`);
     }
+    await this.assertProfileScope(existing, user);
 
-    const l = dto.initial_likelihood !== undefined ? Number(dto.initial_likelihood) : existing.initial_likelihood;
-    const c = dto.initial_consequence !== undefined ? Number(dto.initial_consequence) : existing.initial_consequence;
+    const l = clampMatrixValue(dto.initial_likelihood !== undefined ? dto.initial_likelihood : existing.initial_likelihood);
+    const c = clampMatrixValue(dto.initial_consequence !== undefined ? dto.initial_consequence : existing.initial_consequence);
     const score = l * c;
-    const level = this.calculateRiskLevel(score);
+    const level = this.calculateRiskLevel(l, c);
 
+    const allowedFields = ['risk_description','source','scope_level','department_id','scope_identifier','category_name','safety_goal','essential_std','risk_owner_name','is_never_event','risk_prevention','risk_transfer','risk_monitor','risk_mitigation','qi_plan','review_frequency_months','status','residual_risk_level'];
     const updateData: any = {
-      ...dto,
       initial_likelihood: l,
       initial_consequence: c,
       initial_risk_score: score,
       initial_risk_level: level,
       updated_at: new Date(),
     };
+    for (const field of allowedFields) if ((dto as any)[field] !== undefined) updateData[field] = (dto as any)[field];
+    if (dto.nrls_code && dto.nrls_code !== existing.nrls_code) {
+      const nrls = await this.prisma.nRLS_riskstore.findUnique({ where: { nrls_code: dto.nrls_code } });
+      if (!nrls) throw new BadRequestException('ไม่พบ nrls_code ใน master');
+      updateData.nrls_code = nrls.nrls_code; updateData.nrls_name_snapshot = nrls.name;
+      updateData.risk_code = nrls.nrls_code; updateData.risk_title = nrls.name; updateData.program_id = nrls.program_id;
+    }
 
     if (dto.next_review_date) {
       updateData.next_review_date = new Date(dto.next_review_date);
@@ -340,15 +373,17 @@ export class RiskAnalysisService {
     });
   }
 
-  async remove(id: number) {
+  async remove(id: number, user?: any) {
     const existing = await this.prisma.riskanalysis.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException(`Risk profile with ID ${id} not found`);
     }
+    await this.assertProfileScope(existing, user);
+    if (user?.role !== 'admin') throw new ForbiddenException('เฉพาะ Admin เท่านั้นที่ลบ Risk Profile ได้');
     return this.prisma.riskanalysis.delete({ where: { id } });
   }
 
-  async addReview(id: number, dto: CreateRiskReviewDto) {
+  async addReview(id: number, dto: CreateRiskReviewDto, user?: any) {
     const risk = await this.prisma.riskanalysis.findUnique({
       where: { id },
       include: { reviews: true },
@@ -357,13 +392,36 @@ export class RiskAnalysisService {
     if (!risk) {
       throw new NotFoundException(`Risk profile with ID ${id} not found`);
     }
+    await this.assertProfileScope(risk, user);
+    if (!risk.nrls_code) throw new BadRequestException('Legacy profile ยังไม่มี NRLS; ต้องจัดประเภทก่อนนับเหตุการณ์');
 
-    const curL = Math.min(5, Math.max(1, Number(dto.current_likelihood) || 1));
-    const curC = Math.min(5, Math.max(1, Number(dto.current_consequence) || 1));
+    const curL = clampMatrixValue(dto.current_likelihood);
+    const curC = clampMatrixValue(dto.current_consequence);
     const curScore = curL * curC;
-    const curLevel = this.calculateRiskLevel(curScore);
+    const curLevel = this.calculateRiskLevel(curL, curC);
 
     const reviewDate = new Date(dto.review_date);
+    const requestedPeriodStart = dto.period_start ? new Date(dto.period_start) : (risk.last_reviewed_date || new Date(reviewDate.getFullYear(), reviewDate.getMonth() - 3, reviewDate.getDate()));
+    const periodStart = maxWithNrlsCutover(requestedPeriodStart);
+    const periodEnd = dto.period_end ? new Date(dto.period_end) : reviewDate;
+    if (periodStart > periodEnd) throw new BadRequestException(`Monitoring NRLS เริ่ม ${NRLS_CUTOVER_DATE_THAI}; period_end ต้องไม่ก่อนวันนี้`);
+    const scopeWhere = risk.scope_level === 'department' ? { department_id: risk.department_id } : {};
+    const incidents = await this.prisma.riskregister.findMany({
+      where: { nrls_code: risk.nrls_code, date_report: { gte: periodStart, lte: periodEnd }, classification_status: 'CONFIRMED', ...scopeWhere },
+      select: { id: true, level_id: true, rca_required: true, rca_status: true, date_report: true, department_id: true, repeat_code: true },
+    });
+    const capas = await this.prisma.capa_action.findMany({ where: { nrls_code: risk.nrls_code, risk_analysis_id: id } });
+    const snapshot = {
+      nrls_cutover_date: NRLS_CUTOVER_DATE,
+      requested_period_start: requestedPeriodStart.toISOString(),
+      effective_period_start: periodStart.toISOString(),
+      total: incidents.length,
+      by_severity: incidents.reduce((a: Record<string, number>, i) => ({ ...a, [i.level_id]: (a[i.level_id] || 0) + 1 }), {}),
+      repeat_count: incidents.filter((i) => Boolean(i.repeat_code)).length,
+      rca: incidents.reduce((a: Record<string, number>, i) => ({ ...a, [i.rca_status || 'NONE']: (a[i.rca_status || 'NONE'] || 0) + 1 }), {}),
+      capa: capas.reduce((a: Record<string, number>, c) => ({ ...a, [c.status]: (a[c.status] || 0) + 1 }), {}),
+      latest_incident_at: incidents.map((i) => i.date_report).sort((a, b) => b.getTime() - a.getTime())[0] || null,
+    };
     const nextReview = new Date(reviewDate);
     nextReview.setMonth(nextReview.getMonth() + (risk.review_frequency_months || 3));
 
@@ -375,7 +433,10 @@ export class RiskAnalysisService {
         review_date: reviewDate,
         review_cycle_no: cycleNo,
         result_of_review: dto.result_of_review,
-        incident_count_in_period: Number(dto.incident_count_in_period) || 0,
+        incident_count_in_period: incidents.length,
+        period_start: periodStart,
+        period_end: periodEnd,
+        calculation_snapshot: JSON.stringify(snapshot),
         current_likelihood: curL,
         current_consequence: curC,
         current_risk_score: curScore,
@@ -397,6 +458,9 @@ export class RiskAnalysisService {
         residual_risk_level: curLevel,
         status: curLevel === 'green' ? 'monitoring' : 'open',
         updated_at: new Date(),
+        period_start: periodStart,
+        period_end: periodEnd,
+        last_calculated_at: new Date(),
       },
     });
 

@@ -3,10 +3,14 @@ import axios from 'axios';
 import { X, Shield, CheckCircle2, AlertTriangle, Sparkles } from 'lucide-react';
 import { SwissCheeseTable } from '../../components/rca/SwissCheeseTable';
 import type { SwissCheeseHole } from '../../components/rca/SwissCheeseTable';
-import { FishboneDiagram } from '../../components/rca/FishboneDiagram';
-import type { FishboneItem } from '../../components/rca/FishboneDiagram';
+import { ContributingFactorSelector } from '../../components/rca/ContributingFactorSelector';
 import { AiRcaAssistantModal } from '../../components/rca/AiRcaAssistantModal';
 import { useAuth } from '../../contexts/AuthContext';
+import {
+  contributingFactorSelectionsFromLegacy,
+  normalizeContributingFactorSelections,
+  type ContributingFactorSelection,
+} from '../../utils/contributingFactors';
 
 interface MiniRcaModalProps {
   isOpen: boolean;
@@ -38,8 +42,8 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
 
   // New features for feedback
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
-  const [toolChoice, setToolChoice] = useState<'swiss_cheese' | 'fishbone'>('swiss_cheese');
-  const [fishbones, setFishbones] = useState<FishboneItem[]>([]);
+  const [toolChoice, setToolChoice] = useState<'swiss_cheese' | 'contributing_factors'>('swiss_cheese');
+  const [contributingFactors, setContributingFactors] = useState<ContributingFactorSelection[]>([]);
 
   if (!isOpen) return null;
 
@@ -70,7 +74,7 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
           },
         ],
         swiss_cheeses: toolChoice === 'swiss_cheese' ? holes : [],
-        fishbones: toolChoice === 'fishbone' ? fishbones : [],
+        contributing_factors: toolChoice === 'contributing_factors' ? contributingFactors : [],
         cmps: [
           {
             cmp_problem: cmpProblem || 'ปัญหา/ช่องโหว่การปฏิบัติงาน',
@@ -193,14 +197,14 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
             </button>
             <button
               type="button"
-              onClick={() => setToolChoice('fishbone')}
+              onClick={() => setToolChoice('contributing_factors')}
               className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                toolChoice === 'fishbone'
+                toolChoice === 'contributing_factors'
                   ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
-              ผังก้างปลา (Fishbone)
+              ปัจจัยร่วม NRLS 2569
             </button>
           </div>
 
@@ -209,7 +213,7 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
             <SwissCheeseTable holes={holes} onChange={setHoles} />
           ) : (
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <FishboneDiagram factors={fishbones} topic={topic} onChange={setFishbones} />
+              <ContributingFactorSelector value={contributingFactors} onChange={setContributingFactors} />
             </div>
           )}
 
@@ -309,9 +313,11 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
           if (aiData.swiss_cheeses && aiData.swiss_cheeses.length > 0) {
             setHoles(aiData.swiss_cheeses);
             setToolChoice('swiss_cheese');
-          } else if (aiData.fishbones && aiData.fishbones.length > 0) {
-            setFishbones(aiData.fishbones);
-            setToolChoice('fishbone');
+          } else if ((aiData.contributing_factors && aiData.contributing_factors.length > 0) || (aiData.fishbones && aiData.fishbones.length > 0)) {
+            const suggested = normalizeContributingFactorSelections(aiData.contributing_factors);
+            const migratedSuggestion = contributingFactorSelectionsFromLegacy(aiData.fishbones || []).selections;
+            setContributingFactors(suggested.length ? suggested : migratedSuggestion);
+            setToolChoice('contributing_factors');
           }
         }}
       />
