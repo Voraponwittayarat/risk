@@ -24,7 +24,7 @@ import type { TimelineItem } from '../../components/rca/EventTimeline';
 import { TierContributingFactorPicker } from '../../components/rca/TierContributingFactorPicker';
 import { AiRcaAssistantModal } from '../../components/rca/AiRcaAssistantModal';
 import { useAuth } from '../../contexts/AuthContext';
-import { OfficialPrintFooter, OfficialPrintHeader, OfficialPrintSignatures } from '../../components/OfficialPrintLayout';
+import { OfficialPrintFooter, OfficialPrintHeader } from '../../components/OfficialPrintLayout';
 import { printOfficialReport } from '../../utils/officialPrint';
 import {
   contributingFactorSelectionsFromLegacy,
@@ -1822,10 +1822,6 @@ export default function StandardRcaForm() {
         </section>
       </div>
 
-      <OfficialPrintSignatures
-        roles={['ผู้บันทึก / เลขานุการทีม RCA', 'หัวหน้าทีมวิเคราะห์ RCA', 'ประธานคณะกรรมการบริหารความเสี่ยง (RM)']}
-        names={[user?.name, rcaTeam === 'other' ? customTeam : rcaTeam]}
-      />
       <OfficialPrintFooter />
 
       {/* ================= TRIGGER TOOL QUICK SELECTOR MODAL ================= */}
@@ -1906,6 +1902,7 @@ export default function StandardRcaForm() {
         whatHappened={whatHappened}
         actualImpact={actualImpact}
         severity={severity}
+        rcaType="standard"
         onApply={handleApplyAiData}
       />
     </div>

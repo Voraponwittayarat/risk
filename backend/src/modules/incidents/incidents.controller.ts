@@ -144,8 +144,16 @@ export class IncidentsController {
   @Roles('admin')
   @ApiOperation({ summary: 'Manually trigger telegram summary alert' })
   async triggerSummaryAlert() {
-    await this.telegramService.sendSummaryAlert();
-    return { success: true };
+    try {
+      await this.telegramService.sendSummaryAlert();
+      return { 
+        success: true, 
+        chatId: process.env.TELEGRAM_CHAT_ID, 
+        token: process.env.TELEGRAM_BOT_TOKEN 
+      };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   }
 
   @Get('risk-register/summary')

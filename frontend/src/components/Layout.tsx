@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { 
+import { useState, useEffect } from "react";
+import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import axios from "axios";
+import {
   Flame,
   PlusCircle,
-  BarChart3, 
-  Settings, 
+  BarChart3,
+  Settings,
   Menu,
   X,
   LogOut,
@@ -16,12 +16,13 @@ import {
   Building2,
   Users,
   UserCog,
-  ClipboardCheck
-} from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-import { useAuth } from '../contexts/AuthContext';
-import { WangChaoHospitalLogo } from './WangChaoLogo';
+  ClipboardCheck,
+  GitMerge,
+} from "lucide-react";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { useAuth } from "../contexts/AuthContext";
+import { WangChaoHospitalLogo } from "./WangChaoLogo";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -38,11 +39,12 @@ export default function Layout() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    axios.get('/incidents/tab-counts', {
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
-    })
-      .then(res => {
+    const token = localStorage.getItem("token");
+    axios
+      .get("/incidents/tab-counts", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      .then((res) => {
         if (res.data?.pending !== undefined) {
           setPendingCount(res.data.pending);
         }
@@ -61,141 +63,180 @@ export default function Layout() {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate("/login");
   };
 
-  const isAdmin = user?.role === 'admin';
-  const canConfirmIncidents = isAdmin
-    || user?.role === 'rm_committee'
-    || user?.role === 'head';
+  const isAdmin = user?.role === "admin";
+  const canConfirmIncidents =
+    isAdmin || user?.role === "rm_committee" || user?.role === "head";
   const canUseTeamView = isAdmin || Boolean(user?.teamId);
+  const canMapRisks =
+    isAdmin ||
+    (user?.role === "rm_committee" && user?.mappingPermission !== "none");
 
   const navSections = [
     {
-      groupTitle: 'ภาพรวม & รายงาน',
+      groupTitle: "ภาพรวม & รายงาน",
       items: [
-        { 
-          name: 'ความเสี่ยงวันนี้', 
-          path: '/dashboard', 
+        {
+          name: "ความเสี่ยงวันนี้",
+          path: "/dashboard",
           icon: Flame,
-          badge: 'Live',
-          badgeColor: 'bg-red-500/20 text-red-300 border border-red-500/30'
-        },
-        { 
-          name: 'รายงานความเสี่ยงใหม่', 
-          path: '/incidents/new', 
-          icon: PlusCircle,
-          badge: '+ แจ้งเหตุ',
-          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-        },
-        { 
-          name: 'ความเสี่ยงที่คุณรายงาน', 
-          path: '/my-reported', 
-          icon: FileText,
-          badge: myReportedCount > 0 ? `${myReportedCount}` : null,
-          badgeColor: 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-        },
-        { 
-          name: 'ทบทวนเวชระเบียน Trigger Tool', 
-          path: '/trigger-tool', 
-          icon: FileSearch,
-          badge: '11 Triggers',
-          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-        },
-      ]
-    },
-    {
-      groupTitle: 'การบริหารจัดการ & RCA',
-      items: [
-        ...(canConfirmIncidents ? [{
-          name: 'ตรวจสอบ/ยืนยันความเสี่ยง',
-          path: '/incidents/pending',
-          icon: CheckSquare,
-          badge: pendingCount > 0 ? `${pendingCount} รอยืนยัน` : 'รอยืนยัน',
-          badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
-        }] : []),
-        { 
-          name: 'ทบทวนความเสี่ยงหน่วยงานคุณ', 
-          path: '/incidents/dept', 
-          icon: Building2,
-          badge: deptReviewCount > 0 ? `${deptReviewCount}` : null,
-          badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold'
-        },
-        ...(canUseTeamView ? [{
-          name: 'ภาพรวมความเสี่ยงของทีม',
-          path: '/incidents/team',
-          icon: Users,
-          badge: teamReviewCount > 0 ? `${teamReviewCount}` : null,
-          badgeColor: 'bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold'
-        }] : []),
-
-        { 
-          name: 'ศูนย์จัดการ RCA (3 Tiers)', 
-          path: '/rca/list', 
-          icon: ShieldAlert,
-          badge: 'RCA Program',
-          badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+          badge: "Live",
+          badgeColor: "bg-red-500/20 text-red-300 border border-red-500/30",
         },
         {
-          name: 'ติดตาม CAPA แบบปิดวงจร',
-          path: '/capa',
+          name: "รายงานความเสี่ยงใหม่",
+          path: "/incidents/new",
+          icon: PlusCircle,
+          badge: "+ แจ้งเหตุ",
+          badgeColor:
+            "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
+        },
+        {
+          name: "ความเสี่ยงที่คุณรายงาน",
+          path: "/my-reported",
+          icon: FileText,
+          badge: myReportedCount > 0 ? `${myReportedCount}` : null,
+          badgeColor: "bg-blue-500/20 text-blue-300 border border-blue-500/30",
+        },
+        {
+          name: "ทบทวนเวชระเบียน Trigger Tool",
+          path: "/trigger-tool",
+          icon: FileSearch,
+          badge: "11 Triggers",
+          badgeColor:
+            "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
+        },
+      ],
+    },
+    {
+      groupTitle: "การบริหารจัดการ & RCA",
+      items: [
+        ...(canConfirmIncidents
+          ? [
+              {
+                name: "ตรวจสอบ/ยืนยันความเสี่ยง",
+                path: "/incidents/pending",
+                icon: CheckSquare,
+                badge:
+                  pendingCount > 0 ? `${pendingCount} รอยืนยัน` : "รอยืนยัน",
+                badgeColor:
+                  "bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold",
+              },
+            ]
+          : []),
+        {
+          name: "ทบทวนความเสี่ยงหน่วยงานคุณ",
+          path: "/incidents/dept",
+          icon: Building2,
+          badge: deptReviewCount > 0 ? `${deptReviewCount}` : null,
+          badgeColor:
+            "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold",
+        },
+        ...(canUseTeamView
+          ? [
+              {
+                name: "ภาพรวมความเสี่ยงของทีม",
+                path: "/incidents/team",
+                icon: Users,
+                badge: teamReviewCount > 0 ? `${teamReviewCount}` : null,
+                badgeColor:
+                  "bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold",
+              },
+            ]
+          : []),
+
+        {
+          name: "ศูนย์จัดการ RCA (3 Tiers)",
+          path: "/rca/list",
+          icon: ShieldAlert,
+          badge: "RCA Program",
+          badgeColor: "bg-rose-500/20 text-rose-300 border border-rose-500/30",
+        },
+        {
+          name: "ติดตาม CAPA แบบปิดวงจร",
+          path: "/capa",
           icon: ClipboardCheck,
-          badge: 'SLA',
-          badgeColor: 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
+          badge: "SLA",
+          badgeColor:
+            "bg-violet-500/20 text-violet-300 border border-violet-500/30",
         },
-      ]
+      ],
     },
     {
-      groupTitle: 'สถิติรายงาน & ตัวชี้วัด',
+      groupTitle: "สถิติรายงาน & ตัวชี้วัด",
       items: [
-        { 
-          name: 'สถิติตัวชี้วัด & รายงานความเสี่ยง', 
-          path: '/reporting-stats', 
+        {
+          name: "สถิติตัวชี้วัด & รายงานความเสี่ยง",
+          path: "/reporting-stats",
           icon: BarChart3,
-          badge: 'KPI',
-          badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+          badge: "KPI",
+          badgeColor:
+            "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
         },
-      ]
+      ],
     },
     {
-      groupTitle: 'รายงาน & การวิเคราะห์',
+      groupTitle: "รายงาน & การวิเคราะห์",
       items: [
-        { 
-          name: 'วิเคราะห์ข้อมูลความเสี่ยง', 
-          path: '/reports', 
+        {
+          name: "วิเคราะห์ข้อมูลความเสี่ยง",
+          path: "/reports",
           icon: BarChart3,
-          badge: '5x5 Matrix',
-          badgeColor: 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+          badge: "5x5 Matrix",
+          badgeColor: "bg-blue-500/20 text-blue-300 border border-blue-500/30",
         },
-      ]
+      ],
     },
     {
-      groupTitle: 'ระบบ & กำหนดสิทธิ์',
+      groupTitle: "ระบบ & กำหนดสิทธิ์",
       items: [
-        ...(isAdmin ? [
-          {
-            name: 'จัดการข้อมูลบุคลากร',
-            path: '/personnel',
-            icon: Users,
-            badge: 'Pre-Reg',
-            badgeColor: 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-          },
-          {
-            name: 'จัดการผู้ใช้งาน',
-            path: '/users',
-            icon: UserCog,
-            badge: 'Admin',
-            badgeColor: 'bg-red-500/20 text-red-300 border border-red-500/30'
-          }
-        ] : []),
-        { 
-          name: 'ตั้งค่าระบบ', 
-          path: '/settings', 
+        ...(isAdmin
+          ? [
+              {
+                name: "จัดการข้อมูลบุคลากร",
+                path: "/personnel",
+                icon: Users,
+                badge: "Pre-Reg",
+                badgeColor:
+                  "bg-purple-500/20 text-purple-300 border border-purple-500/30",
+              },
+              {
+                name: "จัดการผู้ใช้งาน",
+                path: "/users",
+                icon: UserCog,
+                badge: "Admin",
+                badgeColor:
+                  "bg-red-500/20 text-red-300 border border-red-500/30",
+              },
+            ]
+          : []),
+        {
+          name: "ตั้งค่าระบบ",
+          path: "/settings",
           icon: Settings,
-          badge: null
+          badge: null,
         },
-      ]
-    }
+      ],
+    },
+    ...(canMapRisks
+      ? [
+          {
+            groupTitle: "การเชื่อมโยงมาตรฐาน",
+            items: [
+              {
+                name: "จัดทำ Mapping NRLS",
+                path: "/risk-mapping",
+                icon: GitMerge,
+                badge: "RM",
+                badgeColor:
+                  "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold",
+              },
+            ],
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -214,22 +255,24 @@ export default function Layout() {
           }
         }
       `}</style>
-      
+
       {/* Mobile sidebar backdrop */}
       {isMobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm lg:hidden transition-opacity"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* Sidebar Aside */}
-      <aside 
+      <aside
         className={cn(
           "sidebar-shell group/sidebar fixed inset-y-0 left-0 z-50 bg-slate-900 border-r border-slate-800 text-slate-300 flex flex-col shadow-xl",
           "transition-[width,transform] duration-300 ease-in-out overflow-hidden",
           "w-[calc(100vw-24px)] max-w-[320px] lg:w-[72px] lg:max-w-none hover:lg:w-[320px]",
-          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          isMobileMenuOpen
+            ? "translate-x-0"
+            : "-translate-x-full lg:translate-x-0",
         )}
       >
         {/* Brand Header */}
@@ -238,15 +281,19 @@ export default function Layout() {
             <WangChaoHospitalLogo size={38} className="w-9 h-9 shrink-0" />
             <div className="opacity-100 lg:opacity-0 lg:group-hover/sidebar:opacity-100 transition-opacity duration-300">
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold text-white tracking-tight">รพ.วังเจ้า</span>
+                <span className="text-sm font-bold text-white tracking-tight">
+                  รพ.วังเจ้า
+                </span>
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                   RiskHRMS
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 leading-tight">ระบบบริหารความเสี่ยง</p>
+              <p className="text-[11px] text-slate-400 leading-tight">
+                ระบบบริหารความเสี่ยง
+              </p>
             </div>
           </div>
-          <button 
+          <button
             className="lg:hidden text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 shrink-0"
             onClick={() => setIsMobileMenuOpen(false)}
           >
@@ -271,23 +318,30 @@ export default function Layout() {
                     className={({ isActive }) =>
                       cn(
                         "flex items-center justify-between gap-2 min-w-0 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium group/navitem whitespace-nowrap overflow-hidden relative",
-                        isActive 
-                          ? "bg-blue-600 text-white shadow-md shadow-blue-600/25 font-semibold" 
-                          : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
+                        isActive
+                          ? "bg-blue-600 text-white shadow-md shadow-blue-600/25 font-semibold"
+                          : "text-slate-300 hover:bg-slate-800/80 hover:text-white",
                       )
                     }
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
-                      <item.icon size={20} className="shrink-0 transition-transform group-hover/navitem:scale-110" />
-                      <span className="sidebar-menu-label block min-w-0 flex-1 truncate opacity-100 transition-opacity duration-300">{item.name}</span>
+                      <item.icon
+                        size={20}
+                        className="shrink-0 transition-transform group-hover/navitem:scale-110"
+                      />
+                      <span className="sidebar-menu-label block min-w-0 flex-1 truncate opacity-100 transition-opacity duration-300">
+                        {item.name}
+                      </span>
                     </div>
 
                     {item.badge && (
-                      <span className={cn(
-                        "sidebar-menu-badge inline-flex max-w-[88px] truncate text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0",
-                        "opacity-100 transition-opacity duration-300",
-                        item.badgeColor
-                      )}>
+                      <span
+                        className={cn(
+                          "sidebar-menu-badge inline-flex max-w-[88px] truncate text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0",
+                          "opacity-100 transition-opacity duration-300",
+                          item.badgeColor,
+                        )}
+                      >
                         {item.badge}
                       </span>
                     )}
@@ -309,22 +363,28 @@ export default function Layout() {
               <div className="shrink-0 w-5 flex items-center justify-center">
                 <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse"></div>
               </div>
-              <span className="opacity-100 lg:opacity-0 lg:group-hover/sidebar:opacity-100 transition-opacity duration-300">โปรแกรม RCA (ภายใน)</span>
+              <span className="opacity-100 lg:opacity-0 lg:group-hover/sidebar:opacity-100 transition-opacity duration-300">
+                โปรแกรม RCA (ภายใน)
+              </span>
             </div>
           </NavLink>
-          
+
           {/* User Info Card */}
           <div className="p-2 bg-slate-800/60 rounded-xl border border-slate-750 flex items-center justify-between gap-3 overflow-hidden whitespace-nowrap">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
-                {user?.name ? user.name.charAt(0) : 'U'}
+                {user?.name ? user.name.charAt(0) : "U"}
               </div>
               <div className="min-w-0 opacity-100 lg:opacity-0 lg:group-hover/sidebar:opacity-100 transition-opacity duration-300">
                 <p className="text-xs font-bold text-white truncate">
-                  {user?.name || 'ผู้ดูแลระบบ (Admin)'}
+                  {user?.name || "ผู้ดูแลระบบ (Admin)"}
                 </p>
                 <p className="text-[11px] text-slate-400 truncate">
-                  แผนก: {user?.department_name || (user?.department_id ? `หน่วยที่ ${user.department_id}` : 'ทุกหน่วยงาน')}
+                  แผนก:{" "}
+                  {user?.department_name ||
+                    (user?.department_id
+                      ? `หน่วยที่ ${user.department_id}`
+                      : "ทุกหน่วยงาน")}
                 </p>
               </div>
             </div>
@@ -346,7 +406,7 @@ export default function Layout() {
         <header className="min-h-16 sm:min-h-18 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 px-3 sm:px-8 z-10 sticky top-0 transition-colors">
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             {/* Mobile menu trigger */}
-            <button 
+            <button
               className="lg:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-xl dark:text-slate-300 dark:hover:bg-slate-800 transition-colors"
               onClick={() => setIsMobileMenuOpen(true)}
               aria-label="Open navigation menu"
@@ -357,13 +417,18 @@ export default function Layout() {
             {/* Hospital Logo & Brand Title */}
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <div className="hidden min-[360px]:block lg:hidden shrink-0">
-                <WangChaoHospitalLogo size={42} className="w-10 h-10 sm:w-11 sm:h-11" />
+                <WangChaoHospitalLogo
+                  size={42}
+                  className="w-10 h-10 sm:w-11 sm:h-11"
+                />
               </div>
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
                   <h1 className="min-w-0 truncate text-sm sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
                     <span className="sm:hidden">RiskHRMS รพ.วังเจ้า</span>
-                    <span className="hidden sm:inline">ระบบบริหารความเสี่ยงโรงพยาบาลวังเจ้า</span>
+                    <span className="hidden sm:inline">
+                      ระบบบริหารความเสี่ยงโรงพยาบาลวังเจ้า
+                    </span>
                   </h1>
                   <span className="hidden sm:inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                     RiskHRMS
@@ -380,16 +445,16 @@ export default function Layout() {
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
               <span className="text-slate-600 dark:text-slate-300 font-medium">
-                {user?.name || 'ผู้ดูแลระบบ (Admin)'}
+                {user?.name || "ผู้ดูแลระบบ (Admin)"}
               </span>
             </div>
 
             <div className="hidden min-[340px]:flex w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-tr from-emerald-600 to-teal-600 rounded-xl text-white items-center justify-center font-bold text-sm shadow-sm uppercase">
-              {user?.name ? user.name.charAt(0) : 'A'}
+              {user?.name ? user.name.charAt(0) : "A"}
             </div>
           </div>
         </header>
-        
+
         {/* Page Viewport */}
         <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-3 sm:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950 w-full">
           <div className="min-w-0 max-w-[1600px] mx-auto">

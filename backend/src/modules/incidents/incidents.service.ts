@@ -166,11 +166,10 @@ export class IncidentsService {
   }
 
   private getNrlsKind(nrls: any): 'CLINICAL' | 'GENERAL' {
-    const group = String(nrls?.group || '').toUpperCase();
     const code = String(nrls?.nrls_code || '').toUpperCase();
-    return code.startsWith('C') || group.includes('CLINICAL') || group.includes('คลินิก')
-      ? 'CLINICAL'
-      : 'GENERAL';
+    if (code.startsWith('C')) return 'CLINICAL';
+    if (code.startsWith('G')) return 'GENERAL';
+    throw new BadRequestException('รหัส NRLS ต้องขึ้นต้นด้วย C (Clinical) หรือ G (General)');
   }
 
   private async resolveClassification(nrlsCode: string, riskstoreId: number | null | undefined, levelId: string) {
@@ -471,7 +470,7 @@ export class IncidentsService {
     }
     if (classification_status) where.classification_status = classification_status;
     if (nrls_type) {
-      where.nrls_standard = { group: { contains: nrls_type === 'CLINICAL' ? 'คลินิก' : 'ทั่วไป' } };
+      where.nrls_code = { startsWith: nrls_type === 'CLINICAL' ? 'C' : 'G' };
     }
     if (nrls && nrls.trim()) {
       const term = nrls.trim();
@@ -865,14 +864,35 @@ export class IncidentsService {
     const observedEnd = observationMonths === 0
       ? null
       : new Date(Math.min(now.getTime(), fiscalPeriod.end.getTime()));
-    const matrixAnd: any[] = [
+    const matrixStatuses = ['ตรวจสอบ', 'ทบทวน', 'จำหน่าย'];
+    const queueAnd: any[] = [
       teamId ? { sendto_team_id: teamId } : { sendto_team_id: { not: null } },
-      // A team receives only incidents for which the department has already
-      // recorded its own review. Closed incidents remain available as history.
-      { status_risk: { in: ['ทบทวน', 'จำหน่าย'] } },
+      // Legacy forwarded incidents commonly remain at "ตรวจสอบ". They are valid
+      // risk records and must not disappear from the team's historical queue.
+      { status_risk: { in: matrixStatuses } },
       { date_report: { gte: fiscalPeriod.start, lte: fiscalPeriod.end } },
     ];
-    const and: any[] = [...matrixAnd];
+    const matrixTeamScope = teamId
+      ? {
+          OR: [
+            { sendto_team_id: teamId },
+            // Before team forwarding was consistently recorded, the owner of
+            // the local risk topic is the most reliable team attribution.
+            { sendto_team_id: null, local_risk: { team_id: teamId } },
+          ],
+        }
+      : {
+          OR: [
+            { sendto_team_id: { not: null } },
+            { sendto_team_id: null, local_risk: { team_id: { not: null } } },
+          ],
+        };
+    const matrixAnd: any[] = [
+      matrixTeamScope,
+      { status_risk: { in: matrixStatuses } },
+      { date_report: { gte: fiscalPeriod.start, lte: fiscalPeriod.end } },
+    ];
+    const and: any[] = [...queueAnd];
 
     if (query.team_review_status === 'PENDING') {
       and.push({ OR: [{ team_review_status: null }, { team_review_status: 'PENDING' }] });
@@ -919,65 +939,176 @@ export class IncidentsService {
 
     const departmentIds = [...new Set(incidents.map((row) => Number(row.department_id)).filter(Boolean))];
     const programIds = [...new Set(incidents.map((row) => Number(row.program_id)).filter(Boolean))];
-    const [departments, programs, team] = await Promise.all([
+    const localRiskIds = [...new Set(matrixIncidents.map((row) => Number(row.riskstore_id)).filter((id) => Number.isInteger(id) && id > 0))];
+    const [departments, programs, team, localRisks] = await Promise.all([
       this.prisma.department.findMany({ where: { id: { in: departmentIds } }, select: { id: true, depart_name: true } }),
       this.prisma.program.findMany({ where: { program_id: { in: programIds } }, select: { program_id: true, program_name: true } }),
       teamId ? this.prisma.team.findUnique({ where: { id: teamId }, select: { id: true, team_name: true } }) : null,
+      localRiskIds.length > 0
+        ? this.prisma.riskstore.findMany({
+            where: { riskstore_id: { in: localRiskIds } },
+            select: { riskstore_id: true, riskstore_name: true, nrls_code: true, team_id: true },
+          })
+        : Promise.resolve([] as { riskstore_id: number; riskstore_name: string; nrls_code: string | null; team_id: number | null; }[]),
     ]);
     const departmentMap = new Map(departments.map((row) => [String(row.id), row.depart_name]));
     const programMap = new Map(programs.map((row) => [row.program_id, row.program_name]));
+    const localRiskMap = new Map(localRisks.map((row) => [row.riskstore_id, row]));
+    const classificationFor = (row: any) => {
+      const localRisk = row.riskstore_id ? localRiskMap.get(Number(row.riskstore_id)) : null;
+      const directNrlsCode = String(row.nrls_code || '').trim() || null;
+      const mappedNrlsCode = String(localRisk?.nrls_code || '').trim() || null;
+      const effectiveNrlsCode = directNrlsCode || mappedNrlsCode;
+      const source = directNrlsCode
+        ? 'DIRECT_NRLS'
+        : mappedNrlsCode
+          ? 'LEGACY_MAPPED'
+          : localRisk
+            ? 'LOCAL_UNMAPPED'
+            : 'UNCLASSIFIED';
+      return { localRisk, directNrlsCode, mappedNrlsCode, effectiveNrlsCode, source };
+    };
+    const effectiveNrlsCodes = [...new Set(matrixIncidents
+      .map((row) => classificationFor(row).effectiveNrlsCode)
+      .filter((code): code is string => Boolean(code)))];
+    const nrlsStandards = effectiveNrlsCodes.length > 0
+      ? await this.prisma.nRLS_riskstore.findMany({
+          where: { nrls_code: { in: effectiveNrlsCodes } },
+          select: { nrls_code: true, name: true },
+        })
+      : [];
+    const nrlsNameMap = new Map(nrlsStandards.map((row) => [row.nrls_code, row.name]));
 
-    const matrix = Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => ({ count: 0, items: [] as any[] })));
-    const riskSummary = new Map<string, any>();
-
-    for (const row of matrixIncidents) {
-      // Legacy incidents remain visible in the work queue, but a risk without
-      // NRLS cannot be placed reliably in the annual matrix.
-      if (!row.nrls_code) continue;
-      const key = row.nrls_code;
+    const createMatrix = () => Array.from(
+      { length: 5 },
+      () => Array.from({ length: 5 }, () => ({ count: 0, items: [] as any[] })),
+    );
+    const nrlsRiskSummary = new Map<string, any>();
+    const subRiskSummary = new Map<string, any>();
+    const addIncidentToSummary = (summaries: Map<string, any>, key: string, seed: any, row: any, source: string) => {
       const consequence = consequenceFromSeverity(row.level_id);
-      const summary = riskSummary.get(key) || {
-        key: row.nrls_code,
-        nrls_code: row.nrls_code,
-        name: row.nrls_name_snapshot || row.detail || row.nrls_code,
+      const summary = summaries.get(key) || {
+        ...seed,
+        key,
         count: 0,
         waiting: 0,
         max_consequence: 0,
         incident_ids: [],
+        source_counts: {},
       };
       summary.count += 1;
+      summary.source_counts[source] = (summary.source_counts[source] || 0) + 1;
       if (row.status_risk !== 'จำหน่าย' && (!row.team_review_status || row.team_review_status === 'PENDING')) summary.waiting += 1;
       summary.max_consequence = Math.max(summary.max_consequence, consequence);
       if (summary.incident_ids.length < 100) summary.incident_ids.push(row.id);
-      riskSummary.set(key, summary);
+      summaries.set(key, summary);
+    };
+
+    for (const row of matrixIncidents) {
+      const classification = classificationFor(row);
+      const effectiveNrlsName = classification.effectiveNrlsCode
+        ? nrlsNameMap.get(classification.effectiveNrlsCode) || row.nrls_name_snapshot || classification.effectiveNrlsCode
+        : null;
+
+      if (classification.effectiveNrlsCode) {
+        addIncidentToSummary(nrlsRiskSummary, classification.effectiveNrlsCode, {
+          nrls_code: classification.effectiveNrlsCode,
+          name: effectiveNrlsName,
+          mapping_status: classification.source === 'LEGACY_MAPPED' ? 'LEGACY_MAPPED' : 'DIRECT_NRLS',
+        }, row, classification.source);
+      }
+
+      if (classification.localRisk) {
+        const mappingStatus = classification.effectiveNrlsCode
+          ? classification.mappedNrlsCode && classification.directNrlsCode && classification.mappedNrlsCode !== classification.directNrlsCode
+              ? 'MAPPING_CONFLICT'
+              : 'NRLS_WITH_LOCAL'
+          : 'LOCAL_UNMAPPED';
+        const subRiskKey = `LOCAL:${classification.localRisk.riskstore_id}:NRLS:${classification.effectiveNrlsCode || 'UNMAPPED'}`;
+        addIncidentToSummary(subRiskSummary, subRiskKey, {
+          riskstore_id: classification.localRisk.riskstore_id,
+          nrls_code: classification.effectiveNrlsCode,
+          parent_name: effectiveNrlsName,
+          name: classification.localRisk.riskstore_name,
+          mapping_status: mappingStatus,
+        }, row, classification.source);
+      } else if (classification.effectiveNrlsCode) {
+        addIncidentToSummary(subRiskSummary, `NRLS:${classification.effectiveNrlsCode}:NO_SUBRISK`, {
+          riskstore_id: null,
+          nrls_code: classification.effectiveNrlsCode,
+          parent_name: effectiveNrlsName,
+          name: 'ยังไม่ระบุชื่อความเสี่ยงย่อย',
+          mapping_status: 'NRLS_NO_SUBRISK',
+        }, row, classification.source);
+      }
     }
 
-    for (const summary of riskSummary.values()) {
-      const likelihood = likelihoodFromAnnualCount(summary.count, observationMonths);
-      if (likelihood === 0) continue;
-      const consequence = summary.max_consequence;
-      summary.likelihood = likelihood;
-      summary.consequence = consequence;
-      summary.risk_score = likelihood * consequence;
-      summary.risk_level = riskLevelFor(likelihood, consequence);
-      const cell = matrix[consequence - 1][likelihood - 1];
-      cell.count += 1;
-      if (cell.items.length < 10) cell.items.push({
-        nrls_code: summary.nrls_code,
-        name: summary.name,
-        incident_count: summary.count,
-        risk_score: summary.risk_score,
-        risk_level: summary.risk_level,
-      });
-    }
+    const buildMatrix = (summaries: Map<string, any>) => {
+      const result = createMatrix();
+      for (const summary of summaries.values()) {
+        const likelihood = likelihoodFromAnnualCount(summary.count, observationMonths);
+        if (likelihood === 0) continue;
+        const consequence = summary.max_consequence;
+        summary.likelihood = likelihood;
+        summary.consequence = consequence;
+        summary.risk_score = likelihood * consequence;
+        summary.risk_level = riskLevelFor(likelihood, consequence);
+        const cell = result[consequence - 1][likelihood - 1];
+        cell.count += 1;
+        if (cell.items.length < 20) cell.items.push({
+          key: summary.key,
+          riskstore_id: summary.riskstore_id || null,
+          nrls_code: summary.nrls_code || null,
+          parent_name: summary.parent_name || null,
+          name: summary.name,
+          mapping_status: summary.mapping_status,
+          source_counts: summary.source_counts,
+          incident_count: summary.count,
+          risk_score: summary.risk_score,
+          risk_level: summary.risk_level,
+        });
+      }
+      return result;
+    };
+    const mappedSubRiskSummary = new Map(
+      [...subRiskSummary].filter(([, summary]) => summary.mapping_status !== 'LOCAL_UNMAPPED'),
+    );
+    const matrix = buildMatrix(nrlsRiskSummary);
+    const subRiskMatrix = buildMatrix(subRiskSummary);
+    const mappedSubRiskMatrix = buildMatrix(mappedSubRiskSummary);
 
     const start = (page - 1) * limit;
-    const pageRows = incidents.slice(start, start + limit).map((row) => ({
-      ...row,
-      team_review_status: row.status_risk === 'จำหน่าย' ? 'COMPLETED' : (row.team_review_status || 'PENDING'),
-      department_name: departmentMap.get(row.department_id) || `หน่วยงาน ${row.department_id}`,
-      program_name: programMap.get(Number(row.program_id)) || '-',
-    }));
+    const pageRows = incidents.slice(start, start + limit).map((row) => {
+      const classification = classificationFor(row);
+      return {
+        ...row,
+        effective_nrls_code: classification.effectiveNrlsCode,
+        effective_nrls_name: classification.effectiveNrlsCode
+          ? nrlsNameMap.get(classification.effectiveNrlsCode) || row.nrls_name_snapshot || classification.effectiveNrlsCode
+          : null,
+        local_risk_name: classification.localRisk?.riskstore_name || null,
+        matrix_mapping_source: classification.source,
+        team_review_status: row.status_risk === 'จำหน่าย' ? 'COMPLETED' : (row.team_review_status || 'PENDING'),
+        department_name: departmentMap.get(row.department_id) || `หน่วยงาน ${row.department_id}`,
+        program_name: programMap.get(Number(row.program_id)) || '-',
+      };
+    });
+
+    const directNrlsIncidents = matrixIncidents.filter((row) => classificationFor(row).source === 'DIRECT_NRLS').length;
+    const legacyMappedIncidents = matrixIncidents.filter((row) => classificationFor(row).source === 'LEGACY_MAPPED').length;
+    const localUnmappedIncidents = matrixIncidents.filter((row) => classificationFor(row).source === 'LOCAL_UNMAPPED').length;
+    const unclassifiedIncidents = matrixIncidents.filter((row) => classificationFor(row).source === 'UNCLASSIFIED').length;
+    const nrlsWithoutSubRiskIncidents = matrixIncidents.filter((row) => {
+      const classification = classificationFor(row);
+      return Boolean(classification.effectiveNrlsCode && !classification.localRisk);
+    }).length;
+    const forwardedMatrixIncidents = matrixIncidents.filter((row) => teamId
+      ? Number(row.sendto_team_id) === teamId
+      : Boolean(row.sendto_team_id)).length;
+    const localOwnerMatrixIncidents = matrixIncidents.filter((row) => {
+      const localRisk = row.riskstore_id ? localRiskMap.get(Number(row.riskstore_id)) : null;
+      return !row.sendto_team_id && Boolean(localRisk?.team_id) && (!teamId || Number(localRisk?.team_id) === teamId);
+    }).length;
 
     return {
       team: team || { id: teamId, team_name: teamId ? `ทีมนำรหัส ${teamId}` : 'ทุกทีมนำ' },
@@ -987,11 +1118,28 @@ export class IncidentsService {
         in_progress: incidents.filter((row) => row.team_review_status === 'IN_PROGRESS').length,
         completed: incidents.filter((row) => row.status_risk === 'จำหน่าย' || row.team_review_status === 'COMPLETED').length,
         high_severity: incidents.filter((row) => consequenceFromSeverity(row.level_id) >= 4).length,
-        mapped_risks: riskSummary.size,
-        unmapped_incidents: matrixIncidents.filter((row) => !row.nrls_code).length,
+        matrix_incidents: matrixIncidents.length,
+        forwarded_matrix_incidents: forwardedMatrixIncidents,
+        local_owner_matrix_incidents: localOwnerMatrixIncidents,
+        mapped_risks: nrlsRiskSummary.size,
+        sub_risks: subRiskSummary.size,
+        mapped_sub_risks: mappedSubRiskSummary.size,
+        direct_nrls_incidents: directNrlsIncidents,
+        legacy_mapped_incidents: legacyMappedIncidents,
+        nrls_without_subrisk_incidents: nrlsWithoutSubRiskIncidents,
+        local_unmapped_incidents: localUnmappedIncidents,
+        unclassified_incidents: unclassifiedIncidents,
+        unmapped_incidents: localUnmappedIncidents + unclassifiedIncidents,
       },
       matrix,
-      top_risks: [...riskSummary.values()].sort((a, b) => b.count - a.count || b.max_consequence - a.max_consequence).slice(0, 10),
+      matrices: {
+        nrls: matrix,
+        sub_risk: subRiskMatrix,
+        sub_risk_mapped: mappedSubRiskMatrix,
+      },
+      top_risks: [...nrlsRiskSummary.values()].sort((a, b) => b.count - a.count || b.max_consequence - a.max_consequence).slice(0, 10),
+      top_sub_risks: [...subRiskSummary.values()].sort((a, b) => b.count - a.count || b.max_consequence - a.max_consequence).slice(0, 10),
+      top_sub_risks_mapped: [...mappedSubRiskSummary.values()].sort((a, b) => b.count - a.count || b.max_consequence - a.max_consequence).slice(0, 10),
       data: pageRows,
       meta: {
         total: incidents.length,
@@ -1563,12 +1711,10 @@ export class IncidentsService {
     this.assertAttachmentReferencesOwned(data.image, user);
     const incidentDate = new Date(data.date_report || new Date());
     const hasNrls = Boolean(String(data.nrls_code || '').trim());
-    if (!hasNrls && isNrlsRequired(data.date_report || incidentDate)) {
-      throw new BadRequestException(`เหตุการณ์ตั้งแต่ ${NRLS_CUTOVER_DATE_THAI} ต้องเลือกรหัส NRLS`);
+    if (!hasNrls) {
+      throw new BadRequestException('รายงานใหม่ทุกวันที่เกิดเหตุต้องเลือกความเสี่ยงตามมาตรฐาน NRLS');
     }
-    const classification = hasNrls
-      ? await this.resolveClassification(data.nrls_code, data.riskstore_id, data.level_id)
-      : await this.resolveLegacyClassification(data.riskstore_id, data.level_id);
+    const classification = await this.resolveClassification(data.nrls_code, data.riskstore_id, data.level_id);
     // Generate id_risk
     const lastRecord = await this.prisma.riskregister.findFirst({
       orderBy: { id_risk: 'desc' },
@@ -1584,7 +1730,7 @@ export class IncidentsService {
       location_id: data.location_id ? Number(data.location_id) : null,
       user_ir_type: data.user_ir_type || 'ตนเอง',
       user_ir: this.getUserId(user) || 1,
-      program_id: hasNrls ? (classification as any).nrls.program_id : ((classification as any).local?.program_id || (data.program_id ? Number(data.program_id) : null)),
+      program_id: classification.nrls.program_id,
       level_id: classification.level,
       riskstore_id: classification.localId,
       detail: data.detail || '',
@@ -1597,11 +1743,11 @@ export class IncidentsService {
       status_risk: 'รายงาน',
       department_id: requestedDepartmentId,
       image: data.image || null,
-      nrls_code: hasNrls ? (classification as any).code : null,
-      nrls_name_snapshot: hasNrls ? (classification as any).nrls.name : null,
+      nrls_code: classification.code,
+      nrls_name_snapshot: classification.nrls.name,
       is_sec41: Boolean(data.is_sec41),
       is_potential_harm: Boolean(data.is_potential_harm),
-      classification_status: hasNrls ? 'PENDING' : 'LEGACY',
+      classification_status: 'PENDING',
       classified_by: null,
       classified_at: null,
       link_key: internalSource?.linkKey ? String(internalSource.linkKey).slice(0, 100) : null,
@@ -1616,9 +1762,7 @@ export class IncidentsService {
     const newIncident = await this.prisma.riskregister.create({
       data: createData,
     });
-    if (hasNrls) {
-      await this.rcaPolicy.evaluateAndPersist(newIncident.id, this.getUserId(user) || undefined, 'INCIDENT_CREATED');
-    }
+    await this.rcaPolicy.evaluateAndPersist(newIncident.id, this.getUserId(user) || undefined, 'INCIDENT_CREATED');
 
     // Also mirror to legacy `risk` table if possible
     if (createData.riskstore_id !== null) try {
@@ -1748,8 +1892,11 @@ export class IncidentsService {
     for (const field of editableFields) if (data[field] !== undefined) updateData[field] = data[field];
     const effectiveDate = data.date_report || incident.date_report;
     const effectiveNrlsCode = data.nrls_code !== undefined ? data.nrls_code : incident.nrls_code;
-    if (!String(effectiveNrlsCode || '').trim() && isNrlsRequired(effectiveDate)) {
-      throw new BadRequestException(`เหตุการณ์ตั้งแต่ ${NRLS_CUTOVER_DATE_THAI} ต้องเลือกรหัส NRLS`);
+    const mayRemainLegacy = incident.classification_status === 'LEGACY'
+      && !String(incident.nrls_code || '').trim()
+      && !isNrlsRequired(effectiveDate);
+    if (!String(effectiveNrlsCode || '').trim() && !mayRemainLegacy) {
+      throw new BadRequestException('เฉพาะประวัติเดิมสถานะ Legacy ก่อน 1 ตุลาคม 2569 เท่านั้นที่ไม่มีรหัส NRLS ได้');
     }
     const classificationChanged = data.nrls_code !== undefined || data.riskstore_id !== undefined;
     if (classificationChanged) {

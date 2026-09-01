@@ -6,12 +6,10 @@ import {
   Activity, Sparkles, Building2, CheckCircle2, AlertCircle, Target, BarChart2, ShieldCheck, ShieldAlert, Layers, ExternalLink, MessageSquare, Info
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { useAuth } from '../contexts/AuthContext';
-import { OfficialPrintFooter, OfficialPrintHeader, OfficialPrintSignatures } from '../components/OfficialPrintLayout';
+import { OfficialPrintFooter, OfficialPrintHeader } from '../components/OfficialPrintLayout';
 import { printOfficialReport } from '../utils/officialPrint';
 
 export default function IndividualReportStats() {
-  const { user } = useAuth();
   // Main Tab State: staff_report | program_matrix | dept_kpi | individual
   const [activeTab, setActiveTab] = useState<'staff_report' | 'program_matrix' | 'dept_kpi' | 'individual'>('program_matrix');
 
@@ -1824,10 +1822,6 @@ export default function IndividualReportStats() {
         </div>
       )}
 
-      <OfficialPrintSignatures
-        roles={['ผู้จัดทำรายงาน', 'ผู้ตรวจสอบข้อมูล', 'ประธานคณะกรรมการบริหารความเสี่ยง (RM)']}
-        names={[user?.name]}
-      />
       <OfficialPrintFooter />
 
       {/* DRILL-DOWN POPUP MODAL: SUMMARY & REVIEW RESULTS OF RISK TOPIC */}

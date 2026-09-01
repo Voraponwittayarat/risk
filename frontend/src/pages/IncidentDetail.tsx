@@ -10,10 +10,9 @@ import {
   Printer, Edit3, ShieldCheck, Building2, Clock
 } from 'lucide-react';
 import { getStatusInfo, getSeverityBadge } from '../utils/statusAdapter';
-import { useAuth } from '../contexts/AuthContext';
 import { StandardRiskSelector } from '../components/StandardRiskSelector';
 import { ContributingFactorSelector } from '../components/rca/ContributingFactorSelector';
-import { OfficialPrintFooter, OfficialPrintHeader, OfficialPrintSignatures } from '../components/OfficialPrintLayout';
+import { OfficialPrintFooter, OfficialPrintHeader } from '../components/OfficialPrintLayout';
 import { printOfficialReport } from '../utils/officialPrint';
 import {
   getContributingFactor,
@@ -40,7 +39,6 @@ function parseRcaEvaluationSnapshot(value: unknown): any | null {
 }
 
 export default function IncidentDetail() {
-  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const [incident, setIncident] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -553,6 +551,18 @@ export default function IncidentDetail() {
         ]}
       />
 
+      <section className="official-print-only official-print-academic-summary" aria-hidden="true">
+        <h2>{incident.nrls_code && incident.nrls_name ? `${incident.nrls_code} : ${incident.nrls_name}` : `อุบัติการณ์เลขที่ ${incident.id}`}</h2>
+        <dl>
+          <div><dt>สถานะรายงาน</dt><dd>{statusInfo.label}</dd></div>
+          <div><dt>ระดับความรุนแรง</dt><dd>{severity.label}</dd></div>
+          <div><dt>วันที่เกิดเหตุ</dt><dd>{dtEvent}</dd></div>
+          <div><dt>วันที่บันทึก</dt><dd>{dtRegister}</dd></div>
+          <div><dt>การประเมิน RCA</dt><dd>{incident.rca_required ? `เข้าเกณฑ์ ${incident.recommended_rca_type || 'RCA'}` : 'ไม่เข้าเกณฑ์บังคับ RCA'}</dd></div>
+          <div><dt>กำหนดแล้วเสร็จ RCA</dt><dd>{incident.rca_due_at ? format(new Date(incident.rca_due_at), 'dd/MM/yyyy HH:mm') : '-'}</dd></div>
+        </dl>
+      </section>
+
       {/* Top Navigation Bar */}
       <div className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Link 
@@ -589,7 +599,7 @@ export default function IncidentDetail() {
 
       {/* Returned for Edit High-Alert Banner */}
       {incident.status_risk === 'แก้ไข' && (
-        <div className="bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent border-l-4 border-orange-500 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+        <div className="print-alert bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent border-l-4 border-orange-500 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="p-2 bg-orange-500 text-white rounded-lg shadow-sm mt-0.5 shrink-0">
               <AlertTriangle className="w-5 h-5" />
@@ -618,7 +628,7 @@ export default function IncidentDetail() {
 
       {/* RCA criteria warning */}
       {rcaNeedsAction && (
-        <div className="rounded-2xl border-2 border-red-500 bg-gradient-to-r from-red-50 via-orange-50 to-amber-50 p-4 shadow-md dark:from-red-950/50 dark:via-orange-950/30 dark:to-slate-900 sm:p-5">
+        <div className="print-alert rounded-2xl border-2 border-red-500 bg-gradient-to-r from-red-50 via-orange-50 to-amber-50 p-4 shadow-md dark:from-red-950/50 dark:via-orange-950/30 dark:to-slate-900 sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <div className="mt-0.5 shrink-0 rounded-xl bg-red-600 p-2.5 text-white shadow-sm">
@@ -672,7 +682,7 @@ export default function IncidentDetail() {
 
       {/* Case Header Card */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-700">
+        <div className="print-screen-only flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-700">
           <div>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-snug max-w-3xl">
@@ -722,7 +732,7 @@ export default function IncidentDetail() {
         </div>
 
         {/* 4-Step Lifecycle Tracker */}
-        <div className="py-6 border-b border-slate-100 dark:border-slate-700">
+        <div className="print-screen-only py-6 border-b border-slate-100 dark:border-slate-700">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {steps.map((s, idx) => {
               const isCurrent = incident.status_risk === s.key;
@@ -823,7 +833,7 @@ export default function IncidentDetail() {
               </div>
 
               {/* Action Buttons right under Immediate Problem Solving */}
-              <div className="flex flex-wrap items-center gap-2.5 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="print-actions flex flex-wrap items-center gap-2.5 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
                 {permissions.canConfirm && (incident.status_risk === 'รายงาน' || incident.status_risk === 'แก้ไข') && (
                   <>
                     <button
@@ -965,7 +975,7 @@ export default function IncidentDetail() {
 
       {/* Collaborative Co-Review / Forward Status Banner */}
       {(incident.sendto_team_name || incident.sendto_department_name) && (
-        <div className="bg-gradient-to-r from-purple-500/15 via-indigo-500/10 to-transparent border-l-4 border-purple-600 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-900/50">
+        <div className="official-print-academic-section bg-gradient-to-r from-purple-500/15 via-indigo-500/10 to-transparent border-l-4 border-purple-600 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-900/50">
           <div className="flex items-start gap-3.5">
             <div className="p-2.5 bg-purple-600 text-white rounded-xl shadow-sm mt-0.5 shrink-0">
               <Share2 className="w-5 h-5" />
@@ -975,7 +985,7 @@ export default function IncidentDetail() {
                 <h3 className="font-bold text-purple-950 dark:text-purple-200 text-sm">
                   📤 ส่งต่อให้ {incident.sendto_team_name ? `ทีมนำ: ${incident.sendto_team_name}` : `หน่วยงาน: ${incident.sendto_department_name}`} ร่วมทบทวน
                 </h3>
-                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/70 dark:text-purple-200 font-bold border border-purple-300 dark:border-purple-800">
+                <span className="print-screen-only text-[10px] px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/70 dark:text-purple-200 font-bold border border-purple-300 dark:border-purple-800">
                   Co-Review Mode
                 </span>
               </div>
@@ -988,7 +998,7 @@ export default function IncidentDetail() {
 
               {/* Level Warning Rule Box */}
               {incident.level_warning && (
-                <div className="text-xs text-amber-900 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-950/40 p-2.5 rounded-lg border border-amber-300/60 dark:border-amber-800/60 mt-1.5 flex items-center gap-2 font-medium">
+                <div className="print-alert text-xs text-amber-900 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-950/40 p-2.5 rounded-lg border border-amber-300/60 dark:border-amber-800/60 mt-1.5 flex items-center gap-2 font-medium">
                   <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                   <span>
                     <strong>⏱️ กำหนดเวลาทบทวนตามระดับความรุนแรง ({incident.level_warning.warning_code}):</strong> {incident.level_warning.warning_name}
@@ -1026,7 +1036,7 @@ export default function IncidentDetail() {
       {/* INLINE REVIEW & RCA WORKSTATION (รวมในหน้าเดียว ไม่ต้องเปิด Popup Modal) */}
       {/* ========================================================================= */}
       {(permissions.canReview || permissions.canTeamReview || permissions.canRecordRmReview) && (
-      <div id="review-workstation" className="bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 border-2 border-indigo-500/40 dark:border-indigo-500/50 shadow-md space-y-6">
+      <div id="review-workstation" className="print-screen-only bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 border-2 border-indigo-500/40 dark:border-indigo-500/50 shadow-md space-y-6">
         {/* Header with Date Picker */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-center gap-3">
@@ -2101,10 +2111,6 @@ export default function IncidentDetail() {
         </div>
       )}
 
-      <OfficialPrintSignatures
-        roles={['ผู้รายงาน / ผู้รับแจ้งเหตุ', 'หัวหน้างาน / ผู้รับผิดชอบหน่วยงาน', 'ประธานคณะกรรมการบริหารความเสี่ยง (RM)']}
-        names={[user?.name]}
-      />
       <OfficialPrintFooter />
     </div>
   );

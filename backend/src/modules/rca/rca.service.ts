@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { IncidentRcaPolicyService } from './incident-rca-policy.service';
 import { normalizeContributingFactors, serializeContributingFactors, toLegacyFishbone } from './contributing-factor.catalog';
 import { CapaService } from '../capa/capa.service';
+import { deidentifyIncidentText } from '../incidents/ai-incident-assistant.utils';
 
 export class EvaluateCriteriaDto {
   incident_id?: number;
@@ -15,11 +16,13 @@ export class EvaluateCriteriaDto {
 }
 
 export class AiAssistDto {
-  topic: string;
+  topic?: string;
   what_happened?: string;
   actual_impact?: string;
   severity?: string;
   rca_type?: string;
+  incident_text?: string;
+  analysis_mode?: 'basic' | 'full';
 }
 
 export class CreateRcaCaseDto {
@@ -1071,9 +1074,153 @@ export class RcaService {
   // ================= 6. AI RCA Clinical Assistant Engine =================
   async generateAiAssistance(dto: AiAssistDto) {
     const topic = (dto.topic || '').trim();
-    const whatHappened = (dto.what_happened || '').trim();
+    const incidentText = (dto.incident_text || dto.what_happened || '').trim();
+    const whatHappened = (dto.what_happened || incidentText).trim();
     const actualImpact = (dto.actual_impact || '').trim();
     const severity = (dto.severity || 'G').toUpperCase();
+    const rcaType = dto.rca_type === 'mini' ? 'mini' : 'standard';
+    const analysisMode = dto.analysis_mode === 'basic' ? 'basic' : 'full';
+
+    if (!incidentText && !topic) {
+      throw new BadRequestException('กรุณาระบุเนื้อหาเหตุการณ์ที่ต้องการให้ AI วิเคราะห์');
+    }
+
+    let aiFallbackNotice = '';
+    const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
+    if (process.env.AI_ASSISTANT_ENABLED === 'true' && apiKey) {
+      try {
+        const { GoogleGenerativeAI } = await import('@google/generative-ai');
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({
+          model: String(process.env.GEMINI_MODEL || 'gemini-3.6-flash').trim(),
+          generationConfig: { responseMimeType: 'application/json' },
+        });
+        const safeIncidentText = deidentifyIncidentText(incidentText || `${topic}\n${whatHappened}`);
+        const requestedAnalysis = analysisMode === 'full'
+          ? 'วิเคราะห์แบบเจาะลึก โดยเติม processAnalyses สำหรับ Standard Full RCA ให้ครบเท่าที่มีหลักฐานรองรับ'
+          : 'วิเคราะห์พื้นฐาน โดยเน้นสรุปเหตุการณ์ ผลกระทบ Timeline, CMPs และ CAPA และให้ processAnalyses เป็น []';
+        const requestedModel = rcaType === 'mini'
+          ? 'เคสนี้เป็น Mini RCA ให้เติม swissCheeses และให้ processAnalyses เป็น []'
+          : 'เคสนี้เป็น Standard Full RCA ให้เติม processAnalyses; swissCheeses ให้เป็น []';
+        const prompt = `คุณคือผู้เชี่ยวชาญด้านความปลอดภัยทางคลินิก (Clinical Safety) และการวิเคราะห์สาเหตุรากฐาน (Root Cause Analysis - RCA)
+จงวิเคราะห์เหตุการณ์ความเสี่ยงต่อไปนี้ และสกัดข้อมูลออกมาในรูปแบบ JSON เท่านั้น โดยไม่ต้องมีคำบรรยายอื่นใด
+
+ข้อกำหนดสำคัญในการวิเคราะห์:
+
+1. ใช้โทนภาษาที่เป็น "วิชาการ" แต่ต้อง "เชิงบวกและเข้าใจผู้ปฏิบัติงาน (Save ใจคนทำงาน)" หลีกเลี่ยงการใช้คำที่จับผิดหรือกล่าวโทษตัวบุคคล
+2. ในส่วนของสมมติฐาน (hypothesis) ให้มองในมุมมองเชิงระบบ (System Approach) และต้องมีข้อสันนิษฐานที่เอื้อต่อความเข้าใจในบริบทความยากลำบากของคนทำงานในขณะนั้นแทรกอยู่ด้วยเสมอ (เช่น ภาระงานที่มากเกินไป, ระบบที่ไม่เอื้ออำนวย, หรือข้อจำกัดหน้างาน)
+3. แยกข้อเท็จจริงออกจากสมมติฐานอย่างชัดเจน ห้ามแต่งชื่อบุคคล เวลา ผลตรวจ การวินิจฉัย หรือผลกระทบที่ไม่มีในเนื้อหา หากข้อมูลไม่พอให้ใช้ข้อความสั้น ๆ ว่า "ยังไม่มีข้อมูลเพียงพอ"
+4. ${requestedAnalysis}
+5. ${requestedModel}
+
+โครงสร้าง JSON ที่ต้องการ:
+{
+  "topic": "สรุปชื่อเรื่อง/หัวข้อปัญหาหลักให้สั้นกระชับและชัดเจน",
+  "severity": "clinical หรือ general",
+  "whatHappened": "สรุปเหตุการณ์ที่เกิดขึ้นสั้น ๆ ให้ได้ใจความ (ใคร ทำอะไร ที่ไหน เมื่อไหร่ อย่างไร)",
+  "actualImpact": "ผลกระทบที่เกิดขึ้นจริงกับผู้ป่วยหรือระบบ",
+  "potentialImpact": "ผลกระทบที่อาจเกิดขึ้นได้หากไม่ได้รับการแก้ไขหรือรุนแรงกว่านี้",
+  "timelines": [
+    { "eventTime": "เวลาหรือช่วงเวลาจากข้อเท็จจริง", "description": "เหตุการณ์", "isCriticalPoint": false }
+  ],
+  "cmps": [
+    { "observation": "สิ่งที่สังเกตพบที่เป็นปัญหา", "hypothesis": "สมมติฐานเชิงระบบและบริบทหน้างาน", "comment": "ข้อคิดเห็นหรือการแก้ไขเฉพาะหน้า" }
+  ],
+  "processAnalyses": [
+    { "processKey": "ชื่อกระบวนการดูแล", "problem": "CMP ของกระบวนการ", "tier1Personnel": "บุคคล/ผู้ป่วย", "tier2Teamwork": "งานและทีม", "tier3Environment": "สิ่งแวดล้อม/เครื่องมือ", "tier4Policy": "การบริหาร/องค์กร", "tier5External": "ปัจจัยภายนอก", "correctiveAction": "เป้าหมายหรือการออกแบบระบบใหม่" }
+  ],
+  "swissCheeses": [
+    { "layer": "ชั้นของแนวป้องกัน", "hole": "ช่องโหว่เชิงระบบ" }
+  ],
+  "capas": [
+    { "action": "มาตรการ", "type": "immediate หรือ preventive หรือ systemic", "responsible": "หน่วยงาน/บทบาทผู้รับผิดชอบ", "dueDate": "YYYY-MM-DD หรือค่าว่าง", "status": "pending" }
+  ]
+}
+
+วิเคราะห์และสกัดให้ครอบคลุมเหตุการณ์มากที่สุด โดย cmps และ capas สามารถมีได้หลายข้อตามจำนวนปัญหาและมาตรการที่พบในเหตุการณ์
+ห้ามใส่ markdown code fence และห้ามมีข้อความใดนอก JSON
+
+เนื้อหาเหตุการณ์:
+--- เริ่มเนื้อหา ---
+${safeIncidentText}
+--- จบเนื้อหา ---`;
+
+        const result = await model.generateContent(prompt);
+        const rawText = result.response.text().trim();
+        const cleaned = rawText
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/\s*```$/i, '')
+          .trim();
+        const parsed = JSON.parse(cleaned);
+        const timelines = Array.isArray(parsed?.timelines)
+          ? parsed.timelines.map((item: any) => ({
+              event_time: String(item?.eventTime || item?.event_time || '').trim(),
+              event_description: String(item?.description || item?.eventDescription || item?.event_description || '').trim(),
+              is_critical_point: Boolean(item?.isCriticalPoint ?? item?.is_critical_point),
+            })).filter((item: any) => item.event_time || item.event_description)
+          : [];
+        const cmps = Array.isArray(parsed?.cmps)
+          ? parsed.cmps.map((item: any) => ({
+              observation: String(item?.observation || '').trim(),
+              hypothesis: String(item?.hypothesis || '').trim(),
+              comment: String(item?.comment || '').trim(),
+            })).filter((item: any) => item.observation || item.hypothesis || item.comment)
+          : [];
+        const processAnalysesRaw = parsed?.processAnalyses || parsed?.process_analyses;
+        const process_analyses = analysisMode === 'full' && rcaType === 'standard' && Array.isArray(processAnalysesRaw)
+          ? processAnalysesRaw.map((item: any) => ({
+              process_key: String(item?.processKey || item?.process_key || '').trim(),
+              problem: String(item?.problem || '').trim(),
+              tier1_personnel: String(item?.tier1Personnel || item?.tier1_personnel || '').trim(),
+              tier2_teamwork: String(item?.tier2Teamwork || item?.tier2_teamwork || '').trim(),
+              tier3_environment: String(item?.tier3Environment || item?.tier3_environment || '').trim(),
+              tier4_policy: String(item?.tier4Policy || item?.tier4_policy || '').trim(),
+              tier5_external: String(item?.tier5External || item?.tier5_external || '').trim(),
+              corrective_action: String(item?.correctiveAction || item?.corrective_action || '').trim(),
+            })).filter((item: any) => item.process_key || item.problem)
+          : [];
+        const swissCheesesRaw = parsed?.swissCheeses || parsed?.swiss_cheeses;
+        const swiss_cheeses = rcaType === 'mini' && Array.isArray(swissCheesesRaw)
+          ? swissCheesesRaw.map((item: any) => ({
+              layer: String(item?.layer || '').trim(),
+              hole: String(item?.hole || '').trim(),
+            })).filter((item: any) => item.layer || item.hole)
+          : [];
+        const capas = Array.isArray(parsed?.capas)
+          ? parsed.capas.map((item: any) => ({
+              action: String(item?.action || '').trim(),
+              type: ['immediate', 'preventive', 'systemic'].includes(String(item?.type)) ? String(item.type) : 'preventive',
+              responsible: String(item?.responsible || '').trim(),
+              due_date: String(item?.dueDate || item?.due_date || '').trim(),
+              status: String(item?.status || 'pending').trim(),
+            })).filter((item: any) => item.action)
+          : [];
+
+        return {
+          topic_refined: String(parsed?.topic || parsed?.topic_refined || topic).trim(),
+          risk_classification: String(parsed?.severity || '').trim(),
+          what_happened_summary: String(parsed?.whatHappened || parsed?.what_happened_summary || '').trim(),
+          actual_impact_summary: String(parsed?.actualImpact || parsed?.actual_impact_summary || '').trim(),
+          potential_impact_summary: String(parsed?.potentialImpact || parsed?.potential_impact_summary || '').trim(),
+          contributing_factors: [],
+          fishbones: [],
+          whys: [],
+          timelines,
+          cmps,
+          process_analyses,
+          swiss_cheeses,
+          capas,
+          analysis_source: 'gemini',
+          analysis_mode: analysisMode,
+        };
+      } catch (error) {
+        console.error('Gemini RCA assistance failed; using local fallback', error);
+        aiFallbackNotice = 'การเชื่อมต่อ AI ภายนอกไม่สำเร็จ ระบบจึงใช้การวิเคราะห์สำรองภายในเครื่อง';
+      }
+    } else {
+      aiFallbackNotice = 'ขณะนี้โรงพยาบาลยังไม่ได้เปิดการประมวลผล AI ภายนอก ระบบจึงใช้การวิเคราะห์สำรองภายในเครื่อง';
+    }
 
     const text = `${topic} ${whatHappened} ${actualImpact}`.toLowerCase();
 
@@ -1301,12 +1448,15 @@ export class RcaService {
       fishbones,
       whys,
       cmps,
-      process_analyses,
-      swiss_cheeses,
+      process_analyses: analysisMode === 'full' && rcaType === 'standard' ? process_analyses : [],
+      swiss_cheeses: rcaType === 'mini' ? swiss_cheeses : [],
       capas,
       timelines,
       rca_team_suggestion: 'คณะกรรมการบริหารความเสี่ยง (RM) ร่วมกับทีมนำทางคลินิก (PCT) และหน่วยงานที่เกิดเหตุ',
       reviewers_suggestion: 'นพ.ประธาน PCT, พยาบาลหัวหน้าตึก, เภสัชกรประจำหอผู้ป่วย, พยาบาลผู้จัดการความเสี่ยง (RM Coordinator)',
+      analysis_source: 'local_fallback',
+      analysis_mode: analysisMode,
+      analysis_notice: aiFallbackNotice,
     };
   }
 }

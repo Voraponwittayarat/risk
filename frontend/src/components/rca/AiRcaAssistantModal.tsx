@@ -41,6 +41,10 @@ interface AiData {
   timelines?: Array<{ event_time: string; event_description: string; is_critical_point: boolean }>;
   rca_team_suggestion?: string;
   reviewers_suggestion?: string;
+  risk_classification?: string;
+  analysis_source?: 'gemini' | 'local_fallback';
+  analysis_mode?: 'basic' | 'full';
+  analysis_notice?: string;
 }
 
 interface AiRcaAssistantModalProps {
@@ -50,6 +54,7 @@ interface AiRcaAssistantModalProps {
   whatHappened: string;
   actualImpact?: string;
   severity?: string;
+  rcaType?: 'standard' | 'mini';
   onApply: (aiData: AiData, selectedSections: string[]) => void;
 }
 
@@ -60,11 +65,14 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
   whatHappened,
   actualImpact,
   severity = 'G',
+  rcaType = 'standard',
   onApply,
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aiData, setAiData] = useState<AiData | null>(null);
+  const [incidentText, setIncidentText] = useState('');
+  const [analysisMode, setAnalysisMode] = useState<'basic' | 'full'>('full');
 
   // Selected sections to import
   const [selectedSections, setSelectedSections] = useState<Record<string, boolean>>({
@@ -85,30 +93,47 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
     setSelectedSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (mode: 'basic' | 'full' = analysisMode) => {
+    if (!incidentText.trim()) {
+      setError('กรุณาระบุรายละเอียดเหตุการณ์ก่อนเริ่มวิเคราะห์');
+      return;
+    }
     setLoading(true);
     setError(null);
+    setAnalysisMode(mode);
     try {
       const res = await axios.post(`${API_BASE}/rca/ai-assist`, {
         topic: topic || 'อุบัติการณ์ความเสี่ยงทางคลินิก',
         what_happened: whatHappened || '',
         actual_impact: actualImpact || '',
         severity: severity,
+        incident_text: incidentText.trim(),
+        rca_type: rcaType,
+        analysis_mode: mode,
       });
       setAiData(res.data);
     } catch (err: any) {
       console.error('Failed to generate AI RCA:', err);
-      setError('ไม่สามารถเชื่อมต่อระบบ AI ได้ กำลังเปิดใช้งานโหมดสำรองในเครื่อง...');
+      setError(err?.response?.data?.message || 'ไม่สามารถวิเคราะห์ข้อมูลได้ กรุณาตรวจสอบการเชื่อมต่อแล้วลองใหม่');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (isOpen && !aiData && !loading) {
-      handleGenerate();
+    if (isOpen) {
+      const initialText = [
+        topic ? `หัวข้อเหตุการณ์: ${topic}` : '',
+        whatHappened ? `รายละเอียดเหตุการณ์: ${whatHappened}` : '',
+        actualImpact ? `ผลกระทบที่เกิดขึ้นจริง: ${actualImpact}` : '',
+        severity ? `ระดับความรุนแรงที่บันทึกไว้: ${severity}` : '',
+      ].filter(Boolean).join('\n\n');
+      setIncidentText(initialText);
+      setAiData(null);
+      setError(null);
+      setAnalysisMode('full');
     }
-  }, [isOpen]);
+  }, [isOpen, topic, whatHappened, actualImpact, severity]);
 
   if (!isOpen) return null;
 
@@ -151,7 +176,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-purple-100 mt-0.5">
-                วิเคราะห์ปัจจัยร่วม NRLS 2569, 5 Whys, 5 Tiers, CMPs, Swiss Cheese และมาตรการ CAPA ตามมาตรฐาน HA
+                Clinical Safety • System Approach • ภาษาวิชาการที่เข้าใจและไม่กล่าวโทษผู้ปฏิบัติงาน
               </p>
             </div>
           </div>
@@ -175,9 +200,9 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
             )}
           </div>
           <button
-            onClick={handleGenerate}
+            onClick={() => handleGenerate(analysisMode)}
             disabled={loading}
-            className="flex items-center gap-1 text-purple-600 dark:text-purple-400 hover:underline font-medium ml-4 shrink-0"
+            className={`flex items-center gap-1 text-purple-600 dark:text-purple-400 hover:underline font-medium ml-4 shrink-0 ${aiData ? '' : 'invisible'}`}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             วิเคราะห์ใหม่
@@ -201,21 +226,61 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                 </p>
               </div>
             </div>
-          ) : error ? (
-            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 text-amber-800 dark:text-amber-300 text-sm flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 shrink-0" />
+          ) : !aiData ? (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-purple-200 bg-purple-50/50 p-4 dark:border-purple-900/60 dark:bg-purple-950/20">
+                <div className="flex items-start gap-3">
+                  <Bot className="mt-0.5 h-5 w-5 shrink-0 text-purple-600 dark:text-purple-400" />
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">วางรายละเอียดเหตุการณ์ที่ต้องการให้ AI ช่วยวิเคราะห์</h4>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                      ระบบจะสกัดหัวข้อ ผลกระทบ Timeline, CMPs และ CAPA โดยใช้มุมมองเชิงระบบ หากเลือกแบบเจาะลึกจะรวม Clinical Process Analysis 5-Tier ด้วย
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+                  <AlertTriangle className="h-5 w-5 shrink-0" />
+                  <p className="font-medium">{error}</p>
+                </div>
+              )}
+
               <div>
-                <p className="font-medium">{error}</p>
-                <button
-                  onClick={handleGenerate}
-                  className="mt-2 text-xs font-semibold px-3 py-1 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
-                >
-                  ลองใหม่อีกครั้ง
-                </button>
+                <label htmlFor="rca-ai-incident-text" className="mb-2 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  เนื้อหาเหตุการณ์ <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  id="rca-ai-incident-text"
+                  rows={13}
+                  value={incidentText}
+                  onChange={(event) => setIncidentText(event.target.value)}
+                  placeholder="วางข้อความเหตุการณ์ที่นี่..."
+                  className="w-full resize-y rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-relaxed text-slate-800 shadow-inner outline-none transition focus:border-purple-500 focus:ring-4 focus:ring-purple-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-purple-950"
+                />
+                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                  <span>ตรวจสอบและลบข้อมูลระบุตัวบุคคลที่ไม่จำเป็นก่อนส่งวิเคราะห์</span>
+                  <span>{incidentText.trim().length.toLocaleString('th-TH')} ตัวอักษร</span>
+                </div>
               </div>
             </div>
-          ) : aiData ? (
+          ) : (
             <div className="space-y-4">
+              {aiData.analysis_notice && (
+                <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>{aiData.analysis_notice}</span>
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className={`rounded-full px-2.5 py-1 font-bold ${aiData.analysis_source === 'gemini' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                  {aiData.analysis_source === 'gemini' ? 'AI Clinical Safety' : 'โหมดวิเคราะห์สำรอง'}
+                </span>
+                <span className="rounded-full bg-purple-100 px-2.5 py-1 font-bold text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                  {aiData.analysis_mode === 'basic' ? 'วิเคราะห์พื้นฐาน' : 'วิเคราะห์เจาะลึก'}
+                </span>
+              </div>
               <div className="flex items-center justify-between text-xs text-slate-500 pb-2 border-b border-slate-200 dark:border-slate-800">
                 <span>เลือกหัวข้อที่ต้องการนำไปเติมลงในแบบฟอร์ม:</span>
                 <div className="flex gap-2">
@@ -259,6 +324,74 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                     ยกเลิกทั้งหมด
                   </button>
                 </div>
+              </div>
+
+              {/* Incident summary and impact */}
+              <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+                <div
+                  className="flex cursor-pointer items-center justify-between bg-slate-50 px-4 py-3 dark:bg-slate-800/60"
+                  onClick={() => setExpandedSection(expandedSection === 'problem' ? null : 'problem')}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedSections.problem_impact}
+                      onChange={(event) => {
+                        event.stopPropagation();
+                        toggleSectionSelect('problem_impact');
+                      }}
+                      className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                    />
+                    <div>
+                      <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">สรุปเหตุการณ์และผลกระทบ</div>
+                      {aiData.risk_classification && <div className="mt-0.5 text-[10px] font-bold uppercase text-purple-600 dark:text-purple-400">{aiData.risk_classification === 'clinical' ? 'ความเสี่ยงทางคลินิก' : aiData.risk_classification === 'general' ? 'ความเสี่ยงทั่วไป' : aiData.risk_classification}</div>}
+                    </div>
+                  </div>
+                  {expandedSection === 'problem' ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                </div>
+                {expandedSection === 'problem' && (
+                  <div className="space-y-3 bg-white p-4 text-xs dark:bg-slate-900">
+                    <div><span className="font-bold text-purple-700 dark:text-purple-300">หัวข้อ: </span><span className="text-slate-700 dark:text-slate-300">{aiData.topic_refined || '-'}</span></div>
+                    <div><span className="font-bold text-slate-700 dark:text-slate-300">เหตุการณ์: </span><span className="text-slate-600 dark:text-slate-400">{aiData.what_happened_summary || '-'}</span></div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-lg bg-rose-50 p-3 dark:bg-rose-950/20"><span className="font-bold text-rose-700 dark:text-rose-300">ผลกระทบจริง: </span><span className="text-slate-700 dark:text-slate-300">{aiData.actual_impact_summary || '-'}</span></div>
+                      <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/20"><span className="font-bold text-amber-700 dark:text-amber-300">ผลกระทบที่อาจเกิด: </span><span className="text-slate-700 dark:text-slate-300">{aiData.potential_impact_summary || '-'}</span></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Timeline */}
+              <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+                <div
+                  className="flex cursor-pointer items-center justify-between bg-slate-50 px-4 py-3 dark:bg-slate-800/60"
+                  onClick={() => setExpandedSection(expandedSection === 'timeline' ? null : 'timeline')}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedSections.timeline}
+                      onChange={(event) => {
+                        event.stopPropagation();
+                        toggleSectionSelect('timeline');
+                      }}
+                      className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                    />
+                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">เส้นเวลาลำดับเหตุการณ์</span>
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">{aiData.timelines?.length || 0} รายการ</span>
+                  </div>
+                  {expandedSection === 'timeline' ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                </div>
+                {expandedSection === 'timeline' && (
+                  <div className="space-y-2 bg-white p-4 dark:bg-slate-900">
+                    {aiData.timelines?.length ? aiData.timelines.map((item, index) => (
+                      <div key={`${item.event_time}-${index}`} className={`flex gap-3 rounded-lg border p-3 text-xs ${item.is_critical_point ? 'border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/30'}`}>
+                        <span className="w-24 shrink-0 font-bold text-slate-700 dark:text-slate-300">{item.event_time || 'ไม่ระบุเวลา'}</span>
+                        <span className="text-slate-600 dark:text-slate-400">{item.event_description}</span>
+                      </div>
+                    )) : <p className="text-xs text-slate-500">AI ไม่พบข้อมูลลำดับเวลาที่ชัดเจนจากเนื้อหา</p>}
+                  </div>
+                )}
               </div>
 
               {/* 1. NRLS Contributing Factors Section */}
@@ -432,6 +565,48 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                 )}
               </div>
 
+              {rcaType === 'standard' && (
+                <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+                  <div
+                    className="flex cursor-pointer items-center justify-between bg-slate-50 px-4 py-3 dark:bg-slate-800/60"
+                    onClick={() => setExpandedSection(expandedSection === 'process' ? null : 'process')}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedSections.process}
+                        onChange={(event) => {
+                          event.stopPropagation();
+                          toggleSectionSelect('process');
+                        }}
+                        className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Clinical Process Analysis (5-Tier)</span>
+                      <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">{aiData.process_analyses?.length || 0} กระบวนการ</span>
+                    </div>
+                    {expandedSection === 'process' ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                  </div>
+                  {expandedSection === 'process' && (
+                    <div className="space-y-3 bg-white p-4 dark:bg-slate-900">
+                      {aiData.process_analyses?.length ? aiData.process_analyses.map((process, index) => (
+                        <div key={`${process.process_key}-${index}`} className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 text-xs dark:border-indigo-900 dark:bg-indigo-950/20">
+                          <div className="font-bold text-indigo-700 dark:text-indigo-300">{process.process_key || `กระบวนการที่ ${index + 1}`}</div>
+                          <div className="mt-2 text-slate-700 dark:text-slate-300"><span className="font-bold">CMP: </span>{process.problem || '-'}</div>
+                          <div className="mt-2 grid gap-1 text-[11px] text-slate-600 dark:text-slate-400 md:grid-cols-2">
+                            <div><b>Tier 1 บุคคล:</b> {process.tier1_personnel || '-'}</div>
+                            <div><b>Tier 2 งาน/ทีม:</b> {process.tier2_teamwork || '-'}</div>
+                            <div><b>Tier 3 สิ่งแวดล้อม:</b> {process.tier3_environment || '-'}</div>
+                            <div><b>Tier 4 องค์กร:</b> {process.tier4_policy || '-'}</div>
+                            <div><b>Tier 5 ภายนอก:</b> {process.tier5_external || '-'}</div>
+                            <div className="font-medium text-emerald-700 dark:text-emerald-300"><b>ออกแบบระบบใหม่:</b> {process.corrective_action || '-'}</div>
+                          </div>
+                        </div>
+                      )) : <p className="text-xs text-slate-500">การวิเคราะห์พื้นฐานจะยังไม่เติมส่วนที่ 5 — กด “วิเคราะห์ใหม่” แล้วเลือกแบบเจาะลึกหากต้องการ</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 4. Swiss Cheese Model */}
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                 <div
@@ -538,7 +713,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                 )}
               </div>
             </div>
-          ) : null}
+          )}
         </div>
 
         {/* Footer Actions */}
@@ -550,15 +725,36 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
           >
             ยกเลิก
           </button>
-          <button
-            type="button"
-            onClick={handleApply}
-            disabled={!aiData || loading}
-            className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium text-sm rounded-xl shadow-lg shadow-purple-500/25 flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span>นำข้อมูลไปใส่ในฟอร์ม RCA</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          {aiData ? (
+            <button
+              type="button"
+              onClick={handleApply}
+              disabled={loading}
+              className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium text-sm rounded-xl shadow-lg shadow-purple-500/25 flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span>นำข้อมูลที่เลือกไปใส่ในฟอร์ม RCA</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => handleGenerate('basic')}
+                disabled={loading || !incidentText.trim()}
+                className="rounded-xl border border-purple-300 bg-white px-4 py-2.5 text-sm font-bold text-purple-700 transition hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-purple-800 dark:bg-slate-900 dark:text-purple-300 dark:hover:bg-purple-950/40"
+              >
+                วิเคราะห์ข้อมูล (พื้นฐาน)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGenerate('full')}
+                disabled={loading || !incidentText.trim()}
+                className="rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-purple-500/25 transition hover:from-purple-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                วิเคราะห์เจาะลึก (รวมส่วนที่ 5)
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

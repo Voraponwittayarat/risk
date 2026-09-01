@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { Search, ChevronDown, Info, X } from 'lucide-react';
+import { searchStandardRisks } from '../utils/standardRiskSearch';
+import { getNrlsRiskKindLabel } from '../utils/nrlsClassification';
+import { isSelectableLocalRisk } from '../utils/localRiskStatus';
 
 interface StandardRiskSelectorProps {
   onSelect: (nrlsCode: string | null, localRiskId: number | null, nrlsRisk?: any) => void;
@@ -34,9 +37,24 @@ export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({
   // Modal state
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
+  const fetchStandardRisks = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/nrls-riskstore', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      setStandardRisks(response.data);
+    } catch (err) {
+      console.error('Failed to load NRLS riskstore', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStandardRisks();
-  }, []);
+  }, [fetchStandardRisks]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -50,26 +68,6 @@ export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const fetchStandardRisks = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await axios.get('/nrls-riskstore', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      setStandardRisks(response.data);
-
-      if (selectedNrlsCode) {
-        const found = response.data.find((r: any) => r.nrls_code === selectedNrlsCode);
-        if (found) setSelectedNrls(found);
-      }
-    } catch (err) {
-      console.error('Failed to load NRLS riskstore', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (standardRisks.length > 0 && selectedNrlsCode) {
@@ -90,16 +88,19 @@ export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({
     setSelectedLocal(selectedNrls.local_risks?.find((r: any) => Number(r.riskstore_id) === Number(selectedLocalRiskId)) || null);
   }, [selectedNrls, selectedLocalRiskId]);
 
-  const filteredNrls = standardRisks.filter(r => 
-    r.nrls_code.toLowerCase().includes(nrlsSearch.toLowerCase()) ||
-    r.name.toLowerCase().includes(nrlsSearch.toLowerCase()) ||
-    r.program?.program_name?.toLowerCase().includes(nrlsSearch.toLowerCase()) ||
-    r.group?.toLowerCase().includes(nrlsSearch.toLowerCase())
+  const filteredNrls = useMemo(
+    () => searchStandardRisks(standardRisks, nrlsSearch),
+    [standardRisks, nrlsSearch],
   );
 
-  const filteredLocal = selectedNrls?.local_risks?.filter((lr: any) => 
-    lr.riskstore_name?.toLowerCase().includes(localSearch.toLowerCase())
-  ) || [];
+  const selectableLocalRisks = useMemo(
+    () => (selectedNrls?.local_risks || []).filter(isSelectableLocalRisk),
+    [selectedNrls],
+  );
+  const selectedLocalIsInactive = Boolean(selectedLocal && !isSelectableLocalRisk(selectedLocal));
+  const filteredLocal = selectableLocalRisks.filter((lr: any) =>
+    lr.riskstore_name?.toLowerCase().includes(localSearch.toLowerCase()),
+  );
 
   const handleNrlsSelect = (risk: any) => {
     setSelectedNrls(risk);
@@ -155,32 +156,54 @@ export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({
         </div>
 
         {isNrlsDropdownOpen && (
-          <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-60 overflow-hidden flex flex-col">
+          <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-80 overflow-hidden flex flex-col">
             <div className="p-2 border-b border-slate-100 dark:border-slate-700">
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="ค้นหารหัส หรือ ชื่อความเสี่ยง..."
+                  placeholder="ค้นหา เช่น ตกเตียง, ยาผิด, เครื่องมือชำรุด..."
                   value={nrlsSearch}
                   onChange={(e) => setNrlsSearch(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border-none rounded-md outline-none"
                 />
               </div>
+              <div className="mt-1.5 px-1 text-[11px] text-slate-500 dark:text-slate-400">
+                ค้นจากชื่อ NRLS ชื่อความเสี่ยงเดิม นิยาม หมวดหมู่ และคำใกล้เคียง • พบ {filteredNrls.length} รายการ
+              </div>
             </div>
             <div className="overflow-y-auto flex-1">
-              {filteredNrls.map((risk) => (
+              {filteredNrls.map(({ risk, matchedSources, matchedLegacyNames, definitionSnippet }) => (
                 <div 
                   key={risk.nrls_code}
                   onClick={() => handleNrlsSelect(risk)}
                   className="px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border-b border-slate-50 dark:border-slate-700/50"
                 >
                   <span className="font-semibold text-blue-600 dark:text-blue-400">{risk.nrls_code}</span> : {risk.name}
-                  <div className="text-[11px] text-slate-500 mt-0.5">{risk.program?.program_name || 'ยังไม่กำหนดโปรแกรม'} • {String(risk.nrls_code).startsWith('C') ? 'Clinical' : 'General'}</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">{risk.program?.program_name || 'ยังไม่กำหนดโปรแกรม'} • {getNrlsRiskKindLabel(risk.nrls_code)}</div>
+                  {nrlsSearch.trim() && matchedSources.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {matchedSources.includes('legacy') && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">พบจากชื่อเดิม</span>}
+                      {matchedSources.includes('definition') && <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">พบจากนิยาม</span>}
+                      {matchedSources.includes('metadata') && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">พบจากหมวดหมู่</span>}
+                    </div>
+                  )}
+                  {matchedLegacyNames.length > 0 && (
+                    <div className="mt-1 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
+                      ชื่อเดิม: {matchedLegacyNames.join(' • ')}
+                    </div>
+                  )}
+                  {definitionSnippet && (
+                    <div className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-emerald-700 dark:text-emerald-300">
+                      นิยาม: {definitionSnippet}
+                    </div>
+                  )}
                 </div>
               ))}
               {filteredNrls.length === 0 && (
-                <div className="px-3 py-4 text-sm text-center text-slate-500">ไม่พบข้อมูล</div>
+                <div className="px-3 py-5 text-center text-sm text-slate-500">
+                  ไม่พบหัวข้อความเสี่ยง ลองใช้คำสั้นลงหรือคำที่อธิบายเหตุการณ์ เช่น “หกล้ม” “ยา” หรือ “เครื่องมือ”
+                </div>
               )}
             </div>
           </div>
@@ -191,7 +214,7 @@ export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({
       {selectedNrls && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <div className="rounded-lg bg-white dark:bg-slate-900 border p-3"><span className="text-slate-500">โปรแกรม (กำหนดโดย NRLS)</span><div className="font-bold mt-1">{selectedNrls.program?.program_name || '-'}</div></div>
-          <div className="rounded-lg bg-white dark:bg-slate-900 border p-3"><span className="text-slate-500">ประเภท</span><div className="font-bold mt-1">{String(selectedNrls.nrls_code).startsWith('C') ? 'Clinical' : 'General'}</div></div>
+          <div className="rounded-lg bg-white dark:bg-slate-900 border p-3"><span className="text-slate-500">ประเภท</span><div className="font-bold mt-1">{getNrlsRiskKindLabel(selectedNrls.nrls_code)}</div></div>
         </div>
       )}
 
@@ -205,8 +228,8 @@ export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({
             className="w-full min-h-[42px] px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer flex items-center justify-between"
           >
             <span className="text-sm truncate text-slate-600 dark:text-slate-400">
-              {selectedLocal ? selectedLocal.riskstore_name : (
-                selectedNrls?.local_risks?.length > 0 
+              {selectedLocal ? `${selectedLocal.riskstore_name}${selectedLocalIsInactive ? ' (ยกเลิก)' : ''}` : (
+                selectableLocalRisks.length > 0
                   ? 'เลือกอุบัติการณ์ย่อย...' 
                   : 'ไม่มีอุบัติการณ์ย่อยที่แมปกับรหัสนี้'
               )}
@@ -214,7 +237,13 @@ export const StandardRiskSelector: React.FC<StandardRiskSelectorProps> = ({
             <ChevronDown className="w-4 h-4 text-slate-400" />
           </div>
 
-          {isLocalDropdownOpen && selectedNrls?.local_risks?.length > 0 && (
+          {selectedLocalIsInactive && (
+            <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+              รายการนี้ถูกยกเลิกแล้วและคงไว้เพื่อแสดงประวัติ กรุณาเลือกชื่อความเสี่ยงเดิมรายการใหม่ หรือเว้นว่างไว้
+            </div>
+          )}
+
+          {isLocalDropdownOpen && selectableLocalRisks.length > 0 && (
             <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-60 overflow-hidden flex flex-col">
               <div className="p-2 border-b border-slate-100 dark:border-slate-700">
                 <div className="relative">

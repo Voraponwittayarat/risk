@@ -16,9 +16,11 @@ import {
   Layers,
   Sparkles,
   Eye,
+  AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { StandardRiskSelector } from '../components/StandardRiskSelector';
+import { getNrlsRiskKind } from '../utils/nrlsClassification';
 
 interface TriggerMaster {
   id: number;
@@ -37,6 +39,20 @@ interface TriggerFinding {
   trigger_id: number;
   trigger_name: string;
   detail?: string;
+}
+
+interface DepartmentOption {
+  id: number | string;
+  depart_name: string;
+}
+
+type FormErrorMap = Record<string, string>;
+
+function apiErrorMessages(error: any, fallback: string): string[] {
+  const message = error?.response?.data?.message;
+  if (Array.isArray(message)) return message.map((item) => String(item));
+  if (typeof message === 'string' && message.trim()) return [message.trim()];
+  return [fallback];
 }
 
 interface ReviewRecord {
@@ -97,7 +113,9 @@ export default function TriggerToolReview() {
   // New Review Form Modal State
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [formReviewer, setFormReviewer] = useState(user?.name || '');
-  const [formDept, setFormDept] = useState(user?.department_name || (user?.department_id ? `หน่วยที่ ${user.department_id}` : 'กลุ่มงานการพยาบาล'));
+  const [formDept, setFormDept] = useState(user?.department_name || '');
+  const [formDepartmentId, setFormDepartmentId] = useState(String(user?.department_id || ''));
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [formHn, setFormHn] = useState('');
   const [formAn, setFormAn] = useState('');
   const [formAdmitDate, setFormAdmitDate] = useState('');
@@ -116,6 +134,28 @@ export default function TriggerToolReview() {
   const [aeDescription, setAeDescription] = useState('');
   const [savingReview, setSavingReview] = useState(false);
   const [reviewToConfirm, setReviewToConfirm] = useState<ReviewRecord | null>(null);
+  const [reviewFormErrors, setReviewFormErrors] = useState<FormErrorMap>({});
+  const [confirmationErrors, setConfirmationErrors] = useState<FormErrorMap>({});
+
+  const clearReviewError = (field: string) => {
+    setReviewFormErrors((current) => {
+      if (!current[field] && !current.server) return current;
+      const next = { ...current };
+      delete next[field];
+      delete next.server;
+      return next;
+    });
+  };
+
+  const clearConfirmationError = (field: string) => {
+    setConfirmationErrors((current) => {
+      if (!current[field] && !current.server) return current;
+      const next = { ...current };
+      delete next[field];
+      delete next.server;
+      return next;
+    });
+  };
 
   const resetReviewForm = () => {
     setSelectedTriggers([]);
@@ -133,20 +173,28 @@ export default function TriggerToolReview() {
     setFormAdmitDate('');
     setFormDischargeDate('');
     setFormDiagnosis('');
+    setFormReviewer(user?.name || '');
+    setFormDepartmentId(String(user?.department_id || ''));
+    setFormDept(user?.department_name || '');
+    setReviewFormErrors({});
   };
 
-  const handleRiskTopicSelect = (nrlsCode: string | null, localRiskId: number | null, nrlsRisk?: any) => {
+  const handleRiskTopicSelect = (nrlsCode: string | null, localRiskId: number | null) => {
     setSelectedNrlsCode(nrlsCode);
     setSelectedLocalRiskId(localRiskId);
+    clearReviewError('nrls');
+    clearConfirmationError('nrls');
     if (!nrlsCode) {
       setSelectedRiskKind(null);
       setSeverityLevel('');
       return;
     }
-    const group = String(nrlsRisk?.group || '').toUpperCase();
-    const nextKind: 'clinical' | 'general' = nrlsCode.startsWith('C') || group.includes('CLINICAL') || group.includes('คลินิก')
-      ? 'clinical'
-      : 'general';
+    const nextKind = getNrlsRiskKind(nrlsCode);
+    if (!nextKind) {
+      setSelectedRiskKind(null);
+      setSeverityLevel('');
+      return;
+    }
     setSelectedRiskKind((currentKind) => {
       if (currentKind && currentKind !== nextKind) setSeverityLevel('');
       return nextKind;
@@ -160,6 +208,9 @@ export default function TriggerToolReview() {
     setSelectedRiskKind(null);
     setSeverityLevel('');
     setAeDescription(review.ae_description || '');
+    setFormDepartmentId(String(user?.department_id || ''));
+    setFormDept(user?.department_name || '');
+    setConfirmationErrors({});
     setReviewToConfirm(review);
   };
 
@@ -206,7 +257,22 @@ export default function TriggerToolReview() {
   useEffect(() => {
     fetchMaster();
     fetchReviews();
+    axios.get('/departments')
+      .then((response) => setDepartments(Array.isArray(response.data) ? response.data : []))
+      .catch(() => setDepartments([]));
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    if (!formReviewer.trim()) setFormReviewer(user.name || '');
+    if (!formDepartmentId && user.department_id) setFormDepartmentId(String(user.department_id));
+    if (!formDept.trim() && user.department_name) setFormDept(user.department_name);
+  }, [user, formDepartmentId, formDept, formReviewer]);
+
+  useEffect(() => {
+    const department = departments.find((item) => String(item.id) === formDepartmentId);
+    if (department && department.depart_name !== formDept) setFormDept(department.depart_name);
+  }, [departments, formDepartmentId, formDept]);
 
   // Handle Master Save/Update
   const handleSaveMaster = async (e: React.FormEvent) => {
@@ -222,7 +288,7 @@ export default function TriggerToolReview() {
       setIsMasterModalOpen(false);
       setEditingMaster(null);
       fetchMaster();
-    } catch (err) {
+    } catch {
       alert('บันทึกข้อมูลไม่สำเร็จ');
     }
   };
@@ -233,7 +299,7 @@ export default function TriggerToolReview() {
     try {
       await axios.delete(`/trigger-tools/master/${id}`);
       fetchMaster();
-    } catch (err) {
+    } catch {
       alert('ลบไม่สำเร็จ');
     }
   };
@@ -241,30 +307,16 @@ export default function TriggerToolReview() {
   // Handle Create Review Submit
   const handleSaveReview = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formHn.trim() || !formReviewer.trim()) {
-      alert('กรุณาระบุ HN และชื่อผู้ทบทวน');
-      return;
-    }
-    if (selectedTriggers.length === 0) {
-      alert('กรุณาเลือก Trigger ที่ตรวจพบอย่างน้อย 1 รายการ');
-      return;
-    }
-    if (!riskConfirmed) {
-      alert('กรุณากดยืนยันว่าเป็นความเสี่ยงก่อนสร้างรายงานอุบัติการณ์');
-      return;
-    }
-    if (!selectedNrlsCode) {
-      alert('กรุณาเลือกหัวข้อความเสี่ยงตามมาตรฐาน NRLS');
-      return;
-    }
-    if (!severityLevel) {
-      alert('กรุณาเลือกระดับความรุนแรงของความเสี่ยง');
-      return;
-    }
-    if (!aeDescription.trim()) {
-      alert('กรุณาระบุรายละเอียดเหตุการณ์/ข้อเท็จจริงที่พบจากเวชระเบียน');
-      return;
-    }
+    const errors: FormErrorMap = {};
+    if (!formHn.trim()) errors.hn = 'กรุณาระบุ HN (เลขประจำตัวผู้ป่วย)';
+    if (!formReviewer.trim()) errors.reviewer = 'กรุณาระบุชื่อผู้ทบทวน';
+    if (!formDepartmentId.trim() || !formDept.trim()) errors.department = 'กรุณาเลือกหน่วยงานต้นทางจากรายการ';
+    if (selectedTriggers.length === 0) errors.triggers = 'กรุณาเลือก Trigger ที่ตรวจพบอย่างน้อย 1 รายการ';
+    if (!aeDescription.trim()) errors.description = 'กรุณาระบุรายละเอียดเหตุการณ์/ข้อเท็จจริงที่พบจากเวชระเบียน';
+    if (!selectedNrlsCode) errors.nrls = 'กรุณาเลือกหัวข้อความเสี่ยงตามมาตรฐาน NRLS';
+    if (!severityLevel) errors.severity = 'กรุณาเลือกระดับความรุนแรงของความเสี่ยง';
+    setReviewFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
     const safeList = Array.isArray(masterList) ? masterList : [];
     const findings: TriggerFinding[] = selectedTriggers.map((tId) => {
@@ -290,29 +342,29 @@ export default function TriggerToolReview() {
       severity_level: severityLevel,
       preventability: hasAe ? preventability : undefined,
       ae_description: aeDescription.trim(),
-      risk_confirmed: riskConfirmed,
+      risk_confirmed: true,
       nrls_code: selectedNrlsCode,
       riskstore_id: selectedLocalRiskId,
-      department_id: String(user?.department_id || ''),
+      department_id: formDepartmentId,
       findings,
     };
 
     try {
       setSavingReview(true);
       const res = await axios.post('/trigger-tools/reviews', payload);
-      setIsReviewModalOpen(false);
-      await fetchReviews();
       const rmNo = res.data?.incident?.id_risk || res.data?.riskregister_id_risk || res.data?.incident?.id;
-      alert(`บันทึกการทบทวนและสร้างรายงานอุบัติการณ์ 1 รายการเรียบร้อยแล้ว${rmNo ? `\nRM No. ${rmNo}` : ''}`);
-
-      // If Adverse Event or Error detected, prompt user to forward to Standard RCA immediately
-      if (hasAe || hasError) {
-        if (window.confirm('ตรวจพบ Adverse Event / Error! คุณต้องการเปิดเคส Standard RCA เพื่อวิเคราะห์เชิงลึกทันทีหรือไม่?')) {
-          handleForwardToRca(res.data.id);
-        }
+      try {
+        const rcaResponse = await axios.post(`/trigger-tools/reviews/${res.data.id}/forward-to-rca`);
+        setIsReviewModalOpen(false);
+        navigate(`/rca/standard/${rcaResponse.data.rca_id}`);
+      } catch (rcaError: any) {
+        setIsReviewModalOpen(false);
+        await fetchReviews();
+        const reason = apiErrorMessages(rcaError, 'ไม่สามารถเปิด Standard Full RCA ได้').join(' • ');
+        alert(`สร้างรายงานอุบัติการณ์เรียบร้อยแล้ว${rmNo ? `\nRM No. ${rmNo}` : ''}\nแต่เปิด Full RCA ไม่สำเร็จ: ${reason}\nสามารถกด “ส่งทำ Standard RCA” จากรายการทบทวนได้ภายหลัง`);
       }
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกการทบทวน');
+      setReviewFormErrors({ server: apiErrorMessages(err, 'เกิดข้อผิดพลาดในการบันทึกการทบทวน').join(' • ') });
     } finally {
       setSavingReview(false);
     }
@@ -326,7 +378,7 @@ export default function TriggerToolReview() {
       alert(res.data.message || 'ส่งต่อไปยัง Standard RCA เรียบร้อยแล้ว!');
       fetchReviews();
       navigate(`/rca/standard/${res.data.rca_id}`);
-    } catch (err) {
+    } catch {
       alert('ไม่สามารถส่งต่อไปยัง Standard RCA ได้');
     } finally {
       setLoading(false);
@@ -336,10 +388,14 @@ export default function TriggerToolReview() {
   const handleConfirmExistingReview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reviewToConfirm) return;
-    if (!riskConfirmed || !selectedNrlsCode || !severityLevel || !aeDescription.trim()) {
-      alert('กรุณายืนยันความเสี่ยง เลือกหัวข้อ NRLS ระดับความรุนแรง และระบุข้อเท็จจริงให้ครบ');
-      return;
-    }
+    const errors: FormErrorMap = {};
+    if (!formDepartmentId.trim()) errors.department = 'กรุณาเลือกหน่วยงานต้นทางสำหรับรายงานอุบัติการณ์';
+    if (!riskConfirmed) errors.confirmation = 'กรุณายืนยันว่ารายการทบทวนนี้เป็นความเสี่ยง';
+    if (!selectedNrlsCode) errors.nrls = 'กรุณาเลือกหัวข้อความเสี่ยงตามมาตรฐาน NRLS';
+    if (!severityLevel) errors.severity = 'กรุณาเลือกระดับความรุนแรงของความเสี่ยง';
+    if (!aeDescription.trim()) errors.description = 'กรุณาระบุรายละเอียดเหตุการณ์/ข้อเท็จจริงที่พบจากเวชระเบียน';
+    setConfirmationErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     try {
       setSavingReview(true);
       const res = await axios.post(`/trigger-tools/reviews/${reviewToConfirm.id}/confirm-risk`, {
@@ -348,14 +404,14 @@ export default function TriggerToolReview() {
         riskstore_id: selectedLocalRiskId,
         severity_level: severityLevel,
         ae_description: aeDescription.trim(),
-        department_id: String(user?.department_id || ''),
+        department_id: formDepartmentId,
       });
       setReviewToConfirm(null);
       await fetchReviews();
       const rmNo = res.data?.incident?.id_risk || res.data?.riskregister_id_risk || res.data?.incident?.id;
       alert(`${res.data?.message || 'สร้าง Incident เรียบร้อยแล้ว'}${rmNo ? `\nRM No. ${rmNo}` : ''}`);
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'ไม่สามารถยืนยันความเสี่ยงและสร้าง Incident ได้');
+      setConfirmationErrors({ server: apiErrorMessages(err, 'ไม่สามารถยืนยันความเสี่ยงและสร้าง Incident ได้').join(' • ') });
     } finally {
       setSavingReview(false);
     }
@@ -764,7 +820,7 @@ export default function TriggerToolReview() {
 
       {/* ================= MODAL 1: NEW/EDIT MASTER TRIGGER ================= */}
       {isMasterModalOpen && editingMaster && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-slate-950/70 px-3 py-5 backdrop-blur-xs sm:px-4 sm:py-8">
           <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -884,16 +940,16 @@ export default function TriggerToolReview() {
 
       {/* ================= MODAL 2: MEDICAL RECORD REVIEW FORM ================= */}
       {isReviewModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
-          <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-6 my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-slate-950/70 px-2 py-3 backdrop-blur-xs sm:px-4 sm:py-8">
+          <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
               <div>
                 <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
                   <FileSearch className="w-5 h-5 text-emerald-500" />
                   บันทึกผลการทบทวนเวชระเบียน (Trigger Tool Review Form)
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  เมื่อยืนยันและบันทึก ระบบจะสร้างรายงานอุบัติการณ์ 1 รายการ พร้อมเลข RM สำหรับติดตามต่อ
+                  เมื่อบันทึก ระบบจะสร้างรายงานอุบัติการณ์พร้อมเลข RM แล้วเปิดหน้า Standard Full RCA ให้ทำต่อทันที
                 </p>
               </div>
               <button
@@ -904,7 +960,18 @@ export default function TriggerToolReview() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveReview} className="space-y-6">
+            <form noValidate onSubmit={handleSaveReview} className="space-y-6">
+              {Object.keys(reviewFormErrors).length > 0 && (
+                <div role="alert" aria-live="assertive" className="rounded-2xl border border-rose-300 bg-rose-50 p-4 text-rose-800 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-200">
+                  <div className="flex items-center gap-2 text-sm font-black">
+                    <AlertCircle className="h-5 w-5 shrink-0" />
+                    ยังบันทึกไม่ได้ เพราะข้อมูลต่อไปนี้ยังไม่ครบหรือไม่ถูกต้อง
+                  </div>
+                  <ul className="mt-2 list-disc space-y-1 pl-6 text-xs">
+                    {Object.values(reviewFormErrors).map((message) => <li key={message}>{message}</li>)}
+                  </ul>
+                </div>
+              )}
               {/* Section 1: Patient & Reviewer Demographics */}
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
                 <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
@@ -921,9 +988,11 @@ export default function TriggerToolReview() {
                       required
                       placeholder="เช่น 68001234"
                       value={formHn}
-                      onChange={(e) => setFormHn(e.target.value)}
-                      className="w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold"
+                      onChange={(e) => { setFormHn(e.target.value); clearReviewError('hn'); }}
+                      aria-invalid={Boolean(reviewFormErrors.hn)}
+                      className={`w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border text-slate-900 dark:text-white font-bold ${reviewFormErrors.hn ? 'border-rose-500 ring-2 ring-rose-500/15' : 'border-slate-300 dark:border-slate-700'}`}
                     />
+                    {reviewFormErrors.hn && <p className="mt-1 text-[11px] font-semibold text-rose-600">{reviewFormErrors.hn}</p>}
                   </div>
 
                   <div>
@@ -947,22 +1016,37 @@ export default function TriggerToolReview() {
                       type="text"
                       required
                       value={formReviewer}
-                      onChange={(e) => setFormReviewer(e.target.value)}
-                      className="w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                      onChange={(e) => { setFormReviewer(e.target.value); clearReviewError('reviewer'); }}
+                      aria-invalid={Boolean(reviewFormErrors.reviewer)}
+                      className={`w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border text-slate-900 dark:text-white ${reviewFormErrors.reviewer ? 'border-rose-500 ring-2 ring-rose-500/15' : 'border-slate-300 dark:border-slate-700'}`}
                     />
+                    {reviewFormErrors.reviewer && <p className="mt-1 text-[11px] font-semibold text-rose-600">{reviewFormErrors.reviewer}</p>}
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
                       หน่วยงาน/แผนก *
                     </label>
-                    <input
-                      type="text"
+                    <select
                       required
-                      value={formDept}
-                      onChange={(e) => setFormDept(e.target.value)}
-                      className="w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
-                    />
+                      value={formDepartmentId}
+                      onChange={(e) => {
+                        const departmentId = e.target.value;
+                        const department = departments.find((item) => String(item.id) === departmentId);
+                        setFormDepartmentId(departmentId);
+                        setFormDept(department?.depart_name || '');
+                        clearReviewError('department');
+                      }}
+                      aria-invalid={Boolean(reviewFormErrors.department)}
+                      className={`w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border text-slate-900 dark:text-white ${reviewFormErrors.department ? 'border-rose-500 ring-2 ring-rose-500/15' : 'border-slate-300 dark:border-slate-700'}`}
+                    >
+                      <option value="">เลือกหน่วยงานต้นทาง...</option>
+                      {formDepartmentId && !departments.some((item) => String(item.id) === formDepartmentId) && (
+                        <option value={formDepartmentId}>{formDept || `หน่วยงานรหัส ${formDepartmentId}`}</option>
+                      )}
+                      {departments.map((department) => <option key={department.id} value={department.id}>{department.depart_name}</option>)}
+                    </select>
+                    {reviewFormErrors.department && <p className="mt-1 text-[11px] font-semibold text-rose-600">{reviewFormErrors.department}</p>}
                   </div>
 
                   <div className="sm:col-span-2">
@@ -1014,6 +1098,7 @@ export default function TriggerToolReview() {
                     </span>
                   </h4>
                 </div>
+                {reviewFormErrors.triggers && <p className="text-[11px] font-semibold text-rose-600">{reviewFormErrors.triggers}</p>}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto p-1 custom-scrollbar">
                   {safeMasterList
@@ -1029,6 +1114,7 @@ export default function TriggerToolReview() {
                               : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/80 hover:border-slate-300'
                           }`}
                           onClick={() => {
+                            clearReviewError('triggers');
                             if (isSelected) {
                               setSelectedTriggers(selectedTriggers.filter((id) => id !== m.id));
                             } else {
@@ -1132,50 +1218,38 @@ export default function TriggerToolReview() {
                     required
                     placeholder="ระบุสิ่งที่เกิดขึ้น ลำดับเหตุการณ์ และผลกระทบ เช่น ผู้ป่วยได้รับยาเกินขนาดจน BP drop ต้อง refer..."
                     value={aeDescription}
-                    onChange={(e) => setAeDescription(e.target.value)}
-                    className="w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-rose-300 dark:border-rose-800 text-slate-900 dark:text-white"
+                    onChange={(e) => { setAeDescription(e.target.value); clearReviewError('description'); }}
+                    aria-invalid={Boolean(reviewFormErrors.description)}
+                    className={`w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border text-slate-900 dark:text-white ${reviewFormErrors.description ? 'border-rose-500 ring-2 ring-rose-500/15 dark:border-rose-600' : 'border-slate-300 dark:border-slate-700'}`}
                   />
+                  {reviewFormErrors.description ? (
+                    <p className="mt-1 text-[11px] font-semibold text-rose-600">{reviewFormErrors.description}</p>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-slate-400">กรอบจะเปลี่ยนเป็นสีแดงเฉพาะเมื่อช่องนี้ว่างตอนกดบันทึก</p>
+                  )}
                 </div>
               </div>
 
-              {/* Section 4: Confirm and classify risk */}
+              {/* Section 4: Classify the risk reported by this review */}
               <div className="space-y-4 rounded-2xl border-2 border-emerald-300 bg-emerald-50/50 p-4 dark:border-emerald-800 dark:bg-emerald-950/20">
                 <div>
                   <h4 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
                     <CheckCircle2 className="h-4 w-4" />
-                    4. ยืนยันความเสี่ยงและเลือกเรื่องที่เป็นความเสี่ยง
+                    4. เลือกหัวข้อความเสี่ยงที่ตรวจพบ
                   </h4>
                   <p className="mt-1 text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
-                    การบันทึกครั้งนี้เทียบเท่าการรายงานอุบัติการณ์ 1 ครั้ง ระบบจะออกเลข RM และส่งเข้ารายการ “อุบัติการณ์รอยืนยัน” โดยอัตโนมัติ
+                    การบันทึกผลทบทวนครั้งนี้ถือเป็นการรายงานอุบัติการณ์ 1 ครั้งโดยอัตโนมัติ กรุณาเลือกหัวข้อความเสี่ยงและระดับความรุนแรงที่พบ ระบบจะออกเลข RM ส่งเข้ารายการ “อุบัติการณ์รอยืนยัน” และเปิดหน้า Full RCA ให้ทำต่อ
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setRiskConfirmed((value) => !value)}
-                  className={`flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-all ${
-                    riskConfirmed
-                      ? 'border-emerald-500 bg-emerald-100/80 text-emerald-900 shadow-sm dark:bg-emerald-950/50 dark:text-emerald-100'
-                      : 'border-slate-300 bg-white text-slate-700 hover:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
-                  }`}
-                >
-                  <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${riskConfirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400'}`}>
-                    {riskConfirmed && <CheckCircle2 className="h-3.5 w-3.5" />}
-                  </span>
-                  <span>
-                    <span className="block text-sm font-black">ยืนยันว่าผลการทบทวนนี้เป็นความเสี่ยง</span>
-                    <span className="mt-0.5 block text-[11px] font-normal opacity-80">ผู้ทบทวนตรวจสอบข้อเท็จจริงแล้ว และประสงค์สร้าง Incident 1 รายการ</span>
-                  </span>
-                </button>
-
-                {riskConfirmed && (
-                  <div className="space-y-4 border-t border-emerald-200 pt-4 dark:border-emerald-900">
+                <div className="space-y-4 border-t border-emerald-200 pt-4 dark:border-emerald-900">
                     <StandardRiskSelector
                       selectedNrlsCode={selectedNrlsCode}
                       selectedLocalRiskId={selectedLocalRiskId}
                       required
                       onSelect={handleRiskTopicSelect}
                     />
+                    {reviewFormErrors.nrls && <p className="text-[11px] font-semibold text-rose-600">{reviewFormErrors.nrls}</p>}
 
                     <div>
                       <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -1185,8 +1259,9 @@ export default function TriggerToolReview() {
                         required
                         disabled={!selectedRiskKind}
                         value={severityLevel}
-                        onChange={(e) => setSeverityLevel(e.target.value)}
-                        className="w-full rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-emerald-800 dark:bg-slate-800 dark:text-white dark:disabled:bg-slate-900"
+                        onChange={(e) => { setSeverityLevel(e.target.value); clearReviewError('severity'); }}
+                        aria-invalid={Boolean(reviewFormErrors.severity)}
+                        className={`w-full rounded-xl border bg-white px-3 py-2 text-xs font-bold text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:bg-slate-800 dark:text-white dark:disabled:bg-slate-900 ${reviewFormErrors.severity ? 'border-rose-500 ring-2 ring-rose-500/15' : 'border-emerald-300 dark:border-emerald-800'}`}
                       >
                         <option value="">{selectedRiskKind ? 'เลือกระดับความรุนแรง...' : 'เลือกหัวข้อความเสี่ยง NRLS ก่อน'}</option>
                         {selectedRiskKind === 'clinical' ? (
@@ -1211,12 +1286,17 @@ export default function TriggerToolReview() {
                           </>
                         ) : null}
                       </select>
+                      {reviewFormErrors.severity && <p className="mt-1 text-[11px] font-semibold text-rose-600">{reviewFormErrors.severity}</p>}
                     </div>
-                  </div>
-                )}
+                </div>
               </div>
 
               {/* Form Action Buttons */}
+              {Object.keys(reviewFormErrors).length > 0 && (
+                <div className="rounded-xl bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700 dark:bg-rose-950/30 dark:text-rose-200">
+                  บันทึกไม่ได้: {Object.values(reviewFormErrors).join(' • ')}
+                </div>
+              )}
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
@@ -1231,7 +1311,7 @@ export default function TriggerToolReview() {
                   className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 text-white text-xs font-bold shadow-lg shadow-blue-600/30 flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {savingReview ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                  {savingReview ? 'กำลังสร้าง Incident...' : 'ยืนยันและสร้าง Incident 1 รายการ'}
+                  {savingReview ? 'กำลังสร้าง Incident และ Full RCA...' : 'บันทึกและเปิด Full RCA'}
                 </button>
               </div>
             </form>
@@ -1241,8 +1321,8 @@ export default function TriggerToolReview() {
 
       {/* Confirm a historical Trigger Tool review and create its one Incident */}
       {reviewToConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-xs">
-          <div className="my-8 w-full max-w-3xl space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-slate-950/70 px-2 py-3 backdrop-blur-xs sm:px-4 sm:py-8">
+          <div className="w-full max-w-3xl space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:rounded-3xl sm:p-6">
             <div className="flex items-start justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
               <div>
                 <h3 className="flex items-center gap-2 text-lg font-black text-slate-900 dark:text-white">
@@ -1258,7 +1338,15 @@ export default function TriggerToolReview() {
               </button>
             </div>
 
-            <form onSubmit={handleConfirmExistingReview} className="space-y-4">
+            <form noValidate onSubmit={handleConfirmExistingReview} className="space-y-4">
+              {Object.keys(confirmationErrors).length > 0 && (
+                <div role="alert" aria-live="assertive" className="rounded-2xl border border-rose-300 bg-rose-50 p-4 text-rose-800 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-200">
+                  <div className="flex items-center gap-2 text-sm font-black"><AlertCircle className="h-5 w-5 shrink-0" />ยังยืนยันไม่ได้ เพราะข้อมูลต่อไปนี้ยังไม่ครบหรือไม่ถูกต้อง</div>
+                  <ul className="mt-2 list-disc space-y-1 pl-6 text-xs">
+                    {Object.values(confirmationErrors).map((message) => <li key={message}>{message}</li>)}
+                  </ul>
+                </div>
+              )}
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs dark:border-slate-800 dark:bg-slate-800/50">
                 <div className="font-bold text-slate-800 dark:text-slate-100">Trigger ที่พบ</div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1270,9 +1358,32 @@ export default function TriggerToolReview() {
                 </div>
               </div>
 
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">หน่วยงานต้นทางของรายงาน *</label>
+                <select
+                  value={formDepartmentId}
+                  onChange={(e) => {
+                    const departmentId = e.target.value;
+                    const department = departments.find((item) => String(item.id) === departmentId);
+                    setFormDepartmentId(departmentId);
+                    setFormDept(department?.depart_name || '');
+                    clearConfirmationError('department');
+                  }}
+                  aria-invalid={Boolean(confirmationErrors.department)}
+                  className={`w-full rounded-xl border bg-white px-3 py-2 text-xs text-slate-900 dark:bg-slate-800 dark:text-white ${confirmationErrors.department ? 'border-rose-500 ring-2 ring-rose-500/15' : 'border-slate-300 dark:border-slate-700'}`}
+                >
+                  <option value="">เลือกหน่วยงานต้นทาง...</option>
+                  {formDepartmentId && !departments.some((item) => String(item.id) === formDepartmentId) && (
+                    <option value={formDepartmentId}>{formDept || `หน่วยงานรหัส ${formDepartmentId}`}</option>
+                  )}
+                  {departments.map((department) => <option key={department.id} value={department.id}>{department.depart_name}</option>)}
+                </select>
+                {confirmationErrors.department && <p className="mt-1 text-[11px] font-semibold text-rose-600">{confirmationErrors.department}</p>}
+              </div>
+
               <button
                 type="button"
-                onClick={() => setRiskConfirmed((value) => !value)}
+                onClick={() => { setRiskConfirmed((value) => !value); clearConfirmationError('confirmation'); }}
                 className={`flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-all ${riskConfirmed ? 'border-emerald-500 bg-emerald-100/80 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100' : 'border-slate-300 text-slate-700 hover:border-emerald-400 dark:border-slate-700 dark:text-slate-200'}`}
               >
                 <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${riskConfirmed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-400'}`}>
@@ -1283,6 +1394,7 @@ export default function TriggerToolReview() {
                   <span className="mt-0.5 block text-[11px] font-normal opacity-80">เมื่อบันทึก ระบบจะสร้าง Incident 1 รายการและออกเลข RM</span>
                 </span>
               </button>
+              {confirmationErrors.confirmation && <p className="text-[11px] font-semibold text-rose-600">{confirmationErrors.confirmation}</p>}
 
               {riskConfirmed && (
                 <>
@@ -1292,6 +1404,7 @@ export default function TriggerToolReview() {
                     required
                     onSelect={handleRiskTopicSelect}
                   />
+                  {confirmationErrors.nrls && <p className="text-[11px] font-semibold text-rose-600">{confirmationErrors.nrls}</p>}
 
                   <div>
                     <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">ระดับความรุนแรง *</label>
@@ -1299,8 +1412,9 @@ export default function TriggerToolReview() {
                       required
                       disabled={!selectedRiskKind}
                       value={severityLevel}
-                      onChange={(e) => setSeverityLevel(e.target.value)}
-                      className="w-full rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 disabled:bg-slate-100 disabled:text-slate-400 dark:border-emerald-800 dark:bg-slate-800 dark:text-white"
+                      onChange={(e) => { setSeverityLevel(e.target.value); clearConfirmationError('severity'); }}
+                      aria-invalid={Boolean(confirmationErrors.severity)}
+                      className={`w-full rounded-xl border bg-white px-3 py-2 text-xs font-bold text-slate-900 disabled:bg-slate-100 disabled:text-slate-400 dark:bg-slate-800 dark:text-white ${confirmationErrors.severity ? 'border-rose-500 ring-2 ring-rose-500/15' : 'border-emerald-300 dark:border-emerald-800'}`}
                     >
                       <option value="">{selectedRiskKind ? 'เลือกระดับความรุนแรง...' : 'เลือกหัวข้อความเสี่ยง NRLS ก่อน'}</option>
                       {selectedRiskKind === 'clinical' ? (
@@ -1313,6 +1427,7 @@ export default function TriggerToolReview() {
                         </>
                       ) : null}
                     </select>
+                    {confirmationErrors.severity && <p className="mt-1 text-[11px] font-semibold text-rose-600">{confirmationErrors.severity}</p>}
                   </div>
 
                   <div>
@@ -1321,14 +1436,21 @@ export default function TriggerToolReview() {
                       rows={3}
                       required
                       value={aeDescription}
-                      onChange={(e) => setAeDescription(e.target.value)}
+                      onChange={(e) => { setAeDescription(e.target.value); clearConfirmationError('description'); }}
                       placeholder="ระบุข้อเท็จจริงที่พบจากเวชระเบียน"
-                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      aria-invalid={Boolean(confirmationErrors.description)}
+                      className={`w-full rounded-xl border bg-white px-3 py-2 text-xs text-slate-900 dark:bg-slate-800 dark:text-white ${confirmationErrors.description ? 'border-rose-500 ring-2 ring-rose-500/15' : 'border-slate-300 dark:border-slate-700'}`}
                     />
+                    {confirmationErrors.description && <p className="mt-1 text-[11px] font-semibold text-rose-600">{confirmationErrors.description}</p>}
                   </div>
                 </>
               )}
 
+              {Object.keys(confirmationErrors).length > 0 && (
+                <div className="rounded-xl bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700 dark:bg-rose-950/30 dark:text-rose-200">
+                  ยืนยันไม่ได้: {Object.values(confirmationErrors).join(' • ')}
+                </div>
+              )}
               <div className="flex justify-end gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
                 <button type="button" onClick={() => setReviewToConfirm(null)} disabled={savingReview} className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-300">
                   ยกเลิก

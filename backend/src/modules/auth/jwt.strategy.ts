@@ -6,7 +6,10 @@ import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 
 function resolveJwtSecret(): string {
-  if (process.env.NODE_ENV === 'test') return process.env.JWT_SECRET || 'riskhrms-test-only-secret-not-for-production';
+  if (process.env.NODE_ENV === 'test')
+    return (
+      process.env.JWT_SECRET || 'riskhrms-test-only-secret-not-for-production'
+    );
 
   const secret = String(process.env.JWT_SECRET || '').trim();
   const knownWeakValues = new Set([
@@ -17,7 +20,9 @@ function resolveJwtSecret(): string {
   if (secret.length >= 32 && !knownWeakValues.has(secret)) return secret;
 
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET must be configured with a unique value of at least 32 characters');
+    throw new Error(
+      'JWT_SECRET must be configured with a unique value of at least 32 characters',
+    );
   }
 
   // Keep local development safe and usable without placing a generated secret in
@@ -31,8 +36,13 @@ function resolveJwtSecret(): string {
     if (persistedSecret.length >= 32) return persistedSecret;
   }
   const generatedSecret = randomBytes(48).toString('hex');
-  writeFileSync(developmentSecretPath, generatedSecret, { encoding: 'utf8', mode: 0o600 });
-  console.warn(`[security] Generated a local-development JWT secret at ${developmentSecretPath}`);
+  writeFileSync(developmentSecretPath, generatedSecret, {
+    encoding: 'utf8',
+    mode: 0o600,
+  });
+  console.warn(
+    `[security] Generated a local-development JWT secret at ${developmentSecretPath}`,
+  );
   return generatedSecret;
 }
 
@@ -48,11 +58,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-
   async validate(payload: any) {
     // The payload returned here will be injected into the request object as req.user
-    return { 
-      userId: payload.sub, 
+    return {
+      userId: payload.sub,
       id: payload.sub,
       cid: payload.cid,
       departmentId: payload.departmentId,
@@ -61,6 +70,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       teamId: payload.teamId,
       teamName: payload.teamName,
       rmScope: payload.rmScope,
+      mappingPermission: payload.mappingPermission,
       name: payload.name,
       username: payload.username,
       role: payload.role,

@@ -494,7 +494,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
             <option value="">Clinical และ General</option><option value="CLINICAL">Clinical</option><option value="GENERAL">General</option>
           </select>
           <select value={selectedClassification} onChange={e => { setSelectedClassification(e.target.value); setPage(1); }} className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
-            <option value="">ทุกสถานะการยืนยัน</option><option value="PENDING">รอยืนยัน</option><option value="CONFIRMED">ยืนยันแล้ว</option><option value="NEEDS_REVIEW">ต้องตรวจสอบ</option>
+            <option value="">ทุกสถานะการยืนยัน</option><option value="PENDING">รอยืนยัน</option><option value="CONFIRMED">ยืนยันแล้ว</option><option value="NEEDS_REVIEW">ต้องตรวจสอบ</option><option value="LEGACY">ข้อมูลเดิมยังไม่มี NRLS</option>
           </select>
 
           <div className="flex items-center gap-2">

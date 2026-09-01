@@ -22,8 +22,8 @@ describe('IncidentsService incident permissions', () => {
   beforeEach(async () => {
     prisma = {
       department: { findMany: jest.fn().mockResolvedValue([{ id: 1 }, { id: 2 }]), findUnique: jest.fn() },
-      nRLS_riskstore: { findUnique: jest.fn() },
-      riskstore: { findUnique: jest.fn() },
+      nRLS_riskstore: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      riskstore: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       risk: { create: jest.fn() },
       riskregister: {
         findFirst: jest.fn(),
@@ -79,6 +79,22 @@ describe('IncidentsService incident permissions', () => {
 
     expect(prisma.riskregister.findMany.mock.calls[0][0].where).toEqual(expect.objectContaining({
       level_id: { in: expectedLevels },
+    }));
+  });
+
+  it.each([
+    ['CLINICAL', 'C'],
+    ['GENERAL', 'G'],
+  ])('filters %s incidents from the NRLS code prefix', async (nrlsType, prefix) => {
+    prisma.riskregister.findMany.mockResolvedValue([]);
+
+    await service.findAll(
+      { page: 1, limit: 15, nrls_type: nrlsType as 'CLINICAL' | 'GENERAL' },
+      { id: 1, role: 'admin', departmentId: 1 },
+    );
+
+    expect(prisma.riskregister.findMany.mock.calls[0][0].where).toEqual(expect.objectContaining({
+      nrls_code: { startsWith: prefix },
     }));
   });
 
@@ -617,6 +633,95 @@ describe('IncidentsService incident permissions', () => {
     expect(result.matrix[4][0].count).toBe(1);
   });
 
+  it('builds a sub-risk matrix from local topics and keeps NRLS-only incidents in an explicit bucket', async () => {
+    const annualRows = [
+      { ...pendingIncident, id: 20, status_risk: 'ทบทวน', sendto_team_id: 7, date_report: new Date('2025-01-10'), nrls_code: 'NRLS-01', nrls_name_snapshot: 'การพลัดตกหกล้ม', riskstore_id: 5, level_id: 'D', team_review_status: 'PENDING', program_id: null },
+      { ...pendingIncident, id: 21, status_risk: 'ทบทวน', sendto_team_id: 7, date_report: new Date('2025-02-10'), nrls_code: null, nrls_name_snapshot: null, riskstore_id: 5, level_id: 'I', team_review_status: 'PENDING', program_id: null },
+      { ...pendingIncident, id: 22, status_risk: 'ทบทวน', sendto_team_id: 7, date_report: new Date('2025-03-10'), nrls_code: 'NRLS-01', nrls_name_snapshot: 'การพลัดตกหกล้ม', riskstore_id: null, level_id: 'A', team_review_status: 'PENDING', program_id: null },
+      { ...pendingIncident, id: 23, status_risk: 'ทบทวน', sendto_team_id: 7, date_report: new Date('2025-04-10'), nrls_code: null, nrls_name_snapshot: null, riskstore_id: 6, level_id: 'E', team_review_status: 'PENDING', program_id: null },
+    ];
+    prisma.riskregister.findMany.mockResolvedValue(annualRows);
+    prisma.riskstore.findMany.mockResolvedValue([
+      { riskstore_id: 5, riskstore_name: 'ลื่นล้มในห้องน้ำ', nrls_code: 'NRLS-01' },
+      { riskstore_id: 6, riskstore_name: 'หัวข้อความเสี่ยงเฉพาะโรงพยาบาล', nrls_code: null },
+    ]);
+    prisma.nRLS_riskstore.findMany.mockResolvedValue([{ nrls_code: 'NRLS-01', name: 'การพลัดตกหกล้ม' }]);
+
+    const result = await service.getTeamWorkspace(
+      { id: 55, role: 'staff', departmentId: 9, teamId: 7 },
+      { fiscal_year: 2025 },
+    );
+
+    expect(result.summary).toMatchObject({
+      mapped_risks: 1,
+      sub_risks: 3,
+      mapped_sub_risks: 2,
+      legacy_mapped_incidents: 1,
+      nrls_without_subrisk_incidents: 1,
+      local_unmapped_incidents: 1,
+      unmapped_incidents: 1,
+    });
+    expect(result.top_risks[0]).toMatchObject({ nrls_code: 'NRLS-01', count: 3, consequence: 5 });
+    expect(result.top_sub_risks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ riskstore_id: 5, name: 'ลื่นล้มในห้องน้ำ', count: 2, mapping_status: 'NRLS_WITH_LOCAL' }),
+      expect.objectContaining({ riskstore_id: null, name: 'ยังไม่ระบุชื่อความเสี่ยงย่อย', count: 1, mapping_status: 'NRLS_NO_SUBRISK' }),
+      expect.objectContaining({ riskstore_id: 6, mapping_status: 'LOCAL_UNMAPPED' }),
+    ]));
+    expect(result.matrices.sub_risk[4][0].count).toBe(1);
+    expect(result.matrices.sub_risk_mapped[2][0].count).toBe(0);
+  });
+
+  it('uses the local risk owner as the team matrix fallback while keeping the forwarded queue separate', async () => {
+    const legacyOwnedRow = {
+      ...pendingIncident,
+      id: 30,
+      status_risk: 'ตรวจสอบ',
+      sendto_team_id: null,
+      date_report: new Date('2025-05-10'),
+      nrls_code: null,
+      nrls_name_snapshot: null,
+      riskstore_id: 8,
+      level_id: 'E',
+      team_review_status: null,
+      program_id: null,
+    };
+    prisma.riskregister.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([legacyOwnedRow]);
+    prisma.riskstore.findMany.mockResolvedValue([
+      { riskstore_id: 8, riskstore_name: 'ความเสี่ยงเดิมของ PCT', nrls_code: null, team_id: 7 },
+    ]);
+
+    const result = await service.getTeamWorkspace(
+      { id: 55, role: 'staff', departmentId: 9, teamId: 7 },
+      { fiscal_year: 2025 },
+    );
+
+    expect(prisma.riskregister.findMany.mock.calls[0][0].where.AND).toEqual(expect.arrayContaining([
+      { sendto_team_id: 7 },
+      { status_risk: { in: ['ตรวจสอบ', 'ทบทวน', 'จำหน่าย'] } },
+    ]));
+    expect(prisma.riskregister.findMany.mock.calls[1][0].where.AND[0]).toEqual({
+      OR: [
+        { sendto_team_id: 7 },
+        { sendto_team_id: null, local_risk: { team_id: 7 } },
+      ],
+    });
+    expect(result.summary).toMatchObject({
+      total: 0,
+      matrix_incidents: 1,
+      forwarded_matrix_incidents: 0,
+      local_owner_matrix_incidents: 1,
+      sub_risks: 1,
+      local_unmapped_incidents: 1,
+    });
+    expect(result.top_sub_risks[0]).toMatchObject({
+      name: 'ความเสี่ยงเดิมของ PCT',
+      mapping_status: 'LOCAL_UNMAPPED',
+    });
+    expect(result.matrices.sub_risk[2][0].count).toBe(1);
+  });
+
   it('records one audit review per incident when a team completes a batch', async () => {
     prisma.riskregister.findMany.mockResolvedValue([
       { ...pendingIncident, id: 10, id_risk: 100, status_risk: 'ทบทวน', sendto_team_id: 7, team_review_started_at: null },
@@ -642,11 +747,11 @@ describe('IncidentsService incident permissions', () => {
     await expect((service as any).resolveClassification('PT/02', null, 'A')).rejects.toThrow('ไม่พบรหัส PT/02');
   });
 
-  it('validates severity against Clinical and General NRLS groups', async () => {
+  it('derives Clinical and General severity from the C/G code prefix, not metadata', async () => {
     prisma.nRLS_riskstore.findUnique
-      .mockResolvedValueOnce({ nrls_code: 'CPP405', name: 'Clinical', group: 'อุบัติการณ์ความเสี่ยงด้านคลินิก : C', program_id: 6 })
-      .mockResolvedValueOnce({ nrls_code: 'CPP405', name: 'Clinical', group: 'อุบัติการณ์ความเสี่ยงด้านคลินิก : C', program_id: 6 })
-      .mockResolvedValueOnce({ nrls_code: 'GPI101', name: 'General', group: 'อุบัติการณ์ความเสี่ยงทั่วไป : G', program_id: 2 });
+      .mockResolvedValueOnce({ nrls_code: 'CPP405', name: 'Clinical', group: 'ข้อมูลกลุ่มที่ระบุผิดเป็น General', program_id: 6 })
+      .mockResolvedValueOnce({ nrls_code: 'CPP405', name: 'Clinical', group: 'ข้อมูลกลุ่มที่ระบุผิดเป็น General', program_id: 6 })
+      .mockResolvedValueOnce({ nrls_code: 'GPI101', name: 'General', group: 'ข้อมูลกลุ่มที่ระบุผิดเป็น Clinical', program_id: 2 });
     await expect((service as any).resolveClassification('CPP405', null, 'D')).resolves.toMatchObject({ level: 'D', localId: null });
     await expect((service as any).resolveClassification('CPP405', null, '3')).rejects.toThrow('Clinical');
     await expect((service as any).resolveClassification('GPI101', null, 'A')).rejects.toThrow('General');
@@ -714,23 +819,39 @@ describe('IncidentsService incident permissions', () => {
     expect(prisma.riskregister.create).not.toHaveBeenCalled();
   });
 
-  it('keeps an unmatched incident before cutover as LEGACY', async () => {
-    prisma.riskstore.findUnique.mockResolvedValue({ riskstore_id: 9, program_id: 2 });
-    prisma.riskregister.findFirst.mockResolvedValue({ id_risk: 100 });
-    prisma.riskregister.create.mockImplementation(({ data }) => Promise.resolve({ id: 12, ...data }));
-    jest.spyOn(service as any, 'sendTelegramAlert').mockResolvedValue(undefined);
-    const result = await service.create({
+  it('requires NRLS for every new report, including an incident date before cutover', async () => {
+    await expect(service.create({
       nrls_code: null, riskstore_id: 9, level_id: '3', date_report: '2026-09-30',
       time_report: '2026-09-30T10:00:00.000Z', user_ir_type: 'หน่วยงาน', department_id: '1',
-    }, { id: 20, role: 'staff', departmentId: 1 });
-    expect(result).toMatchObject({ nrls_code: null, program_id: 2, classification_status: 'LEGACY' });
+    }, { id: 20, role: 'staff', departmentId: 1 })).rejects.toThrow('รายงานใหม่ทุกวันที่เกิดเหตุ');
+    expect(prisma.riskregister.create).not.toHaveBeenCalled();
   });
 
   it('rejects an incident without NRLS on the cutover date', async () => {
     await expect(service.create({
       nrls_code: null, riskstore_id: null, level_id: '3', date_report: '2026-10-01',
       time_report: '2026-10-01T10:00:00.000Z', user_ir_type: 'หน่วยงาน', department_id: '1',
-    }, { id: 20, role: 'staff', departmentId: 1 })).rejects.toThrow('1 ตุลาคม 2569');
+    }, { id: 20, role: 'staff', departmentId: 1 })).rejects.toThrow('รายงานใหม่ทุกวันที่เกิดเหตุ');
+  });
+
+  it('does not allow a pre-cutover new report to be downgraded to LEGACY later', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({
+      ...pendingIncident,
+      date_report: new Date('2026-09-30'),
+      nrls_code: 'CPP405',
+      classification_status: 'PENDING',
+      level_id: 'D',
+      riskstore_id: null,
+      image: null,
+    });
+
+    await expect(service.update(10, { nrls_code: null }, {
+      id: 1,
+      role: 'rm_committee',
+      rmScope: 'hospital',
+      departmentId: 1,
+    })).rejects.toThrow('เฉพาะประวัติเดิมสถานะ Legacy');
+    expect(prisma.riskregister.updateMany).not.toHaveBeenCalled();
   });
 
   it('masks common patient identifiers in the Telegram event summary', () => {

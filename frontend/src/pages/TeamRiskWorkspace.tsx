@@ -23,11 +23,22 @@ import { useAuth } from '../contexts/AuthContext';
 import { getRiskMatrixClass } from '../utils/riskMatrix';
 
 type TeamReviewStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+type MatrixMode = 'NRLS' | 'SUB_RISK';
 
 const reviewStatusInfo: Record<TeamReviewStatus, { label: string; className: string }> = {
   PENDING: { label: 'รอทีมรับทบทวน', className: 'bg-amber-50 text-amber-700 border-amber-200' },
   IN_PROGRESS: { label: 'ทีมกำลังทบทวน', className: 'bg-blue-50 text-blue-700 border-blue-200' },
   COMPLETED: { label: 'ทีมสรุปแล้ว', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+};
+
+const mappingStatusInfo: Record<string, { label: string; className: string }> = {
+  DIRECT_NRLS: { label: 'NRLS โดยตรง', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+  LEGACY_MAPPED: { label: 'Legacy-Mapped', className: 'bg-violet-50 text-violet-700 border-violet-200' },
+  NRLS_WITH_LOCAL: { label: 'NRLS + ชื่อย่อย', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  NRLS_NO_SUBRISK: { label: 'NRLS ไม่มีชื่อย่อย', className: 'bg-sky-50 text-sky-700 border-sky-200' },
+  LOCAL_UNMAPPED: { label: 'Local รอ Mapping', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+  MAPPING_CONFLICT: { label: 'Mapping ไม่ตรงกัน', className: 'bg-rose-50 text-rose-700 border-rose-200' },
+  UNCLASSIFIED: { label: 'รอจัดหมวดหมู่', className: 'bg-slate-50 text-slate-600 border-slate-200' },
 };
 
 const severityClass = (level: string) => {
@@ -57,6 +68,8 @@ export default function TeamRiskWorkspace() {
   const [teamId, setTeamId] = useState(user?.teamId ? String(user.teamId) : '');
   const [fiscalYear, setFiscalYear] = useState('');
   const [page, setPage] = useState(1);
+  const [matrixMode, setMatrixMode] = useState<MatrixMode>('SUB_RISK');
+  const [includeUnmappedLocal, setIncludeUnmappedLocal] = useState(true);
 
   const fetchWorkspace = useCallback(async () => {
     setLoading(true);
@@ -147,9 +160,24 @@ export default function TeamRiskWorkspace() {
   };
 
   const summary = workspace?.summary || {};
-  const matrix = workspace?.matrix || [];
   const matrixMeta = workspace?.meta || {};
   const teamName = workspace?.team?.team_name || user?.teamName || 'ทีมนำ';
+  const isSubRiskMode = matrixMode === 'SUB_RISK';
+  const matrix = isSubRiskMode
+    ? includeUnmappedLocal
+      ? workspace?.matrices?.sub_risk || []
+      : workspace?.matrices?.sub_risk_mapped || []
+    : workspace?.matrices?.nrls || workspace?.matrix || [];
+  const topRisks = isSubRiskMode
+    ? includeUnmappedLocal
+      ? workspace?.top_sub_risks || []
+      : workspace?.top_sub_risks_mapped || []
+    : workspace?.top_risks || [];
+  const displayedRiskCount = isSubRiskMode
+    ? includeUnmappedLocal
+      ? summary.sub_risks || 0
+      : summary.mapped_sub_risks || 0
+    : summary.mapped_risks || 0;
 
   useEffect(() => {
     if (!fiscalYear && matrixMeta.fiscal_year) setFiscalYear(String(matrixMeta.fiscal_year));
@@ -165,7 +193,7 @@ export default function TeamRiskWorkspace() {
             </div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">ภาพรวมความเสี่ยงของ {teamName}</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-indigo-100">
-              เห็นหลายอุบัติการณ์ในภาพเดียว รับงานและสรุปผลเป็นชุด โดยแสดงเฉพาะเรื่องที่หน่วยงานต้นทางบันทึกการทบทวนแล้ว
+              คิวงานแสดงเรื่องที่ส่งให้ทีม ส่วน Matrix รวมประวัติเดิมตามทีมเจ้าของชื่อความเสี่ยง เพื่อให้เห็นปัญหาย้อนหลังก่อนใช้ NRLS
             </p>
           </div>
           {isAdmin && (
@@ -197,9 +225,31 @@ export default function TeamRiskWorkspace() {
 
       <section className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div><h2 className="flex items-center gap-2 font-bold text-slate-900 dark:text-white"><Grid3X3 className="h-5 w-5 text-indigo-600" /> Risk Matrix ของทีม</h2><p className="mt-1 text-xs text-slate-500">หนึ่ง NRLS ต่อหนึ่งความเสี่ยง · Likelihood จากเหตุการณ์สะสม {matrixMeta.observation_months || 0} เดือน</p></div>
-            <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{summary.mapped_risks || 0} ความเสี่ยง NRLS</span>
+          <div className="mb-4 flex flex-col gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="flex items-center gap-2 font-bold text-slate-900 dark:text-white"><Grid3X3 className="h-5 w-5 text-indigo-600" /> Risk Matrix {isSubRiskMode ? 'ตามชื่อความเสี่ยงย่อย' : 'ตาม NRLS'}</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  {isSubRiskMode ? 'หนึ่งชื่อย่อยต่อหนึ่งความเสี่ยง' : 'หนึ่งรหัส NRLS ต่อหนึ่งความเสี่ยง'} · Likelihood จากเหตุการณ์สะสม {matrixMeta.observation_months || 0} เดือน
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{displayedRiskCount} {isSubRiskMode ? 'ชื่อความเสี่ยงย่อย' : 'ความเสี่ยง NRLS'}</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">จาก {summary.matrix_incidents || 0} เหตุการณ์</span>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
+                <button type="button" onClick={() => setMatrixMode('NRLS')} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${matrixMode === 'NRLS' ? 'bg-white text-indigo-700 shadow-sm dark:bg-slate-700 dark:text-indigo-300' : 'text-slate-500'}`}>ภาพรวม NRLS</button>
+                <button type="button" onClick={() => setMatrixMode('SUB_RISK')} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${matrixMode === 'SUB_RISK' ? 'bg-white text-indigo-700 shadow-sm dark:bg-slate-700 dark:text-indigo-300' : 'text-slate-500'}`}>ชื่อความเสี่ยงย่อย</button>
+              </div>
+              {isSubRiskMode && (
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
+                  <input type="checkbox" checked={includeUnmappedLocal} onChange={(event) => setIncludeUnmappedLocal(event.target.checked)} className="h-4 w-4 rounded border-amber-300 text-indigo-600" />
+                  รวม Local ที่ยังไม่ Mapping ({summary.local_unmapped_incidents || 0} เหตุการณ์)
+                </label>
+              )}
+            </div>
           </div>
           <div className="overflow-x-auto">
             <div className="min-w-[560px]">
@@ -210,7 +260,7 @@ export default function TeamRiskWorkspace() {
                   <div key={`label-${consequence}`} className="flex min-h-16 items-center justify-center rounded-lg bg-slate-50 px-1 dark:bg-slate-800">ระดับ {consequence}</div>,
                   ...[1, 2, 3, 4, 5].map((likelihood) => {
                     const cell = matrix?.[consequence - 1]?.[likelihood - 1] || { count: 0, items: [] };
-                    return <div key={`${consequence}-${likelihood}`} title={(cell.items || []).map((item: any) => `${item.nrls_code} ${item.name || ''} (${item.incident_count || 0} ครั้ง)`).join('\n')} className={`flex min-h-16 flex-col items-center justify-center rounded-lg border ${getRiskMatrixClass(likelihood, consequence)}`}><span className="text-xl font-black">{cell.count || 0}</span><span className="opacity-80">ความเสี่ยง</span></div>;
+                    return <div key={`${consequence}-${likelihood}`} title={(cell.items || []).map((item: any) => `${item.nrls_code ? `${item.nrls_code} · ` : ''}${item.name || ''} (${item.incident_count || 0} ครั้ง)`).join('\n')} className={`flex min-h-16 flex-col items-center justify-center rounded-lg border ${getRiskMatrixClass(likelihood, consequence)}`}><span className="text-xl font-black">{cell.count || 0}</span><span className="opacity-80">{isSubRiskMode ? 'ชื่อย่อย' : 'ความเสี่ยง'}</span></div>;
                   }),
                 ])}
               </div>
@@ -220,16 +270,26 @@ export default function TeamRiskWorkspace() {
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <h2 className="font-bold text-slate-900 dark:text-white">ประเด็นความเสี่ยงที่ทีมพบมาก</h2>
-          <p className="mt-1 text-xs text-slate-500">รวมเหตุการณ์ตาม NRLS เพื่อให้ทีมเห็นปัญหาเชิงระบบ</p>
+          <h2 className="font-bold text-slate-900 dark:text-white">{isSubRiskMode ? 'ชื่อความเสี่ยงย่อยที่ทีมพบมาก' : 'ประเด็น NRLS ที่ทีมพบมาก'}</h2>
+          <p className="mt-1 text-xs text-slate-500">{isSubRiskMode ? 'รวมเหตุการณ์ตามชื่อความเสี่ยงของโรงพยาบาล โดยไม่ตัด NRLS ที่ยังไม่มีชื่อย่อย' : 'รวมข้อมูลใหม่และ Legacy ที่ Mapping แล้วตามรหัส NRLS'}</p>
           <div className="mt-4 space-y-2">
-            {(workspace?.top_risks || []).length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-center text-sm text-slate-400">ยังไม่มีข้อมูลในช่วงที่เลือก</p> : (workspace?.top_risks || []).slice(0, 7).map((risk: any, index: number) => (
+            {topRisks.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-center text-sm text-slate-400">ยังไม่มีข้อมูลในช่วงที่เลือก</p> : topRisks.slice(0, 7).map((risk: any, index: number) => {
+              const mappingInfo = mappingStatusInfo[risk.mapping_status] || mappingStatusInfo.UNCLASSIFIED;
+              return (
               <div key={risk.key} className="flex items-center gap-3 rounded-2xl border border-slate-100 p-3 dark:border-slate-800">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-xs font-bold text-indigo-700">{index + 1}</span>
-            <div className="min-w-0 flex-1"><div className="truncate text-xs font-bold text-slate-800 dark:text-slate-100"><span className="mr-1 font-mono text-indigo-600">{risk.nrls_code}</span>{risk.name}</div><div className="mt-1 text-[10px] text-slate-500">L{risk.likelihood} × C{risk.consequence} = {risk.risk_score} · เกิด {risk.count} ครั้ง · รอทีม {risk.waiting || 0}</div></div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-bold text-slate-800 dark:text-slate-100"><span className="mr-1 font-mono text-indigo-600">{risk.nrls_code || 'Local'}</span>{risk.name}</div>
+                  {isSubRiskMode && risk.parent_name && risk.name !== risk.parent_name && <div className="mt-0.5 truncate text-[10px] text-slate-400">NRLS: {risk.parent_name}</div>}
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
+                    <span>L{risk.likelihood} × C{risk.consequence} = {risk.risk_score} · เกิด {risk.count} ครั้ง · รอทีม {risk.waiting || 0}</span>
+                    {isSubRiskMode && <span className={`rounded-full border px-1.5 py-0.5 font-bold ${mappingInfo.className}`}>{mappingInfo.label}</span>}
+                  </div>
+                </div>
                 <span className="text-lg font-bold text-slate-800 dark:text-white">{risk.count}</span>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -240,10 +300,20 @@ export default function TeamRiskWorkspace() {
           <div>
             <div className="font-bold">Risk Matrix ปีงบประมาณ {matrixMeta.fiscal_year_thai || '-'}</div>
             <div className="mt-1 text-xs leading-5">
-              {matrixMeta.data_quality === 'LEGACY_PARTIAL' && `ข้อมูลก่อนเริ่มบังคับใช้ NRLS วันที่ 1 ตุลาคม 2569 อาจไม่ครบถ้วน ระบบจะแสดงเฉพาะรายการที่มีรหัส NRLS เท่าที่มี (${summary.unmapped_incidents || 0} เหตุการณ์ยังไม่มี NRLS)`}
+              {matrixMeta.data_quality === 'LEGACY_PARTIAL' && `ข้อมูลก่อนเริ่มบังคับใช้ NRLS วันที่ 1 ตุลาคม 2569 แสดงผ่านชื่อความเสี่ยงเดิมที่ Mapping แล้ว ${summary.legacy_mapped_incidents || 0} เหตุการณ์ และยังรอ Mapping/จัดหมวดหมู่ ${summary.unmapped_incidents || 0} เหตุการณ์`}
               {matrixMeta.data_quality === 'NOT_STARTED' && 'ปีงบประมาณนี้ยังไม่เริ่ม ระบบเตรียมเกณฑ์ไว้แล้วและจะคำนวณอัตโนมัติเมื่อมีข้อมูล'}
               {matrixMeta.data_quality === 'IN_PROGRESS' && `ข้อมูลสะสม ${matrixMeta.observation_months || 0} เดือน ยังไม่ใช่ผลสรุปครบปี`}
               {matrixMeta.data_quality === 'COMPLETE' && 'ข้อมูลครบช่วงประเมิน 12 เดือนแล้ว'}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-bold">
+              <span className="rounded-full border border-indigo-200 bg-white/70 px-2 py-1">เหตุการณ์ใน Matrix {summary.matrix_incidents || 0}</span>
+              <span className="rounded-full border border-purple-200 bg-white/70 px-2 py-1">ส่งให้ทีมโดยตรง {summary.forwarded_matrix_incidents || 0}</span>
+              <span className="rounded-full border border-cyan-200 bg-white/70 px-2 py-1">จากทีมเจ้าของชื่อเดิม {summary.local_owner_matrix_incidents || 0}</span>
+              <span className="rounded-full border border-blue-200 bg-white/70 px-2 py-1">NRLS โดยตรง {summary.direct_nrls_incidents || 0}</span>
+              <span className="rounded-full border border-violet-200 bg-white/70 px-2 py-1">Legacy-Mapped {summary.legacy_mapped_incidents || 0}</span>
+              <span className="rounded-full border border-sky-200 bg-white/70 px-2 py-1">NRLS ไม่มีชื่อย่อย {summary.nrls_without_subrisk_incidents || 0}</span>
+              <span className="rounded-full border border-amber-200 bg-white/70 px-2 py-1">Local รอ Mapping {summary.local_unmapped_incidents || 0}</span>
+              <span className="rounded-full border border-slate-200 bg-white/70 px-2 py-1">รอจัดหมวดหมู่ {summary.unclassified_incidents || 0}</span>
             </div>
           </div>
         </div>
@@ -264,13 +334,14 @@ export default function TeamRiskWorkspace() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1050px] text-left text-xs">
               <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:bg-slate-800/70">
-                <tr><th className="w-12 p-4"><button type="button" onClick={toggleAllVisible}>{allVisibleSelected ? <CheckSquare className="h-5 w-5 text-indigo-600" /> : <Square className="h-5 w-5" />}</button></th><th className="p-4">เหตุการณ์</th><th className="p-4">NRLS / เรื่องความเสี่ยง</th><th className="p-4">หน่วยงานต้นทาง</th><th className="p-4 text-center">ระดับ</th><th className="p-4">การจัดการหน่วยงาน</th><th className="p-4">สถานะทีม</th><th className="p-4 text-center">หลักฐาน</th></tr>
+                <tr><th className="w-12 p-4"><button type="button" onClick={toggleAllVisible}>{allVisibleSelected ? <CheckSquare className="h-5 w-5 text-indigo-600" /> : <Square className="h-5 w-5" />}</button></th><th className="p-4">เหตุการณ์</th><th className="p-4">NRLS / ชื่อความเสี่ยงย่อย</th><th className="p-4">หน่วยงานต้นทาง</th><th className="p-4 text-center">ระดับ</th><th className="p-4">การจัดการหน่วยงาน</th><th className="p-4">สถานะทีม</th><th className="p-4 text-center">หลักฐาน</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {rows.length === 0 ? <tr><td colSpan={8} className="p-14 text-center text-sm text-slate-400">ไม่พบเหตุการณ์ที่หน่วยงานทบทวนแล้วและส่งให้ทีมนี้</td></tr> : rows.map((row: any) => {
                   const selected = selectedIds.includes(row.id);
                   const status = (row.team_review_status || 'PENDING') as TeamReviewStatus;
-                  return <tr key={row.id} className={selected ? 'bg-indigo-50/60 dark:bg-indigo-950/20' : 'hover:bg-slate-50/70 dark:hover:bg-slate-800/30'}><td className="p-4"><button type="button" onClick={() => toggleRow(row.id)} disabled={row.status_risk === 'จำหน่าย' || status === 'COMPLETED'} className="disabled:cursor-not-allowed disabled:opacity-30">{selected ? <CheckSquare className="h-5 w-5 text-indigo-600" /> : <Square className="h-5 w-5 text-slate-400" />}</button></td><td className="p-4"><div className="font-bold text-slate-800 dark:text-white">#{row.id}</div><div className="mt-1 text-[10px] text-slate-500">{row.date_report ? format(new Date(row.date_report), 'dd/MM/yyyy') : '-'}</div></td><td className="max-w-sm p-4"><div className="font-mono text-[11px] font-bold text-indigo-600">{row.nrls_code || 'Legacy'}</div><div className="mt-1 line-clamp-2 font-semibold text-slate-800 dark:text-slate-100">{row.nrls_name_snapshot || row.detail || '-'}</div><div className="mt-1 truncate text-[10px] text-slate-500">{row.program_name}</div></td><td className="p-4"><div className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-200"><Building2 className="h-3.5 w-3.5 text-slate-400" />{row.department_name}</div></td><td className="p-4 text-center"><span className={`inline-flex rounded-lg border px-2.5 py-1 font-bold ${severityClass(row.level_id)}`}>{row.level_id}</span></td><td className="p-4"><span className="font-semibold text-slate-700 dark:text-slate-200">{row.status_risk}</span><div className="mt-1 text-[10px] text-slate-500">ส่งทีม {row.send_date ? format(new Date(row.send_date), 'dd/MM/yyyy') : '-'}</div></td><td className="p-4"><span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold ${reviewStatusInfo[status].className}`}>{reviewStatusInfo[status].label}</span>{row.team_review_completed_at && <div className="mt-1 text-[10px] text-slate-500">{format(new Date(row.team_review_completed_at), 'dd/MM/yyyy')}</div>}</td><td className="p-4 text-center"><Link to={`/incidents/${row.id}`} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold text-slate-600 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700"><Eye className="h-3.5 w-3.5" /> ดูเหตุการณ์</Link></td></tr>;
+                  const rowMappingInfo = mappingStatusInfo[row.matrix_mapping_source] || mappingStatusInfo.UNCLASSIFIED;
+                  return <tr key={row.id} className={selected ? 'bg-indigo-50/60 dark:bg-indigo-950/20' : 'hover:bg-slate-50/70 dark:hover:bg-slate-800/30'}><td className="p-4"><button type="button" onClick={() => toggleRow(row.id)} disabled={row.status_risk === 'จำหน่าย' || status === 'COMPLETED'} className="disabled:cursor-not-allowed disabled:opacity-30">{selected ? <CheckSquare className="h-5 w-5 text-indigo-600" /> : <Square className="h-5 w-5 text-slate-400" />}</button></td><td className="p-4"><div className="font-bold text-slate-800 dark:text-white">#{row.id}</div><div className="mt-1 text-[10px] text-slate-500">{row.date_report ? format(new Date(row.date_report), 'dd/MM/yyyy') : '-'}</div></td><td className="max-w-sm p-4"><div className="flex flex-wrap items-center gap-1.5"><span className="font-mono text-[11px] font-bold text-indigo-600">{row.effective_nrls_code || 'Local'}</span><span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${rowMappingInfo.className}`}>{rowMappingInfo.label}</span></div><div className="mt-1 line-clamp-2 font-semibold text-slate-800 dark:text-slate-100">{row.local_risk_name || row.effective_nrls_name || row.detail || '-'}</div>{row.local_risk_name && row.effective_nrls_name && <div className="mt-1 truncate text-[10px] text-slate-400">NRLS: {row.effective_nrls_name}</div>}<div className="mt-1 truncate text-[10px] text-slate-500">{row.program_name}</div></td><td className="p-4"><div className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-200"><Building2 className="h-3.5 w-3.5 text-slate-400" />{row.department_name}</div></td><td className="p-4 text-center"><span className={`inline-flex rounded-lg border px-2.5 py-1 font-bold ${severityClass(row.level_id)}`}>{row.level_id}</span></td><td className="p-4"><span className="font-semibold text-slate-700 dark:text-slate-200">{row.status_risk}</span><div className="mt-1 text-[10px] text-slate-500">ส่งทีม {row.send_date ? format(new Date(row.send_date), 'dd/MM/yyyy') : '-'}</div></td><td className="p-4"><span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold ${reviewStatusInfo[status].className}`}>{reviewStatusInfo[status].label}</span>{row.team_review_completed_at && <div className="mt-1 text-[10px] text-slate-500">{format(new Date(row.team_review_completed_at), 'dd/MM/yyyy')}</div>}</td><td className="p-4 text-center"><Link to={`/incidents/${row.id}`} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold text-slate-600 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700"><Eye className="h-3.5 w-3.5" /> ดูเหตุการณ์</Link></td></tr>;
                 })}
               </tbody>
             </table>

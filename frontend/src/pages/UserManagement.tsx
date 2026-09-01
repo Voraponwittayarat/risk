@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import { useEffect, useMemo, useState } from "react";
+import axios from "axios";
 import {
   KeyRound,
   Pencil,
@@ -11,9 +11,10 @@ import {
   UserRoundX,
   UsersRound,
   X,
-} from 'lucide-react';
+} from "lucide-react";
 
-type Role = 'admin' | 'rm_committee' | 'head' | 'staff';
+type Role = "admin" | "rm_committee" | "head" | "staff";
+type MappingPermission = "none" | "contribute" | "full";
 
 interface ManagedUser {
   id: number;
@@ -30,15 +31,36 @@ interface ManagedUser {
   teamName: string | null;
   role: Role;
   rmScope: string | null;
+  mappingPermission: MappingPermission;
   active: boolean;
   lastLoginAt: number | null;
   createdAt: number;
 }
 
-interface Option { id: number; name: string }
-interface RoleOption { id: Role; name: string }
-interface RmScopeOption { id: string; name: string }
-interface Metadata { departments: Option[]; positions: Option[]; teams: Option[]; roles: RoleOption[]; rmScopes: RmScopeOption[] }
+interface Option {
+  id: number;
+  name: string;
+}
+interface RoleOption {
+  id: Role;
+  name: string;
+}
+interface RmScopeOption {
+  id: string;
+  name: string;
+}
+interface MappingPermissionOption {
+  id: MappingPermission;
+  name: string;
+}
+interface Metadata {
+  departments: Option[];
+  positions: Option[];
+  teams: Option[];
+  roles: RoleOption[];
+  rmScopes: RmScopeOption[];
+  mappingPermissions: MappingPermissionOption[];
+}
 
 interface UserForm {
   username: string;
@@ -52,43 +74,62 @@ interface UserForm {
   teamId: string;
   role: Role;
   rmScope: string;
+  mappingPermission: MappingPermission;
   active: boolean;
 }
 
 const emptyForm: UserForm = {
-  username: '',
-  password: '',
-  email: '',
-  cid: '',
-  name: '',
-  departmentId: '',
-  departmentId2: '',
-  positionId: '',
-  teamId: '',
-  role: 'staff',
-  rmScope: 'department',
+  username: "",
+  password: "",
+  email: "",
+  cid: "",
+  name: "",
+  departmentId: "",
+  departmentId2: "",
+  positionId: "",
+  teamId: "",
+  role: "staff",
+  rmScope: "department",
+  mappingPermission: "none",
   active: true,
 };
 
 const roleStyles: Record<Role, string> = {
-  admin: 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300',
-  rm_committee: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300',
-  head: 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300',
-  staff: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300',
+  admin: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300",
+  rm_committee:
+    "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300",
+  head: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300",
+  staff:
+    "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
 };
 
 function errorMessage(error: any) {
   const message = error?.response?.data?.message;
-  return Array.isArray(message) ? message.join(', ') : message || 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง';
+  return Array.isArray(message)
+    ? message.join(", ")
+    : message || "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง";
 }
 
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+function Modal({
+  title,
+  children,
+  onClose,
+}: {
+  title: string;
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
       <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h2>
-          <button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+            {title}
+          </h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -100,25 +141,32 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
 
 export default function UserManagement() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
-  const [metadata, setMetadata] = useState<Metadata>({ departments: [], positions: [], teams: [], roles: [], rmScopes: [] });
-  const [query, setQuery] = useState('');
+  const [metadata, setMetadata] = useState<Metadata>({
+    departments: [],
+    positions: [],
+    teams: [],
+    roles: [],
+    rmScopes: [],
+    mappingPermissions: [],
+  });
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [editing, setEditing] = useState<ManagedUser | null | 'new'>(null);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [editing, setEditing] = useState<ManagedUser | null | "new">(null);
   const [form, setForm] = useState<UserForm>(emptyForm);
   const [passwordUser, setPasswordUser] = useState<ManagedUser | null>(null);
-  const [newPassword, setNewPassword] = useState('');
+  const [newPassword, setNewPassword] = useState("");
   const [loadingEditId, setLoadingEditId] = useState<number | null>(null);
 
   const loadData = async () => {
     setLoading(true);
-    setError('');
+    setError("");
     try {
       const [usersResponse, metadataResponse] = await Promise.all([
-        axios.get('/users'),
-        axios.get('/users/metadata'),
+        axios.get("/users"),
+        axios.get("/users/metadata"),
       ]);
       setUsers(usersResponse.data);
       setMetadata(metadataResponse.data);
@@ -129,9 +177,15 @@ export default function UserManagement() {
     }
   };
 
-  useEffect(() => { void loadData(); }, []);
+  useEffect(() => {
+    void loadData();
+  }, []);
 
-  const roleName = (role: Role) => metadata.roles.find((item) => item.id === role)?.name || role;
+  const roleName = (role: Role) =>
+    metadata.roles.find((item) => item.id === role)?.name || role;
+  const mappingPermissionName = (permission: MappingPermission) =>
+    metadata.mappingPermissions.find((item) => item.id === permission)?.name ||
+    permission;
   const filteredUsers = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     if (!keyword) return users;
@@ -144,32 +198,35 @@ export default function UserManagement() {
 
   const openCreate = () => {
     setForm(emptyForm);
-    setEditing('new');
-    setError('');
+    setEditing("new");
+    setError("");
   };
 
   const fillEditForm = (user: ManagedUser) => {
     setForm({
       username: user.username,
-      password: '',
+      password: "",
       email: user.email,
-      cid: user.cid || '',
+      cid: user.cid || "",
       name: user.name,
-      departmentId: user.departmentId?.toString() || '',
-      departmentId2: user.departmentId2?.toString() || '',
-      positionId: user.positionId?.toString() || '',
-      teamId: user.teamId?.toString() || '',
+      departmentId: user.departmentId?.toString() || "",
+      departmentId2: user.departmentId2?.toString() || "",
+      positionId: user.positionId?.toString() || "",
+      teamId: user.teamId?.toString() || "",
       role: user.role,
-      rmScope: user.rmScope || 'department',
+      rmScope: user.rmScope || "department",
+      mappingPermission:
+        user.mappingPermission ||
+        (user.role === "rm_committee" ? "full" : "none"),
       active: user.active,
     });
     setEditing(user);
-    setError('');
+    setError("");
   };
 
   const openEdit = async (user: ManagedUser) => {
     setLoadingEditId(user.id);
-    setError('');
+    setError("");
     try {
       const response = await axios.get(`/users/${user.id}`);
       fillEditForm(response.data);
@@ -190,24 +247,34 @@ export default function UserManagement() {
     positionId: Number(form.positionId),
     teamId: form.teamId ? Number(form.teamId) : null,
     role: form.role,
-    rmScope: form.role === 'rm_committee' || form.role === 'head' ? form.rmScope : null,
+    rmScope:
+      form.role === "rm_committee" || form.role === "head"
+        ? form.rmScope
+        : null,
+    mappingPermission:
+      form.role === "rm_committee" ? form.mappingPermission : "none",
     active: form.active,
   });
 
   const saveUser = async (event: React.FormEvent) => {
     event.preventDefault();
     setSaving(true);
-    setError('');
+    setError("");
     try {
-      if (editing === 'new') {
-        await axios.post('/users', { ...payloadFromForm(), password: form.password });
-        setSuccess('สร้างผู้ใช้งานเรียบร้อยแล้ว');
+      if (editing === "new") {
+        await axios.post("/users", {
+          ...payloadFromForm(),
+          password: form.password,
+        });
+        setSuccess("สร้างผู้ใช้งานเรียบร้อยแล้ว");
       } else if (editing) {
         await axios.patch(`/users/${editing.id}`, payloadFromForm());
         if (form.password) {
-          await axios.patch(`/users/${editing.id}/password`, { password: form.password });
+          await axios.patch(`/users/${editing.id}/password`, {
+            password: form.password,
+          });
         }
-        setSuccess('บันทึกข้อมูลผู้ใช้งานเรียบร้อยแล้ว');
+        setSuccess("บันทึกข้อมูลผู้ใช้งานเรียบร้อยแล้ว");
       }
       setEditing(null);
       await loadData();
@@ -215,7 +282,7 @@ export default function UserManagement() {
       setError(errorMessage(requestError));
     } finally {
       setSaving(false);
-      window.setTimeout(() => setSuccess(''), 3000);
+      window.setTimeout(() => setSuccess(""), 3000);
     }
   };
 
@@ -223,26 +290,35 @@ export default function UserManagement() {
     event.preventDefault();
     if (!passwordUser) return;
     setSaving(true);
-    setError('');
+    setError("");
     try {
-      await axios.patch(`/users/${passwordUser.id}/password`, { password: newPassword });
+      await axios.patch(`/users/${passwordUser.id}/password`, {
+        password: newPassword,
+      });
       setPasswordUser(null);
-      setNewPassword('');
+      setNewPassword("");
       setSuccess(`ตั้งรหัสผ่านใหม่ให้ ${passwordUser.username} เรียบร้อยแล้ว`);
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
       setSaving(false);
-      window.setTimeout(() => setSuccess(''), 3000);
+      window.setTimeout(() => setSuccess(""), 3000);
     }
   };
 
   const toggleActive = async (user: ManagedUser) => {
-    if (!window.confirm(`${user.active ? 'ระงับ' : 'เปิด'}บัญชี ${user.username} ใช่หรือไม่?`)) return;
-    setError('');
+    if (
+      !window.confirm(
+        `${user.active ? "ระงับ" : "เปิด"}บัญชี ${user.username} ใช่หรือไม่?`,
+      )
+    )
+      return;
+    setError("");
     try {
       await axios.patch(`/users/${user.id}`, { active: !user.active });
-      setSuccess(user.active ? 'ระงับบัญชีเรียบร้อยแล้ว' : 'เปิดบัญชีเรียบร้อยแล้ว');
+      setSuccess(
+        user.active ? "ระงับบัญชีเรียบร้อยแล้ว" : "เปิดบัญชีเรียบร้อยแล้ว",
+      );
       await loadData();
     } catch (requestError) {
       setError(errorMessage(requestError));
@@ -258,18 +334,27 @@ export default function UserManagement() {
               <UsersRound className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">จัดการผู้ใช้งาน</h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400">ชื่อผู้ใช้ รหัสผ่าน สถานะบัญชี และสิทธิ์การเข้าถึง</p>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                จัดการผู้ใช้งาน
+              </h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                ชื่อผู้ใช้ รหัสผ่าน สถานะบัญชี และสิทธิ์การเข้าถึง
+              </p>
             </div>
           </div>
         </div>
-        <button onClick={openCreate} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700">
+        <button
+          onClick={openCreate}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700"
+        >
           <Plus className="h-5 w-5" /> เพิ่มผู้ใช้งาน
         </button>
       </div>
 
       {(error || success) && (
-        <div className={`rounded-xl border px-4 py-3 text-sm ${error ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300'}`}>
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"}`}
+        >
           {error || success}
         </div>
       )}
@@ -278,10 +363,19 @@ export default function UserManagement() {
         <div className="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-center dark:border-slate-800">
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาชื่อ Username อีเมล เลขบัตร หรือหน่วยงาน" className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-11 pr-4 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="ค้นหาชื่อ Username อีเมล เลขบัตร หรือหน่วยงาน"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-11 pr-4 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+            />
           </div>
-          <button onClick={() => void loadData()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> โหลดใหม่
+          <button
+            onClick={() => void loadData()}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />{" "}
+            โหลดใหม่
           </button>
         </div>
 
@@ -298,36 +392,97 @@ export default function UserManagement() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                <tr
+                  key={user.id}
+                  className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
+                >
                   <td className="px-5 py-4">
-                    <p className="font-bold text-slate-900 dark:text-white">{user.name}</p>
-                    <p className="text-xs text-slate-500">{user.username} · {user.email}</p>
-                    <p className="mt-1 text-[11px] text-slate-400">CID: {user.cid || '-'}</p>
+                    <p className="font-bold text-slate-900 dark:text-white">
+                      {user.name}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {user.username} · {user.email}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      CID: {user.cid || "-"}
+                    </p>
                   </td>
                   <td className="px-5 py-4">
-                    <p className="font-medium text-slate-700 dark:text-slate-200">{user.departmentName || '-'}</p>
-                    <p className="text-xs text-slate-500">{user.positionName || '-'}</p>
+                    <p className="font-medium text-slate-700 dark:text-slate-200">
+                      {user.departmentName || "-"}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {user.positionName || "-"}
+                    </p>
                   </td>
                   <td className="px-5 py-4">
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${roleStyles[user.role]}`}>{roleName(user.role)}</span>
-                    {(user.role === 'head' || user.role === 'rm_committee') && (
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${roleStyles[user.role]}`}
+                    >
+                      {roleName(user.role)}
+                    </span>
+                    {(user.role === "head" || user.role === "rm_committee") && (
                       <p className="mt-1 text-[11px] text-slate-500">
-                        {user.rmScope === 'hospital' ? 'ทั้งโรงพยาบาล' : user.rmScope === 'group' ? 'ระดับกลุ่มงาน' : 'เฉพาะหน่วยงาน'}
+                        {user.rmScope === "hospital"
+                          ? "ทั้งโรงพยาบาล"
+                          : user.rmScope === "group"
+                            ? "ระดับกลุ่มงาน"
+                            : "เฉพาะหน่วยงาน"}
+                      </p>
+                    )}
+                    {user.role === "rm_committee" && (
+                      <p
+                        className={`mt-1 text-[11px] font-semibold ${user.mappingPermission === "none" ? "text-red-500" : user.mappingPermission === "contribute" ? "text-amber-600" : "text-emerald-600"}`}
+                      >
+                        Mapping: {mappingPermissionName(user.mappingPermission)}
                       </p>
                     )}
                   </td>
                   <td className="px-5 py-4">
-                    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${user.active ? 'text-emerald-600' : 'text-red-500'}`}>
-                      <span className={`h-2 w-2 rounded-full ${user.active ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                      {user.active ? 'ใช้งาน' : 'ระงับ'}
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-xs font-semibold ${user.active ? "text-emerald-600" : "text-red-500"}`}
+                    >
+                      <span
+                        className={`h-2 w-2 rounded-full ${user.active ? "bg-emerald-500" : "bg-red-500"}`}
+                      />
+                      {user.active ? "ใช้งาน" : "ระงับ"}
                     </span>
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-1.5">
-                      <button disabled={loadingEditId === user.id} onClick={() => void openEdit(user)} title="แก้ไขข้อมูล" className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 disabled:opacity-40 dark:hover:bg-blue-950/40">{loadingEditId === user.id ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}</button>
-                      <button onClick={() => { setPasswordUser(user); setNewPassword(''); setError(''); }} title="ตั้งรหัสผ่านใหม่" className="rounded-lg p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"><KeyRound className="h-4 w-4" /></button>
-                      <button onClick={() => void toggleActive(user)} title={user.active ? 'ระงับบัญชี' : 'เปิดบัญชี'} className={`rounded-lg p-2 ${user.active ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40' : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'}`}>
-                        {user.active ? <UserRoundX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                      <button
+                        disabled={loadingEditId === user.id}
+                        onClick={() => void openEdit(user)}
+                        title="แก้ไขข้อมูล"
+                        className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 disabled:opacity-40 dark:hover:bg-blue-950/40"
+                      >
+                        {loadingEditId === user.id ? (
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Pencil className="h-4 w-4" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setPasswordUser(user);
+                          setNewPassword("");
+                          setError("");
+                        }}
+                        title="ตั้งรหัสผ่านใหม่"
+                        className="rounded-lg p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                      >
+                        <KeyRound className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => void toggleActive(user)}
+                        title={user.active ? "ระงับบัญชี" : "เปิดบัญชี"}
+                        className={`rounded-lg p-2 ${user.active ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40" : "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"}`}
+                      >
+                        {user.active ? (
+                          <UserRoundX className="h-4 w-4" />
+                        ) : (
+                          <UserCheck className="h-4 w-4" />
+                        )}
                       </button>
                     </div>
                   </td>
@@ -335,58 +490,363 @@ export default function UserManagement() {
               ))}
             </tbody>
           </table>
-          {!loading && filteredUsers.length === 0 && <div className="p-12 text-center text-sm text-slate-500">ไม่พบผู้ใช้งาน</div>}
-          {loading && <div className="p-12 text-center text-sm text-slate-500">กำลังโหลดข้อมูล…</div>}
+          {!loading && filteredUsers.length === 0 && (
+            <div className="p-12 text-center text-sm text-slate-500">
+              ไม่พบผู้ใช้งาน
+            </div>
+          )}
+          {loading && (
+            <div className="p-12 text-center text-sm text-slate-500">
+              กำลังโหลดข้อมูล…
+            </div>
+          )}
         </div>
       </div>
 
       {editing && (
-        <Modal title={editing === 'new' ? 'เพิ่มผู้ใช้งาน' : `แก้ไข ${editing.username}`} onClose={() => setEditing(null)}>
+        <Modal
+          title={
+            editing === "new" ? "เพิ่มผู้ใช้งาน" : `แก้ไข ${editing.username}`
+          }
+          onClose={() => setEditing(null)}
+        >
           <form onSubmit={saveUser} className="space-y-5 p-6">
-            {editing !== 'new' && (
+            {editing !== "new" && (
               <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900 dark:bg-blue-950/30">
                 <div className="mb-3 flex items-center gap-2 text-sm font-bold text-blue-800 dark:text-blue-300">
                   <ShieldCheck className="h-4 w-4" /> ข้อมูลปัจจุบันก่อนแก้ไข
                 </div>
                 <div className="grid gap-3 text-xs text-slate-600 sm:grid-cols-2 lg:grid-cols-4 dark:text-slate-300">
-                  <div><span className="block text-slate-400">Username</span><strong>{editing.username}</strong></div>
-                  <div><span className="block text-slate-400">ชื่อผู้ใช้งาน</span><strong>{editing.name}</strong></div>
-                  <div><span className="block text-slate-400">หน่วยงาน</span><strong>{editing.departmentName || 'ยังไม่กำหนด'}</strong></div>
-                  <div><span className="block text-slate-400">สิทธิ์ / สถานะ</span><strong>{roleName(editing.role)} · {editing.active ? 'ใช้งาน' : 'ระงับ'}</strong></div>
+                  <div>
+                    <span className="block text-slate-400">Username</span>
+                    <strong>{editing.username}</strong>
+                  </div>
+                  <div>
+                    <span className="block text-slate-400">ชื่อผู้ใช้งาน</span>
+                    <strong>{editing.name}</strong>
+                  </div>
+                  <div>
+                    <span className="block text-slate-400">หน่วยงาน</span>
+                    <strong>{editing.departmentName || "ยังไม่กำหนด"}</strong>
+                  </div>
+                  <div>
+                    <span className="block text-slate-400">สิทธิ์ / สถานะ</span>
+                    <strong>
+                      {roleName(editing.role)} ·{" "}
+                      {editing.active ? "ใช้งาน" : "ระงับ"}
+                    </strong>
+                  </div>
                 </div>
               </div>
             )}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="ชื่อผู้ใช้" required><input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} required className="form-input" /></Field>
-              <Field label="อีเมล" required><input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required className="form-input" /></Field>
-              {editing === 'new' ? (
-                <Field label="รหัสผ่านเริ่มต้น (อย่างน้อย 8 ตัว)" required><input type="password" minLength={8} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required className="form-input" /></Field>
+              <Field label="ชื่อผู้ใช้" required>
+                <input
+                  value={form.username}
+                  onChange={(event) =>
+                    setForm({ ...form, username: event.target.value })
+                  }
+                  required
+                  className="form-input"
+                />
+              </Field>
+              <Field label="อีเมล" required>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(event) =>
+                    setForm({ ...form, email: event.target.value })
+                  }
+                  required
+                  className="form-input"
+                />
+              </Field>
+              {editing === "new" ? (
+                <Field label="รหัสผ่านเริ่มต้น (อย่างน้อย 8 ตัว)" required>
+                  <input
+                    type="password"
+                    minLength={8}
+                    value={form.password}
+                    onChange={(event) =>
+                      setForm({ ...form, password: event.target.value })
+                    }
+                    required
+                    className="form-input"
+                  />
+                </Field>
               ) : (
-                <Field label="เปลี่ยนรหัสผ่าน (เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน)"><input type="password" minLength={8} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="form-input" placeholder="พิมพ์เพื่อตั้งรหัสผ่านใหม่" /></Field>
+                <Field label="เปลี่ยนรหัสผ่าน (เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน)">
+                  <input
+                    type="password"
+                    minLength={8}
+                    value={form.password}
+                    onChange={(event) =>
+                      setForm({ ...form, password: event.target.value })
+                    }
+                    className="form-input"
+                    placeholder="พิมพ์เพื่อตั้งรหัสผ่านใหม่"
+                  />
+                </Field>
               )}
-              <Field label="เลขประจำตัวประชาชน 13 หลัก" required><input inputMode="numeric" minLength={13} maxLength={13} value={form.cid} onChange={(event) => setForm({ ...form, cid: event.target.value.replace(/\D/g, '') })} required className="form-input" /></Field>
-              <Field label="ชื่อ-นามสกุล" required><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required className="form-input" /></Field>
-              <Field label="สิทธิ์การใช้งาน" required><select value={form.role} onChange={(event) => { const role = event.target.value as Role; setForm({ ...form, role, rmScope: role === 'head' && form.rmScope === 'hospital' ? 'department' : form.rmScope }); }} className="form-input">{metadata.roles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-              {(form.role === 'rm_committee' || form.role === 'head') && <Field label={form.role === 'head' ? 'ขอบเขตการบริหารของหัวหน้างาน' : 'ขอบเขตการมองเห็นของ RM'} required><select value={form.rmScope} onChange={(event) => setForm({ ...form, rmScope: event.target.value })} className="form-input">{metadata.rmScopes.filter((item) => form.role === 'rm_committee' || item.id !== 'hospital').map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>}
-              <Field label="หน่วยงานหลัก" required><select value={form.departmentId} onChange={(event) => setForm({ ...form, departmentId: event.target.value })} required className="form-input"><option value="">เลือกหน่วยงาน</option>{metadata.departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-              <Field label="หน่วยงานรอง"><select value={form.departmentId2} onChange={(event) => setForm({ ...form, departmentId2: event.target.value })} className="form-input"><option value="">ไม่มี</option>{metadata.departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-              <Field label="ตำแหน่ง" required><select value={form.positionId} onChange={(event) => setForm({ ...form, positionId: event.target.value })} required className="form-input"><option value="">เลือกตำแหน่ง</option>{metadata.positions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-              <Field label="ทีมนำที่สังกัด/รับงานร่วมทบทวน (ถ้ามี)"><select value={form.teamId} onChange={(event) => setForm({ ...form, teamId: event.target.value })} className="form-input"><option value="">ไม่สังกัดทีมนำ</option>{metadata.teams.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+              <Field label="เลขประจำตัวประชาชน 13 หลัก" required>
+                <input
+                  inputMode="numeric"
+                  minLength={13}
+                  maxLength={13}
+                  value={form.cid}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      cid: event.target.value.replace(/\D/g, ""),
+                    })
+                  }
+                  required
+                  className="form-input"
+                />
+              </Field>
+              <Field label="ชื่อ-นามสกุล" required>
+                <input
+                  value={form.name}
+                  onChange={(event) =>
+                    setForm({ ...form, name: event.target.value })
+                  }
+                  required
+                  className="form-input"
+                />
+              </Field>
+              <Field label="สิทธิ์การใช้งาน" required>
+                <select
+                  value={form.role}
+                  onChange={(event) => {
+                    const role = event.target.value as Role;
+                    setForm({
+                      ...form,
+                      role,
+                      rmScope:
+                        role === "head" && form.rmScope === "hospital"
+                          ? "department"
+                          : form.rmScope,
+                      mappingPermission:
+                        role === "rm_committee"
+                          ? form.mappingPermission === "none"
+                            ? "full"
+                            : form.mappingPermission
+                          : "none",
+                    });
+                  }}
+                  className="form-input"
+                >
+                  {metadata.roles.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {(form.role === "rm_committee" || form.role === "head") && (
+                <Field
+                  label={
+                    form.role === "head"
+                      ? "ขอบเขตการบริหารของหัวหน้างาน"
+                      : "ขอบเขตการมองเห็นของ RM"
+                  }
+                  required
+                >
+                  <select
+                    value={form.rmScope}
+                    onChange={(event) =>
+                      setForm({ ...form, rmScope: event.target.value })
+                    }
+                    className="form-input"
+                  >
+                    {metadata.rmScopes
+                      .filter(
+                        (item) =>
+                          form.role === "rm_committee" ||
+                          item.id !== "hospital",
+                      )
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+              )}
+              {form.role === "rm_committee" && (
+                <Field label="สิทธิ์แก้ไข Mapping NRLS" required>
+                  <select
+                    value={form.mappingPermission}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        mappingPermission: event.target
+                          .value as MappingPermission,
+                      })
+                    }
+                    className="form-input"
+                  >
+                    {metadata.mappingPermissions.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Admin ปรับเป็นปิด เพิ่มอย่างเดียว
+                    หรือแก้ไขทั้งหมดได้รายบุคคล
+                  </p>
+                </Field>
+              )}
+              <Field label="หน่วยงานหลัก" required>
+                <select
+                  value={form.departmentId}
+                  onChange={(event) =>
+                    setForm({ ...form, departmentId: event.target.value })
+                  }
+                  required
+                  className="form-input"
+                >
+                  <option value="">เลือกหน่วยงาน</option>
+                  {metadata.departments.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="หน่วยงานรอง">
+                <select
+                  value={form.departmentId2}
+                  onChange={(event) =>
+                    setForm({ ...form, departmentId2: event.target.value })
+                  }
+                  className="form-input"
+                >
+                  <option value="">ไม่มี</option>
+                  {metadata.departments.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="ตำแหน่ง" required>
+                <select
+                  value={form.positionId}
+                  onChange={(event) =>
+                    setForm({ ...form, positionId: event.target.value })
+                  }
+                  required
+                  className="form-input"
+                >
+                  <option value="">เลือกตำแหน่ง</option>
+                  {metadata.positions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="ทีมนำที่สังกัด/รับงานร่วมทบทวน (ถ้ามี)">
+                <select
+                  value={form.teamId}
+                  onChange={(event) =>
+                    setForm({ ...form, teamId: event.target.value })
+                  }
+                  className="form-input"
+                >
+                  <option value="">ไม่สังกัดทีมนำ</option>
+                  {metadata.teams.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             </div>
-            {editing !== 'new' && <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="h-4 w-4" /><span className="text-sm font-semibold text-slate-700 dark:text-slate-200">เปิดใช้งานบัญชีนี้</span></label>}
-            {error && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{error}</div>}
-            <div className="flex justify-end gap-3 border-t border-slate-200 pt-5 dark:border-slate-700"><button type="button" onClick={() => setEditing(null)} className="rounded-xl border border-slate-200 px-5 py-2.5 font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300">ยกเลิก</button><button disabled={saving} className="rounded-xl bg-blue-600 px-5 py-2.5 font-semibold text-white disabled:opacity-60">{saving ? 'กำลังบันทึก…' : 'บันทึก'}</button></div>
+            {editing !== "new" && (
+              <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+                <input
+                  type="checkbox"
+                  checked={form.active}
+                  onChange={(event) =>
+                    setForm({ ...form, active: event.target.checked })
+                  }
+                  className="h-4 w-4"
+                />
+                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  เปิดใช้งานบัญชีนี้
+                </span>
+              </label>
+            )}
+            {error && (
+              <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                {error}
+              </div>
+            )}
+            <div className="flex justify-end gap-3 border-t border-slate-200 pt-5 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                className="rounded-xl border border-slate-200 px-5 py-2.5 font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300"
+              >
+                ยกเลิก
+              </button>
+              <button
+                disabled={saving}
+                className="rounded-xl bg-blue-600 px-5 py-2.5 font-semibold text-white disabled:opacity-60"
+              >
+                {saving ? "กำลังบันทึก…" : "บันทึก"}
+              </button>
+            </div>
           </form>
         </Modal>
       )}
 
       {passwordUser && (
-        <Modal title={`ตั้งรหัสผ่านใหม่: ${passwordUser.username}`} onClose={() => setPasswordUser(null)}>
+        <Modal
+          title={`ตั้งรหัสผ่านใหม่: ${passwordUser.username}`}
+          onClose={() => setPasswordUser(null)}
+        >
           <form onSubmit={resetPassword} className="space-y-5 p-6">
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">การตั้งรหัสผ่านใหม่จะเปลี่ยน Auth Key ของบัญชี ควรแจ้งรหัสผ่านผ่านช่องทางที่ปลอดภัย</div>
-            <Field label="รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)" required><input type="password" minLength={8} maxLength={72} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required autoFocus className="form-input" /></Field>
-            {error && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{error}</div>}
-            <div className="flex justify-end gap-3"><button type="button" onClick={() => setPasswordUser(null)} className="rounded-xl border border-slate-200 px-5 py-2.5 font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300">ยกเลิก</button><button disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-5 py-2.5 font-semibold text-white disabled:opacity-60"><KeyRound className="h-4 w-4" />{saving ? 'กำลังบันทึก…' : 'ตั้งรหัสผ่านใหม่'}</button></div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+              การตั้งรหัสผ่านใหม่จะเปลี่ยน Auth Key ของบัญชี
+              ควรแจ้งรหัสผ่านผ่านช่องทางที่ปลอดภัย
+            </div>
+            <Field label="รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)" required>
+              <input
+                type="password"
+                minLength={8}
+                maxLength={72}
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                required
+                autoFocus
+                className="form-input"
+              />
+            </Field>
+            {error && (
+              <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                {error}
+              </div>
+            )}
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setPasswordUser(null)}
+                className="rounded-xl border border-slate-200 px-5 py-2.5 font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300"
+              >
+                ยกเลิก
+              </button>
+              <button
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-5 py-2.5 font-semibold text-white disabled:opacity-60"
+              >
+                <KeyRound className="h-4 w-4" />
+                {saving ? "กำลังบันทึก…" : "ตั้งรหัสผ่านใหม่"}
+              </button>
+            </div>
           </form>
         </Modal>
       )}
@@ -439,6 +899,22 @@ export default function UserManagement() {
   );
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return <label className="block"><span className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">{label}{required && <span className="text-red-500"> *</span>}</span>{children}</label>;
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
+        {label}
+        {required && <span className="text-red-500"> *</span>}
+      </span>
+      {children}
+    </label>
+  );
 }

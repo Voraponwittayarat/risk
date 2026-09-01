@@ -305,6 +305,7 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
         topic={topic}
         whatHappened={incidentDetail}
         severity={incident.level_id || 'C'}
+        rcaType="mini"
         onApply={(aiData) => {
           if (aiData.cmps && aiData.cmps.length > 0) {
             setCmpProblem(aiData.cmps[0].observation || '');

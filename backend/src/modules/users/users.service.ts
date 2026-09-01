@@ -11,6 +11,7 @@ import { CreateUserDto, UserRole } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { canonicalRole, legacyFieldsForRole } from '../auth/role.utils';
 import { normalizeRmScope } from '../auth/rm-scope.utils';
+import { normalizeMappingPermission } from '../auth/mapping-permission.utils';
 
 @Injectable()
 export class UsersService {
@@ -29,7 +30,13 @@ export class UsersService {
     return hash.replace(/^\$2b\$/, '$2y$');
   }
 
-  private toView(user: any, member: any, departments: Map<number, string>, positions: Map<number, string>, teams: Map<number, string>) {
+  private toView(
+    user: any,
+    member: any,
+    departments: Map<number, string>,
+    positions: Map<number, string>,
+    teams: Map<number, string>,
+  ) {
     const role = this.roleFor(user.role, member);
     return {
       id: user.id,
@@ -46,6 +53,10 @@ export class UsersService {
       teamName: member?.team_id ? teams.get(member.team_id) || null : null,
       role,
       rmScope: normalizeRmScope(role, member?.rm_scope),
+      mappingPermission: normalizeMappingPermission(
+        role,
+        member?.mapping_permission,
+      ),
       active: user.blocked_at == null,
       lastLoginAt: user.last_login_at,
       createdAt: user.created_at,
@@ -61,8 +72,12 @@ export class UsersService {
       this.prisma.team.findMany(),
     ]);
     const memberByCid = new Map(members.map((member) => [member.cid, member]));
-    const departmentNames = new Map(departments.map((item) => [item.id, item.depart_name]));
-    const positionNames = new Map(positions.map((item) => [item.id, item.position_name]));
+    const departmentNames = new Map(
+      departments.map((item) => [item.id, item.depart_name]),
+    );
+    const positionNames = new Map(
+      positions.map((item) => [item.id, item.position_name]),
+    );
     const teamNames = new Map(teams.map((item) => [item.id, item.team_name]));
 
     return users.map((user) =>
@@ -83,8 +98,14 @@ export class UsersService {
       this.prisma.team.findMany({ orderBy: { id: 'asc' } }),
     ]);
     return {
-      departments: departments.map((item) => ({ id: item.id, name: item.depart_name })),
-      positions: positions.map((item) => ({ id: item.id, name: item.position_name })),
+      departments: departments.map((item) => ({
+        id: item.id,
+        name: item.depart_name,
+      })),
+      positions: positions.map((item) => ({
+        id: item.id,
+        name: item.position_name,
+      })),
       teams: teams.map((item) => ({ id: item.id, name: item.team_name })),
       roles: [
         { id: 'admin', name: 'ผู้ดูแลระบบ' },
@@ -96,6 +117,11 @@ export class UsersService {
         { id: 'department', name: 'เฉพาะหน่วยงานหลักและหน่วยงานรอง' },
         { id: 'group', name: 'ทุกหน่วยงานในกลุ่มงานเดียวกัน' },
         { id: 'hospital', name: 'ทุกหน่วยงานทั้งโรงพยาบาล (RM ส่วนกลาง)' },
+      ],
+      mappingPermissions: [
+        { id: 'full', name: 'แก้ไข Mapping ได้ทั้งหมด' },
+        { id: 'contribute', name: 'เพิ่มรายการที่ยังไม่ Mapping เท่านั้น' },
+        { id: 'none', name: 'ปิดสิทธิ์ Mapping' },
       ],
     };
   }
@@ -115,7 +141,9 @@ export class UsersService {
       where: { OR: [{ username }, { email }, { cid }] },
     });
     if (duplicate) {
-      throw new ConflictException('ชื่อผู้ใช้ อีเมล หรือเลขประจำตัวประชาชนนี้มีอยู่แล้ว');
+      throw new ConflictException(
+        'ชื่อผู้ใช้ อีเมล หรือเลขประจำตัวประชาชนนี้มีอยู่แล้ว',
+      );
     }
 
     const [department, position] = await Promise.all([
@@ -128,6 +156,10 @@ export class UsersService {
 
     const permissions = this.permissionsFor(dto.role);
     const rmScope = normalizeRmScope(dto.role, dto.rmScope);
+    const mappingPermission = normalizeMappingPermission(
+      dto.role,
+      dto.mappingPermission,
+    );
     const passwordHash = await this.passwordHash(dto.password);
     const now = Math.floor(Date.now() / 1000);
 
@@ -155,6 +187,7 @@ export class UsersService {
         team_id: dto.teamId ?? null,
         role: dto.role,
         rm_scope: rmScope,
+        mapping_permission: mappingPermission,
         priority: permissions.priority,
         accessrules: permissions.accessrules,
         rm_status: permissions.rmStatus,
@@ -162,7 +195,10 @@ export class UsersService {
         modify_date: new Date(),
       };
       if (existingMember) {
-        await tx.member.update({ where: { id: existingMember.id }, data: memberData });
+        await tx.member.update({
+          where: { id: existingMember.id },
+          data: memberData,
+        });
       } else {
         await tx.member.create({
           data: { ...memberData, cid, create_date: new Date() },
@@ -196,7 +232,9 @@ export class UsersService {
         },
       });
       if (duplicate) {
-        throw new ConflictException('ชื่อผู้ใช้ อีเมล หรือเลขประจำตัวประชาชนนี้มีอยู่แล้ว');
+        throw new ConflictException(
+          'ชื่อผู้ใช้ อีเมล หรือเลขประจำตัวประชาชนนี้มีอยู่แล้ว',
+        );
       }
     }
 
@@ -208,8 +246,16 @@ export class UsersService {
       requestedRole,
       dto.rmScope !== undefined ? dto.rmScope : oldMember?.rm_scope,
     );
+    const requestedMappingPermission = normalizeMappingPermission(
+      requestedRole,
+      dto.mappingPermission !== undefined
+        ? dto.mappingPermission
+        : oldMember?.mapping_permission,
+    );
     if (id === actorId && requestedRole !== 'admin') {
-      throw new BadRequestException('ไม่สามารถลดสิทธิ์บัญชีที่กำลังใช้งานอยู่ได้');
+      throw new BadRequestException(
+        'ไม่สามารถลดสิทธิ์บัญชีที่กำลังใช้งานอยู่ได้',
+      );
     }
     const permissions = this.permissionsFor(requestedRole);
     const now = Math.floor(Date.now() / 1000);
@@ -236,11 +282,22 @@ export class UsersService {
           data: {
             ...(cid ? { cid } : {}),
             ...(dto.name ? { member_name: dto.name.trim() } : {}),
-            ...(dto.departmentId !== undefined ? { department_id1: dto.departmentId } : {}),
-            ...(dto.departmentId2 !== undefined ? { department_id2: dto.departmentId2 } : {}),
-            ...(dto.positionId !== undefined ? { position_id: dto.positionId } : {}),
+            ...(dto.departmentId !== undefined
+              ? { department_id1: dto.departmentId }
+              : {}),
+            ...(dto.departmentId2 !== undefined
+              ? { department_id2: dto.departmentId2 }
+              : {}),
+            ...(dto.positionId !== undefined
+              ? { position_id: dto.positionId }
+              : {}),
             ...(dto.teamId !== undefined ? { team_id: dto.teamId } : {}),
-            ...((dto.role !== undefined || dto.rmScope !== undefined) ? { rm_scope: requestedRmScope } : {}),
+            ...(dto.role !== undefined || dto.rmScope !== undefined
+              ? { rm_scope: requestedRmScope }
+              : {}),
+            ...(dto.role !== undefined || dto.mappingPermission !== undefined
+              ? { mapping_permission: requestedMappingPermission }
+              : {}),
             ...(dto.role
               ? {
                   role: requestedRole,
@@ -249,7 +306,9 @@ export class UsersService {
                   rm_status: permissions.rmStatus,
                 }
               : {}),
-            ...(dto.active !== undefined ? { status: dto.active ? '1' : '0' } : {}),
+            ...(dto.active !== undefined
+              ? { status: dto.active ? '1' : '0' }
+              : {}),
             modify_date: new Date(),
           },
         });
@@ -264,12 +323,42 @@ export class UsersService {
             team_id: dto.teamId ?? null,
             role: requestedRole,
             rm_scope: requestedRmScope,
+            mapping_permission: requestedMappingPermission,
             priority: permissions.priority,
             accessrules: permissions.accessrules,
             rm_status: permissions.rmStatus,
             status: dto.active === false ? '0' : '1',
             create_date: new Date(),
             modify_date: new Date(),
+          },
+        });
+      }
+
+      if (
+        oldMember &&
+        normalizeMappingPermission(
+          this.roleFor(current.role, oldMember),
+          oldMember.mapping_permission,
+        ) !== requestedMappingPermission &&
+        (dto.role !== undefined || dto.mappingPermission !== undefined)
+      ) {
+        await tx.workflow_audit.create({
+          data: {
+            entity_type: 'MAPPING_PERMISSION',
+            entity_id: String(id),
+            action: 'MAPPING_PERMISSION_UPDATED',
+            old_value: JSON.stringify({
+              permission: normalizeMappingPermission(
+                this.roleFor(current.role, oldMember),
+                oldMember.mapping_permission,
+              ),
+            }),
+            new_value: JSON.stringify({
+              permission: requestedMappingPermission,
+              role: requestedRole,
+            }),
+            reason: 'ปรับสิทธิ์โดยผู้ดูแลระบบ',
+            changed_by: actorId,
           },
         });
       }

@@ -16,11 +16,11 @@ export class TelegramService {
 
   async sendSummaryAlert() {
     const botApiToken = process.env.TELEGRAM_BOT_TOKEN || '';
-    const chatId = process.env.TELEGRAM_CHAT_ID;
+    const chatId = process.env.TELEGRAM_CHAT_ID || '';
 
     if (!botApiToken || !chatId) {
       this.logger.warn('Telegram token/chat ID is not configured. Skipping summary alert.');
-      return;
+      throw new Error('กรุณาตั้งค่า Bot Token และ Chat ID ก่อนทำการส่งแจ้งเตือน');
     }
 
     try {
@@ -96,7 +96,19 @@ export class TelegramService {
       // Build message string
       const totalRisks = totalPending + totalReviewing;
       
-      let message = `🔔 <b>แจ้งเตือนสรุปสถานการณ์ความเสี่ยง</b> 🔔\n\n`;
+      const now = new Date();
+      const thaiDate = now.toLocaleDateString('th-TH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+      const thaiTime = now.toLocaleTimeString('th-TH', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      
+      let message = `🔔 <b>แจ้งเตือนสรุปสถานการณ์ความเสี่ยง</b> 🔔\n`;
+      message += `📅 ข้อมูล ณ วันที่ ${thaiDate} เวลา ${thaiTime} น.\n\n`;
       message += `ตอนนี้มีความเสี่ยงที่รอการยืนยันและรอทบทวนในระบบอยู่ <b>${totalRisks}</b> เรื่อง\n`;
       message += `ขอความร่วมมือแกนนำและหัวหน้างานทุกหน่วยเข้าไปตรวจสอบและทบทวนด้วยนะคะ หากเรื่องไหนแก้ไขแล้ว ก็สามารถจำหน่ายได้เลยค่ะ\n\n`;
 
@@ -116,6 +128,7 @@ export class TelegramService {
       message += `\n<i>ตรวจสอบได้ที่ระบบ HRMS</i>`;
 
       const url = `https://api.telegram.org/bot${botApiToken}/sendMessage`;
+      require('fs').appendFileSync('telegram-debug.log', `Sending to ${url} with chat_id ${chatId} message length ${message.length}\n`);
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -128,11 +141,14 @@ export class TelegramService {
 
       if (!response.ok) {
         const errorData = await response.text();
+        require('fs').appendFileSync('telegram-debug.log', `Failed: ${response.status} ${errorData}\n`);
         this.logger.error(`Failed to send Telegram summary alert: ${response.status} ${errorData}`);
       } else {
+        require('fs').appendFileSync('telegram-debug.log', `Success\n`);
         this.logger.log('Successfully sent Telegram summary alert.');
       }
     } catch (error) {
+      require('fs').appendFileSync('telegram-debug.log', `Error: ${error.message}\n`);
       this.logger.error('Error in sendSummaryAlert:', error);
       throw error;
     }

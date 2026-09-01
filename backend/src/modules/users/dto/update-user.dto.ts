@@ -13,6 +13,8 @@ import { USER_ROLES } from './create-user.dto';
 import type { UserRole } from './create-user.dto';
 import { RM_SCOPES } from '../../auth/rm-scope.utils';
 import type { RmScope } from '../../auth/rm-scope.utils';
+import { MAPPING_PERMISSIONS } from '../../auth/mapping-permission.utils';
+import type { MappingPermission } from '../../auth/mapping-permission.utils';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -60,6 +62,10 @@ export class UpdateUserDto {
   @IsOptional()
   @IsIn(RM_SCOPES)
   rmScope?: RmScope | null;
+
+  @IsOptional()
+  @IsIn(MAPPING_PERMISSIONS)
+  mappingPermission?: MappingPermission;
 
   @IsOptional()
   @IsBoolean()

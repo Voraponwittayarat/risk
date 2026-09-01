@@ -171,6 +171,7 @@ model member {
   rm_status      String?   @db.VarChar(1)
   role           String    @default("staff") @db.VarChar(20)
   rm_scope       String?   @db.VarChar(20)
+  mapping_permission String? @db.VarChar(20)
 }
 
 model migration {

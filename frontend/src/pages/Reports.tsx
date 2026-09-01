@@ -11,7 +11,7 @@ import {
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getRiskMatrixLevel } from '../utils/riskMatrix';
-import { OfficialPrintFooter, OfficialPrintHeader, OfficialPrintSignatures } from '../components/OfficialPrintLayout';
+import { OfficialPrintFooter, OfficialPrintHeader } from '../components/OfficialPrintLayout';
 import { printOfficialReport } from '../utils/officialPrint';
 
 // =========================================================================
@@ -1828,10 +1828,6 @@ export default function Reports() {
         </div>
       )}
 
-      <OfficialPrintSignatures
-        roles={['ผู้จัดทำรายงาน', 'ผู้ตรวจสอบ / หัวหน้าหน่วยงาน', 'ประธานคณะกรรมการบริหารความเสี่ยง (RM)']}
-        names={[user?.name]}
-      />
       <OfficialPrintFooter />
 
       {/* ========================================================================= */}

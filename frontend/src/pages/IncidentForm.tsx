@@ -10,8 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import { AiChatbotModal } from '../components/AiChatbotModal';
 import { StandardRiskSelector } from '../components/StandardRiskSelector';
-
-const NRLS_CUTOVER_DATE = '2026-10-01';
+import { getNrlsTypeId } from '../utils/nrlsClassification';
 
 interface NrlsSampleTemplate {
   id: string;
@@ -256,8 +255,9 @@ export default function IncidentForm() {
     setFormData(prev => {
       const selectedRisk = risks.find(r => r.id.toString() === aiData.risk_id);
       const selectedNrlsCode = String(aiData.nrls_code || '').trim().toUpperCase();
-      const selectedType = selectedRisk?.type_id?.toString()
-        || (selectedNrlsCode.startsWith('C') ? '2' : selectedNrlsCode.startsWith('G') ? '1' : prev.type_id);
+      const selectedType = getNrlsTypeId(selectedNrlsCode)
+        || selectedRisk?.type_id?.toString()
+        || prev.type_id;
       const typeChanged = Boolean(selectedNrlsCode) && selectedType !== prev.type_id;
       const suggestedLevel = String(aiData.level_id || '').trim().toUpperCase();
       const isSuggestedLevelValid = selectedType === '2'
@@ -407,8 +407,8 @@ export default function IncidentForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.date_report >= NRLS_CUTOVER_DATE && !formData.nrls_code) {
-      alert('เหตุการณ์ตั้งแต่ 1 ตุลาคม 2569 ต้องเลือกความเสี่ยงตามมาตรฐาน NRLS');
+    if (!formData.nrls_code) {
+      alert('รายงานใหม่ทุกวันที่เกิดเหตุต้องเลือกความเสี่ยงตามมาตรฐาน NRLS');
       return;
     }
     if (!formData.level_id) {
@@ -524,10 +524,9 @@ export default function IncidentForm() {
   };
 
   // Determine if selected risk is clinical based on type_id (2 = Clinical, 1 = General)
-  const isNrlsRequired = formData.date_report >= NRLS_CUTOVER_DATE;
-  const isClinical = formData.type_id === '2';
-  const isGeneral = formData.type_id === '1';
-  const isUnclassifiedLegacy = !isNrlsRequired && !formData.nrls_code && !formData.type_id;
+  const effectiveTypeId = getNrlsTypeId(formData.nrls_code) || formData.type_id;
+  const isClinical = effectiveTypeId === '2';
+  const isGeneral = effectiveTypeId === '1';
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
@@ -893,22 +892,24 @@ export default function IncidentForm() {
 
             <div className="grid grid-cols-1 gap-6">
               <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-                เริ่มบังคับใช้ NRLS เต็มรูปแบบตั้งแต่ <strong>1 ตุลาคม 2569</strong> — ข้อมูลก่อนวันนี้ที่ไม่มีรหัสจะเก็บเป็น Legacy โดยไม่บังคับแก้ย้อนหลัง
+                เปิดใช้ NRLS เต็มรูปแบบสำหรับ<strong>รายงานใหม่แล้ว</strong> — ทุกวันที่เกิดเหตุต้องเลือกรหัส NRLS ส่วนประวัติเดิมก่อน 1 ตุลาคม 2569 ที่ไม่มีรหัสยังคงเก็บเป็น Legacy
               </div>
               <StandardRiskSelector
                 selectedNrlsCode={formData.nrls_code}
                 selectedLocalRiskId={formData.risk_id ? Number(formData.risk_id) : null}
-                required={isNrlsRequired}
+                required
                 onSelect={(nrlsCode, localRiskId, nrlsRisk) => {
-                  let type_id = formData.type_id;
+                  const canonicalTypeId = getNrlsTypeId(nrlsCode || nrlsRisk?.nrls_code);
+                  let type_id = canonicalTypeId || formData.type_id;
                   let riskstore_text = formData.riskstore_text;
                   
                   if (localRiskId) {
-                    const selectedLocal = risks.find(r => r.id.toString() === String(localRiskId));
-                    type_id = selectedLocal?.type_id?.toString() || '';
-                    riskstore_text = selectedLocal ? (selectedLocal.riskstore_full || `${selectedLocal.clear_id} ${selectedLocal.risk_name}`) : '';
+                    const selectedLocal = risks.find(r => r.id.toString() === String(localRiskId))
+                      || nrlsRisk?.local_risks?.find((risk: any) => Number(risk.riskstore_id) === Number(localRiskId));
+                    riskstore_text = selectedLocal
+                      ? (selectedLocal.riskstore_full || selectedLocal.riskstore_name || `${selectedLocal.clear_id || ''} ${selectedLocal.risk_name || ''}`.trim())
+                      : `${nrlsCode || nrlsRisk?.nrls_code || ''} : ${nrlsRisk?.name || ''}`.trim();
                   } else if (nrlsRisk) {
-                    type_id = String(nrlsRisk.nrls_code || '').startsWith('C') ? '2' : '1';
                     riskstore_text = `${nrlsRisk.nrls_code} : ${nrlsRisk.name}`;
                   }
                   
@@ -923,32 +924,8 @@ export default function IncidentForm() {
                   }));
                 }}
               />
-              <input type="hidden" name="nrls_code" value={formData.nrls_code} required={formData.date_report >= NRLS_CUTOVER_DATE} />
+              <input type="hidden" name="nrls_code" value={formData.nrls_code} required />
               <input type="hidden" name="risk_id" value={formData.risk_id} />
-
-              {!isNrlsRequired && !formData.nrls_code && (
-                <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-800 dark:bg-amber-950/30">
-                  <label className="block text-sm font-semibold text-amber-900 dark:text-amber-200">
-                    ชื่อความเสี่ยงเดิมของโรงพยาบาล (Legacy — ไม่บังคับ)
-                  </label>
-                  <select
-                    name="risk_id"
-                    value={formData.risk_id}
-                    onChange={handleChange}
-                    className="w-full rounded-lg border border-amber-300 bg-white px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-700 dark:bg-slate-900"
-                  >
-                    <option value="">-- ไม่ระบุ / เลือกจากรายการเดิม --</option>
-                    {risks.map((risk) => (
-                      <option key={risk.id} value={risk.id}>
-                        {risk.riskstore_full || `${risk.clear_id || ''} ${risk.risk_name || ''}`.trim()}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs leading-relaxed text-amber-800/80 dark:text-amber-300/80">
-                    ใช้เฉพาะเหตุการณ์ก่อนวันที่เริ่มบังคับ NRLS หากเลือกหัวข้อเดิม ระบบจะกำหนดประเภทความรุนแรงให้โดยอัตโนมัติ
-                  </p>
-                </div>
-              )}
 
               <div className="space-y-2">
                 <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
@@ -960,10 +937,10 @@ export default function IncidentForm() {
                   required 
                   value={formData.level_id} 
                   onChange={handleChange} 
-                  disabled={!formData.type_id && isNrlsRequired}
+                  disabled={!effectiveTypeId}
                   className="w-full px-4 py-2.5 bg-bg-light dark:bg-bg-dark border border-border-light dark:border-border-dark rounded-[8px] text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-shadow font-semibold text-danger disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  <option value="">{formData.type_id || isUnclassifiedLegacy ? '-- เลือกระดับความรุนแรง --' : '-- กรุณาเลือกอุบัติการณ์มาตรฐานด้านบนก่อน --'}</option>
+                  <option value="">{effectiveTypeId ? '-- เลือกระดับความรุนแรง --' : '-- กรุณาเลือกอุบัติการณ์มาตรฐานด้านบนก่อน --'}</option>
                   {isClinical && (
                     <>
                       <option value="A">ระดับ A (เกิดที่นี่: มีโอกาสเกิดเหตุการณ์/พบได้เอง ปรับแก้ไขได้ ไม่กระทบผู้ป่วย)</option>
@@ -984,20 +961,6 @@ export default function IncidentForm() {
                       <option value="3">ระดับ 3 (ผลกระทบด้านการเงิน 100,001 - 500,000 บาท หรือ ล่าช้า 3 - 4.5 เดือน ดำเนินงานสำเร็จ 71-80%)</option>
                       <option value="4">ระดับ 4 (ผลกระทบด้านการเงิน 500,001 - 10,000,000 บาท หรือ ล่าช้า 4.5 - 6 เดือน ดำเนินงานสำเร็จ 60-70%)</option>
                       <option value="5">ระดับ 5 (ผลกระทบด้านการเงิน &gt; 10,000,000 บาท เสียหายร้ายแรง ล่าช้า &gt; 6 เดือน ดำเนินงานสำเร็จ &lt; 60%)</option>
-                    </>
-                  )}
-                  {isUnclassifiedLegacy && (
-                    <>
-                      <optgroup label="ด้านคลินิก (Clinical)">
-                        {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].map((level) => (
-                          <option key={level} value={level}>ระดับ {level}</option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="ด้านทั่วไป (General)">
-                        {[1, 2, 3, 4, 5].map((level) => (
-                          <option key={level} value={String(level)}>ระดับ {level}</option>
-                        ))}
-                      </optgroup>
                     </>
                   )}
                 </select>

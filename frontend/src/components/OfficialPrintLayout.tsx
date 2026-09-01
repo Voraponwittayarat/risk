@@ -12,11 +12,6 @@ interface OfficialPrintHeaderProps {
   orientation?: 'portrait' | 'landscape';
 }
 
-interface OfficialPrintSignaturesProps {
-  roles: string[];
-  names?: Array<string | null | undefined>;
-}
-
 const formatPrintedAt = () => new Intl.DateTimeFormat('th-TH', {
   dateStyle: 'medium',
   timeStyle: 'short',
@@ -74,24 +69,6 @@ export function OfficialPrintHeader({
         )}
       </header>
     </>
-  );
-}
-
-export function OfficialPrintSignatures({ roles, names = [] }: OfficialPrintSignaturesProps) {
-  return (
-    <section className="official-print-only official-print-signatures" aria-hidden="true">
-      <h2>การลงนามรับรองเอกสาร</h2>
-      <div className="official-print-signature-grid" style={{ gridTemplateColumns: `repeat(${roles.length}, minmax(0, 1fr))` }}>
-        {roles.map((role, index) => (
-          <div key={`${role}-${index}`} className="official-print-signature-cell">
-            <div className="official-print-signature-line">ลงชื่อ ................................................................</div>
-            <div>({names[index] || '................................................................'})</div>
-            <strong>{role}</strong>
-            <div>วันที่ .......... / .......... / ..........</div>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
 

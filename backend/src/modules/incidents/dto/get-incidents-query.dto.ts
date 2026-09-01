@@ -55,9 +55,12 @@ export class GetIncidentsQueryDto {
   @IsOptional()
   nrls_type?: 'CLINICAL' | 'GENERAL';
 
-  @ApiPropertyOptional({ description: 'Filter by classification status' })
+  @ApiPropertyOptional({
+    description: 'Filter by classification status',
+    enum: ['PENDING', 'CONFIRMED', 'NEEDS_REVIEW', 'LEGACY'],
+  })
   @IsOptional()
-  classification_status?: 'PENDING' | 'CONFIRMED' | 'NEEDS_REVIEW';
+  classification_status?: 'PENDING' | 'CONFIRMED' | 'NEEDS_REVIEW' | 'LEGACY';
 
   @ApiPropertyOptional({ description: 'Filter by scope type (primary, secondary, team)' })
   @IsOptional()

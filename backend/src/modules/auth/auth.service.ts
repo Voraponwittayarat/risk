@@ -1,22 +1,29 @@
-import { Injectable, UnauthorizedException, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import * as nodemailer from 'nodemailer';
 import { canonicalRole, legacyFieldsForRole } from './role.utils';
 import { normalizeRmScope } from './rm-scope.utils';
+import { normalizeMappingPermission } from './mapping-permission.utils';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
   ) {}
 
   async login(username: string, password: string) {
     // 1. Find user in the user table
     const dbUser = await this.prisma.user.findUnique({
-      where: { username }
+      where: { username },
     });
 
     if (!dbUser) {
@@ -24,7 +31,9 @@ export class AuthService {
     }
 
     if (dbUser.blocked_at) {
-      throw new UnauthorizedException('บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
+      throw new UnauthorizedException(
+        'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ',
+      );
     }
 
     // 2. Validate password (converting PHP's $2y$ prefix to $2a$ for Node.js compatibility)
@@ -36,7 +45,7 @@ export class AuthService {
 
     // 3. Find corresponding profile in member table by CID
     let member: any = await this.prisma.member.findFirst({
-      where: { cid: dbUser.cid || '' }
+      where: { cid: dbUser.cid || '' },
     });
 
     // If no member profile exists for this CID, create a fallback or mock one based on user.role
@@ -59,7 +68,7 @@ export class AuthService {
     let teamName: string | null = null;
     if (member.department_id1) {
       const dept = await this.prisma.department.findUnique({
-        where: { id: member.department_id1 }
+        where: { id: member.department_id1 },
       });
       if (dept) {
         departmentGroup = dept.depart_group_id;
@@ -67,13 +76,19 @@ export class AuthService {
       }
     }
     if (member.team_id) {
-      const team = await this.prisma.team.findUnique({ where: { id: member.team_id } });
+      const team = await this.prisma.team.findUnique({
+        where: { id: member.team_id },
+      });
       teamName = team?.team_name || null;
     }
 
     // 5. Create JWT Payload
     const role = canonicalRole(member.role, dbUser.role);
     const rmScope = normalizeRmScope(role, member.rm_scope);
+    const mappingPermission = normalizeMappingPermission(
+      role,
+      member.mapping_permission,
+    );
 
     const payload = {
       sub: dbUser.id,
@@ -88,6 +103,7 @@ export class AuthService {
       teamName,
       role,
       rmScope,
+      mappingPermission,
       require_password_change: (dbUser as any).require_password_change || false,
     };
 
@@ -103,14 +119,16 @@ export class AuthService {
         teamId: member.team_id,
         teamName,
         rmScope,
-        require_password_change: (dbUser as any).require_password_change || false,
-      }
+        mappingPermission,
+        require_password_change:
+          (dbUser as any).require_password_change || false,
+      },
     };
   }
 
   async forgotPassword(email: string) {
     const user = await this.prisma.user.findFirst({
-      where: { email }
+      where: { email },
     });
 
     if (!user) {
@@ -121,7 +139,7 @@ export class AuthService {
     const tempPassword = Math.random().toString(36).slice(-8);
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(tempPassword, saltRounds);
-    
+
     // Send email
     const transporter = nodemailer.createTransport({
       service: 'gmail',
@@ -146,20 +164,26 @@ export class AuthService {
         where: { id: user.id },
         data: {
           password_hash: hashedPassword,
-          require_password_change: true
-        } as any
+          require_password_change: true,
+        } as any,
       });
 
       return { message: 'รหัสผ่านชั่วคราวถูกส่งไปยังอีเมลของคุณแล้ว' };
     } catch (error) {
       console.error('Error sending email:', error);
-      throw new BadRequestException('ไม่สามารถส่งอีเมลได้ กรุณาตรวจสอบการตั้งค่า SMTP (ระบบยังคงใช้รหัสผ่านเดิม)');
+      throw new BadRequestException(
+        'ไม่สามารถส่งอีเมลได้ กรุณาตรวจสอบการตั้งค่า SMTP (ระบบยังคงใช้รหัสผ่านเดิม)',
+      );
     }
   }
 
-  async changePassword(userId: number, currentPassword: string, newPassword: string) {
+  async changePassword(
+    userId: number,
+    currentPassword: string,
+    newPassword: string,
+  ) {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId }
+      where: { id: userId },
     });
 
     if (!user) {
@@ -167,7 +191,10 @@ export class AuthService {
     }
 
     const hashToCompare = user.password_hash.replace(/^\$2y\$/, '$2a$');
-    const isPasswordValid = await bcrypt.compare(currentPassword, hashToCompare);
+    const isPasswordValid = await bcrypt.compare(
+      currentPassword,
+      hashToCompare,
+    );
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('รหัสผ่านปัจจุบันไม่ถูกต้อง');
@@ -175,7 +202,7 @@ export class AuthService {
 
     const saltRounds = 10;
     const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
-    
+
     // Convert the hash back to Yii2 compatible format if necessary
     // Yii2 uses $2y$ prefix
     const yii2HashedPassword = hashedNewPassword.replace(/^\$2a\$/, '$2y$');
@@ -184,20 +211,27 @@ export class AuthService {
       where: { id: userId },
       data: {
         password_hash: yii2HashedPassword,
-        require_password_change: false
-      } as any
+        require_password_change: false,
+      } as any,
     });
 
     return { message: 'เปลี่ยนรหัสผ่านสำเร็จ' };
   }
 
-  async register(username: string, password: string, email: string, cid: string) {
+  async register(
+    username: string,
+    password: string,
+    email: string,
+    cid: string,
+  ) {
     const member = await this.prisma.member.findFirst({
       where: { cid: cid.trim() },
     });
 
     if (!member) {
-      throw new BadRequestException('ไม่มีเลขรหัสของคุณในระบบกรุณาติดต่อผู้ดูแลระบบ');
+      throw new BadRequestException(
+        'ไม่มีเลขรหัสของคุณในระบบกรุณาติดต่อผู้ดูแลระบบ',
+      );
     }
 
     const existingUser = await this.prisma.user.findFirst({
@@ -205,14 +239,16 @@ export class AuthService {
         OR: [
           { cid: cid.trim() },
           { username: username.trim() },
-          { email: email.trim().toLowerCase() }
-        ]
-      }
+          { email: email.trim().toLowerCase() },
+        ],
+      },
     });
 
     if (existingUser) {
       if (existingUser.cid === cid.trim()) {
-        throw new ConflictException('เลขบัตรประชาชนนี้มีการลงทะเบียนบัญชีไว้แล้ว');
+        throw new ConflictException(
+          'เลขบัตรประชาชนนี้มีการลงทะเบียนบัญชีไว้แล้ว',
+        );
       }
       throw new ConflictException('ชื่อผู้ใช้หรืออีเมลนี้มีผู้ใช้งานแล้ว');
     }
@@ -239,6 +275,9 @@ export class AuthService {
       },
     });
 
-    return { id: user.id, message: 'ลงทะเบียนสำเร็จ คุณสามารถเข้าสู่ระบบได้ทันที' };
+    return {
+      id: user.id,
+      message: 'ลงทะเบียนสำเร็จ คุณสามารถเข้าสู่ระบบได้ทันที',
+    };
   }
 }

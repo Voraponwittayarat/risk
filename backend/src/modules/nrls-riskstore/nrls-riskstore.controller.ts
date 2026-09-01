@@ -1,10 +1,22 @@
-import { Controller, Get, Param, Patch, Body, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 import { NrlsRiskstoreService } from './nrls-riskstore.service';
 import { ApiTags } from '@nestjs/swagger';
+import { UpdateNrlsMappingDto } from './dto/update-nrls-mapping.dto';
 
 @ApiTags('NRLS Riskstore')
 @Controller('nrls-riskstore')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class NrlsRiskstoreController {
   constructor(private readonly nrlsRiskstoreService: NrlsRiskstoreService) {}
 
@@ -13,19 +25,30 @@ export class NrlsRiskstoreController {
     return this.nrlsRiskstoreService.findAll();
   }
 
+  @Get('mapping/context')
+  @Roles('admin', 'rm_committee')
+  getMappingContext(@Request() req) {
+    return this.nrlsRiskstoreService.getMappingContext(req.user);
+  }
+
   @Get(':code')
   findOne(@Param('code') code: string) {
     return this.nrlsRiskstoreService.findOne(code);
   }
-  @UseGuards(JwtAuthGuard)
+
   @Patch(':code')
+  @Roles('admin')
   update(@Param('code') code: string, @Body() updateData: any) {
     return this.nrlsRiskstoreService.update(code, updateData);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Patch(':code/mapping')
-  updateMapping(@Param('code') code: string, @Body() body: { riskstore_ids: number[], program_id?: number | null }) {
-    return this.nrlsRiskstoreService.updateMapping(code, body.riskstore_ids, body.program_id);
+  @Roles('admin', 'rm_committee')
+  updateMapping(
+    @Param('code') code: string,
+    @Body() dto: UpdateNrlsMappingDto,
+    @Request() req,
+  ) {
+    return this.nrlsRiskstoreService.updateMapping(code, dto, req.user);
   }
 }
