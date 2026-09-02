@@ -1,0 +1,29 @@
+[Unit]
+Description=RiskHRMS Hospital Risk Management System
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=riskhrms
+Group=riskhrms
+WorkingDirectory=@@PROJECT_ROOT@@/backend
+Environment=NODE_ENV=production
+Environment=FRONTEND_DIST_DIR=@@PROJECT_ROOT@@/frontend/dist
+EnvironmentFile=@@PROJECT_ROOT@@/backend/.env
+ExecStart=@@NODE_BIN@@ @@PROJECT_ROOT@@/backend/dist/src/main.js
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=60
+TimeoutStopSec=30
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/riskhrms
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

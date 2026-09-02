@@ -58,3 +58,7 @@ dump_distinct_risks.js
 restore_riskstore.js
 recover_mappings.js
 show_tables.js
+
+# Server deployment runtime data (never commit backups, logs, or state)
+deploy/runtime/
+deploy/backups/

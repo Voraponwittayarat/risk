@@ -3,11 +3,12 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { resolve } from 'path';
+import { join, resolve } from 'path';
 import { existsSync, mkdirSync } from 'fs';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configuredOrigins = String(process.env.CORS_ORIGINS || '')
     .split(',')
     .map((origin) => origin.trim())
@@ -48,6 +49,25 @@ async function bootstrap() {
     SwaggerModule.setup('api', app, documentFactory);
   }
 
-  await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
+  // In production the backend also serves the compiled React application.
+  // API requests use JSON Accept headers, while direct browser navigation to
+  // React routes requests HTML and receives index.html for client-side routing.
+  if (process.env.NODE_ENV === 'production') {
+    const frontendDistDir = resolve(process.env.FRONTEND_DIST_DIR || '../frontend/dist');
+    const frontendIndex = join(frontendDistDir, 'index.html');
+    if (!existsSync(frontendIndex)) {
+      throw new Error(`Production frontend is missing: ${frontendIndex}. Run npm run build in the frontend directory.`);
+    }
+    app.useStaticAssets(frontendDistDir, { index: false });
+    app.use((req: any, res: any, next: any) => {
+      const acceptsHtml = String(req.headers.accept || '').includes('text/html');
+      if (req.method === 'GET' && acceptsHtml) {
+        return res.sendFile(frontendIndex);
+      }
+      return next();
+    });
+  }
+
+  await app.listen(process.env.PORT ?? 3000, process.env.HOST || '0.0.0.0');
 }
 bootstrap();

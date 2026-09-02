@@ -13,6 +13,7 @@ import { NrlsRiskstoreModule } from './modules/nrls-riskstore/nrls-riskstore.mod
 import { ProgramsModule } from './modules/programs/programs.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CapaModule } from './modules/capa/capa.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -31,7 +32,7 @@ import { CapaModule } from './modules/capa/capa.module';
     ProgramsModule,
     CapaModule,
   ],
-  controllers: [],
+  controllers: [HealthController],
   providers: [],
 })
 export class AppModule {}
