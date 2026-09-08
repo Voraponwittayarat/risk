@@ -6,6 +6,8 @@ import { ValidationPipe } from '@nestjs/common';
 import { join, resolve } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import type { NextFunction, Request, Response } from 'express';
+import { shouldServeFrontend } from './frontend-fallback';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -59,9 +61,8 @@ async function bootstrap() {
       throw new Error(`Production frontend is missing: ${frontendIndex}. Run npm run build in the frontend directory.`);
     }
     app.useStaticAssets(frontendDistDir, { index: false });
-    app.use((req: any, res: any, next: any) => {
-      const acceptsHtml = String(req.headers.accept || '').includes('text/html');
-      if (req.method === 'GET' && acceptsHtml) {
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (shouldServeFrontend(req)) {
         return res.sendFile(frontendIndex);
       }
       return next();
