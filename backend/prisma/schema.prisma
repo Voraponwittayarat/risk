@@ -1130,4 +1130,6 @@ model NRLS_riskstore {
   program       program?       @relation(fields: [program_id], references: [program_id])
   local_risks   riskstore[]
   riskregisters riskregister[]
+
+  @@map("nrls_riskstore")
 }
