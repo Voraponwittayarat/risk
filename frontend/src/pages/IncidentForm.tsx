@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   FileText, Bot, Send, Calendar, Clock, MapPin, AlertTriangle, 
   User, PenTool, Stethoscope, FileSearch, Upload,
-  X, Sparkles, BookOpen, ShieldCheck, Check, Info, ArrowRight
+  X, Sparkles, BookOpen, Check, Info, ArrowRight
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -583,26 +583,6 @@ export default function IncidentForm() {
           </button>
         </div>
       )}
-
-      {/* NRLS Standard Data Set Official Explanatory Banner */}
-      <div className="p-4 sm:p-5 bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-slate-50 dark:from-blue-950/40 dark:via-indigo-950/30 dark:to-slate-900/40 border-l-4 border-blue-600 dark:border-blue-500 rounded-r-xl border border-blue-200/80 dark:border-blue-800/60 shadow-xs space-y-2">
-        <div className="flex items-center gap-2.5 text-blue-900 dark:text-blue-200 font-bold text-sm sm:text-base">
-          <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
-          <span>ข้อกำหนดมาตรฐาน Standard Data Set & Terminologies (บังคับส่งข้อมูลเข้าสู่ระบบ NRLS)</span>
-        </div>
-        <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed pl-7 space-y-1.5">
-          <p className="flex items-start gap-1.5">
-            <span className="font-black text-blue-700 dark:text-blue-400 text-sm">**</span>
-            <span>
-              <strong className="text-slate-900 dark:text-white">หัวข้อที่มีเครื่องหมาย ** หมายถึง ข้อมูลตาม Standard Data Set & Terminologies</strong> ที่จำเป็นต้องส่งออกเข้าสู่ระบบ NRLS ส่วนกลาง (สถาบันรับรองคุณภาพสถานพยาบาล - สรพ.)
-            </span>
-          </p>
-          <p className="flex items-start gap-1.5 text-slate-500 dark:text-slate-400">
-            <span className="text-danger font-black text-sm">*</span>
-            <span>เครื่องหมาย <strong className="text-danger"> * </strong> หมายถึง ฟิลด์จำเป็นที่ต้องกรอกให้ครบถ้วนก่อนกดบันทึกรายงาน</span>
-          </p>
-        </div>
-      </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col bg-card-light dark:bg-card-dark rounded-[12px] shadow-sm border border-border-light dark:border-border-dark overflow-hidden relative">
         {/* Loading Overlay for Options */}
