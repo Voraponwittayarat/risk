@@ -154,14 +154,14 @@ export default function Layout() {
           badge: "RCA Program",
           badgeColor: "bg-rose-500/20 text-rose-300 border border-rose-500/30",
         },
-        {
-          name: "ติดตาม CAPA แบบปิดวงจร",
+        ...(user?.role === 'rm_committee' && user?.rmScope === 'hospital' ? [{
+          name: "ติดตามการตอบสนอง / CAPA",
           path: "/capa",
           icon: ClipboardCheck,
           badge: "SLA",
           badgeColor:
             "bg-violet-500/20 text-violet-300 border border-violet-500/30",
-        },
+        }] : []),
       ],
     },
     {

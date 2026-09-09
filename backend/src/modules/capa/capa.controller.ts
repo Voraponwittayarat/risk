@@ -19,12 +19,17 @@ export class CapaController {
     @Query('due') due?: string,
     @Query('incident_id') incident_id?: string,
   ) {
-    return this.service.findAll(req.user, {
+    return this.service.findMonitoringActions(req.user, {
       status,
       nrls_code,
       due,
       incident_id: incident_id ? Number(incident_id) : undefined,
     });
+  }
+
+  @Get('department-response')
+  departmentResponse(@Request() req: any, @Query('from') from?: string, @Query('to') to?: string) {
+    return this.service.departmentResponse(req.user, from, to);
   }
 
   @Get('alerts')

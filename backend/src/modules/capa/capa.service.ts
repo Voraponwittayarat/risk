@@ -40,6 +40,83 @@ export class CapaService {
     return user?.role === 'rm_committee';
   }
 
+  private assertHospitalRm(user: any): void {
+    if (!this.isRm(user) || user?.rmScope !== 'hospital') {
+      throw new ForbiddenException('หน้านี้สำหรับ RM โรงพยาบาลเท่านั้น');
+    }
+  }
+
+  async findMonitoringActions(user: any, query: Parameters<CapaService['findAll']>[1]) {
+    this.assertHospitalRm(user);
+    return this.findAll(user, query);
+  }
+
+  async departmentResponse(user: any, from?: string, to?: string) {
+    this.assertHospitalRm(user);
+    const parseDate = (value?: string) => {
+      if (!value) return undefined;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)
+        || Number.isNaN(Date.parse(value))
+        || new Date(value).toISOString().slice(0, 10) !== value) {
+        throw new BadRequestException('ช่วงวันที่ไม่ถูกต้อง');
+      }
+      return new Date(`${value}T00:00:00+07:00`);
+    };
+    const start = parseDate(from);
+    const end = parseDate(to);
+    if (start && end && start > end) throw new BadRequestException('วันเริ่มต้องไม่อยู่หลังวันสิ้นสุด');
+    const now = new Date();
+    const [departments, slas] = await Promise.all([
+      this.prisma.department.findMany({ select: { id: true, depart_name: true }, orderBy: { id: 'asc' } }),
+      this.db.sla_instance.findMany({
+        where: {
+          entity_type: 'INCIDENT', workflow_stage: 'REVIEW_OWNER', status: { in: ['ACTIVE', 'COMPLETED'] },
+          started_at: { ...(start ? { gte: start } : {}), ...(end ? { lt: new Date(end.getTime() + 86400000) } : {}) },
+        },
+        select: { owner_department_id: true, started_at: true, due_at: true, completed_at: true, status: true },
+      }),
+    ]);
+    let invalidRecords = 0;
+    const rows = departments.map((department) => {
+      const items = slas.filter((sla: any) => Number(sla.owner_department_id) === department.id);
+      const durations: number[] = [];
+      const waits: number[] = [];
+      let onTime = 0;
+      let overdue = 0;
+      for (const item of items) {
+        const started = new Date(item.started_at).getTime();
+        const due = new Date(item.due_at).getTime();
+        const finished = item.completed_at ? new Date(item.completed_at).getTime() : NaN;
+        if (!Number.isFinite(started) || started > now.getTime() || !Number.isFinite(due)
+          || (item.status === 'COMPLETED' && (!Number.isFinite(finished) || finished < started || finished > now.getTime()))) {
+          invalidRecords++;
+          continue;
+        }
+        if (item.status === 'COMPLETED') {
+          durations.push((finished - started) / 3600000);
+          if (finished <= due) onTime++;
+        } else {
+          waits.push((now.getTime() - started) / 3600000);
+          if (due < now.getTime()) overdue++;
+        }
+      }
+      const sorted = [...durations].sort((a, b) => a - b);
+      const middle = Math.floor(sorted.length / 2);
+      return {
+        department_id: String(department.id), department_name: department.depart_name,
+        total: durations.length + waits.length, responded: durations.length, pending: waits.length, overdue,
+        average_hours: durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : null,
+        median_hours: sorted.length ? (sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2) : null,
+        on_time_percent: durations.length ? onTime / durations.length * 100 : null,
+        longest_wait_hours: waits.length ? Math.max(...waits) : null,
+      };
+    });
+    return {
+      generated_at: now.toISOString(), rows, invalid_records: invalidRecords,
+      unassigned_records: slas.filter((sla: any) => !departments.some((department) => department.id === Number(sla.owner_department_id))).length,
+    };
+  }
+
   private async scopeDepartments(user: any): Promise<string[] | null> {
     if (user?.role === 'admin' || (this.isRm(user) && user?.rmScope === 'hospital')) return null;
     if ((this.isRm(user) || user?.role === 'head') && user?.rmScope === 'group' && user?.departmentGroup) {

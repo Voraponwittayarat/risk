@@ -87,6 +87,14 @@ function TeamRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function HospitalRmRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (user?.role !== 'rm_committee' || user?.rmScope !== 'hospital') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -145,7 +153,7 @@ function App() {
             <Route path="rca/list" element={<RcaList />} />
             <Route path="rca/concise" element={<ConciseRcaForm />} />
             <Route path="rca/standard/:id" element={<StandardRcaForm />} />
-            <Route path="capa" element={<CapaWorkspace />} />
+            <Route path="capa" element={<HospitalRmRoute><CapaWorkspace /></HospitalRmRoute>} />
 
             <Route path="reports" element={<Reports />} />
             <Route path="reporting-stats" element={<IndividualReportStats />} />

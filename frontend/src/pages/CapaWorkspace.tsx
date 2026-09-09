@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../contexts/AuthContext';
+import DepartmentResponseMonitor from '../components/DepartmentResponseMonitor';
 
 type Sla = {
   id: number;
@@ -223,8 +224,8 @@ export default function CapaWorkspace() {
     <div className="mx-auto max-w-[1600px] space-y-5 p-4 md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="flex items-center gap-2"><ClipboardCheck className="text-violet-600" /><h1 className="text-2xl font-black text-slate-900">CAPA Closed-loop</h1></div>
-          <p className="mt-1 text-sm text-slate-500">ดำเนินมาตรการ → ประเมินผลโดยผู้ทบทวนอิสระ → RM อนุมัติปิด</p>
+          <div className="flex items-center gap-2"><ClipboardCheck className="text-violet-600" /><h1 className="text-2xl font-black text-slate-900">ติดตามการตอบสนองหน่วยงาน / CAPA</h1></div>
+          <p className="mt-1 text-sm text-slate-500">สำหรับ RM โรงพยาบาล • ติดตามการทบทวนความเสี่ยงและมาตรการแก้ไข</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => void load()} className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-600 hover:bg-slate-50"><RefreshCw size={18} /></button>
@@ -232,6 +233,9 @@ export default function CapaWorkspace() {
         </div>
       </div>
 
+      <DepartmentResponseMonitor />
+
+      <h2 className="text-lg font-bold text-slate-900">ติดตามมาตรการ CAPA</h2>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { label: 'กำลังติดตาม', value: totals.open, Icon: Clock3, color: 'text-blue-600' },

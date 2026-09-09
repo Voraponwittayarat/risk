@@ -122,6 +122,32 @@ Updater จะทำงานเฉพาะเมื่อ production อยู
 
 สถานะ release ล่าสุดอยู่ที่ `/var/lib/riskhrms/deploy-state/last-successful-deploy.json`
 
+### Deploy อัตโนมัติเมื่อ push เข้า main
+
+Workflow `.github/workflows/deploy-production.yml` จะเชื่อมต่อ production ผ่าน SSH เมื่อมี commit ใหม่ใน `main` แล้วเรียก updater เดิมเพียงคำสั่งเดียว Updater ล็อกไม่ให้ deploy ซ้อนกัน และยังคงตรวจ worktree, สำรองฐานข้อมูลพร้อม checksum, pull แบบ fast-forward, build, migrate, restart และตรวจ `/health`
+
+สร้าง GitHub Environment ชื่อ `production` และเพิ่ม Environment secrets ต่อไปนี้ (ห้ามใส่ค่าจริงใน repository):
+
+- `PROD_HOST` — DNS หรือ IP ของ Ubuntu production
+- `PROD_PORT` — พอร์ต SSH; ไม่กำหนดจะใช้ `22`
+- `PROD_USER` — บัญชี deploy สำหรับ SSH ซึ่งไม่ใช่ root
+- `PROD_SSH_KEY` — private key สำหรับบัญชี deploy โดยใช้ key แยกเฉพาะงานนี้
+- `PROD_KNOWN_HOSTS` — public host key ที่ผู้ดูแลตรวจ fingerprint กับเครื่อง production แล้ว
+
+บน production ให้จำกัด public key นี้ใน `~/.ssh/authorized_keys` ไม่ให้ใช้ port/agent forwarding และอนุญาต sudo แบบไม่ถามรหัสผ่านเฉพาะ updater คำสั่งเดียว ตัวอย่าง sudoers (แก้ `<deploy-user>` ให้ตรงกับ `PROD_USER`):
+
+```text
+<deploy-user> ALL=(root) NOPASSWD: /usr/bin/bash /opt/riskhrms/deploy/ubuntu/update-hrms.sh
+```
+
+ตรวจตำแหน่ง Bash ด้วย `command -v bash` และปรับ sudoers ให้ตรงกับคำสั่งจริง ใช้ `visudo -f /etc/sudoers.d/riskhrms-deploy` และตั้ง permission `0440` จากนั้นทดสอบจากบัญชี deploy ด้วย:
+
+```bash
+sudo -n bash /opt/riskhrms/deploy/ubuntu/update-hrms.sh
+```
+
+หลังตั้งค่าครบ ทุก push/merge เข้า `main` จะ deploy อัตโนมัติ หาก backup, build, migration หรือ health check ล้มเหลว workflow จะแสดง failed และ updater จะไม่ reset Git หรือ restore ฐานข้อมูลเอง สามารถกด Run workflow เพื่อรันซ้ำหลังแก้สาเหตุได้
+
 ## 7. สำรองข้อมูล
 
 ฐานข้อมูล:

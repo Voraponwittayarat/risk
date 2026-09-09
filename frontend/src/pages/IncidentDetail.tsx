@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import { 
   ArrowLeft, AlertTriangle, CheckCircle2, 
@@ -39,6 +40,7 @@ function parseRcaEvaluationSnapshot(value: unknown): any | null {
 }
 
 export default function IncidentDetail() {
+  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const [incident, setIncident] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -1401,7 +1403,7 @@ export default function IncidentDetail() {
             <span className="rounded-full bg-emerald-50 px-2.5 py-1.5 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
               CAPA: {incident.improvement_status === 'CLOSED' ? 'ปิดวงจรแล้ว' : incident.improvement_status === 'MONITORING' ? `กำลังติดตาม • รอประเมิน ${incident.capa_summary?.awaiting_effectiveness || 0}` : `ยังไม่มี/ไม่ต้องมี • ทั้งหมด ${incident.capa_summary?.total || 0}`}
             </span>
-            <Link to="/capa" className="rounded-xl bg-violet-600 px-3 py-1.5 text-white hover:bg-violet-700">ดู CAPA</Link>
+            {user?.role === 'rm_committee' && user?.rmScope === 'hospital' && <Link to="/capa" className="rounded-xl bg-violet-600 px-3 py-1.5 text-white hover:bg-violet-700">ดู CAPA</Link>}
           </div>
         </div>
       </div>

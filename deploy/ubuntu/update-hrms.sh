@@ -28,9 +28,16 @@ on_failure() {
 }
 trap on_failure ERR
 
-for command in node npm git curl systemctl runuser; do
+for command in node npm git curl systemctl runuser flock; do
   command -v "${command}" >/dev/null || { echo "Missing command: ${command}" >&2; exit 1; }
 done
+
+LOCK_FILE="/run/lock/riskhrms-update.lock"
+exec 9>"${LOCK_FILE}"
+if ! flock -n 9; then
+  echo 'Update cancelled: another RiskHRMS deployment is already running.' >&2
+  exit 1
+fi
 [[ -f "${ENV_FILE}" ]] || { echo 'backend/.env is missing.' >&2; exit 1; }
 node "${SCRIPT_DIR}/validate-production-env.cjs" "${ENV_FILE}"
 
