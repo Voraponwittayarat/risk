@@ -13,10 +13,20 @@ import {
   likelihoodFromAnnualCount,
   riskLevelFor,
 } from '../../common/risk-matrix-policy';
-import { existsSync } from 'fs';
-import { basename, resolve, sep } from 'path';
+import { existsSync, statSync } from 'fs';
+import { unlink, writeFile } from 'fs/promises';
+import { basename, extname, resolve, sep } from 'path';
+import { randomBytes } from 'crypto';
 import { CreateIncidentReviewDto } from './dto/create-incident-review.dto';
 import { rankAiRiskCandidates } from './ai-incident-assistant.utils';
+import {
+  MAX_REVIEW_ATTACHMENT_BYTES,
+  MAX_REVIEW_ATTACHMENT_FILES,
+  parseReviewAttachments,
+  REVIEW_ATTACHMENT_EXTENSIONS,
+  type ReviewAttachment,
+  validateReviewAttachmentFiles,
+} from './review-attachments';
 
 @Injectable()
 export class IncidentsService {
@@ -1692,6 +1702,33 @@ export class IncidentsService {
     return filePath;
   }
 
+  async getReviewAttachmentPath(id: number, reviewId: number, requestedFilename: string, user?: any): Promise<string> {
+    const incident = await this.prisma.riskregister.findFirst({ where: { id } });
+    if (!incident) throw new NotFoundException(`ไม่พบรายงานอุบัติการณ์รหัส #${id}`);
+    const permissions = await this.getIncidentPermissions(user, incident);
+    this.assertPermission(permissions.canView, 'ไม่มีสิทธิ์เปิดไฟล์แนบของการทบทวนนี้');
+
+    const review = await this.prisma.riskreview.findFirst({
+      where: { id: reviewId, riskregister_id: id },
+      select: { files: true },
+    });
+    if (!review) throw new NotFoundException('ไม่พบรอบการทบทวนที่ร้องขอ');
+
+    const filename = basename(String(requestedFilename || '').trim());
+    if (!filename || filename !== requestedFilename || filename.includes('..')) {
+      throw new BadRequestException('ชื่อไฟล์แนบไม่ถูกต้อง');
+    }
+    const attachment = parseReviewAttachments(review.files).find((item) => item.filename === filename);
+    if (!attachment) throw new NotFoundException('ไฟล์นี้ไม่ได้แนบอยู่กับรอบการทบทวนที่ร้องขอ');
+
+    const uploadDir = resolve(process.env.UPLOAD_DIR || './uploads');
+    const filePath = resolve(uploadDir, filename);
+    if (!filePath.startsWith(`${uploadDir}${sep}`) || !existsSync(filePath)) {
+      throw new NotFoundException('ไม่พบไฟล์แนบบนเซิร์ฟเวอร์');
+    }
+    return filePath;
+  }
+
   async create(
     data: any,
     user?: any,
@@ -2271,7 +2308,79 @@ export class IncidentsService {
     return this.findOne(id, user);
   }
 
-  async addReview(id: number, reviewDto: CreateIncidentReviewDto, user?: any) {
+  private validateStoredReviewAttachments(value: unknown, user?: any): ReviewAttachment[] {
+    const attachments = parseReviewAttachments(value);
+    if (!value) return [];
+    if (!Array.isArray(value) || attachments.length !== value.length || attachments.length > MAX_REVIEW_ATTACHMENT_FILES) {
+      throw new BadRequestException('รายการไฟล์แนบการทบทวนไม่ถูกต้อง');
+    }
+    const actorId = this.getUserId(user);
+    if (!actorId) throw new ForbiddenException('ไม่พบตัวตนเจ้าของไฟล์แนบ');
+    const uploadDir = resolve(process.env.UPLOAD_DIR || './uploads');
+    let totalBytes = 0;
+    return attachments.map((attachment) => {
+      const filename = basename(attachment.filename.replace(/\\/g, '/'));
+      if (filename !== attachment.filename || !filename.startsWith(`${actorId}-review-`)) {
+        throw new ForbiddenException('อ้างอิงได้เฉพาะไฟล์ทบทวนที่บัญชีนี้เป็นผู้อัปโหลด');
+      }
+      const extension = extname(filename).toLowerCase();
+      const mimetype = Object.entries(REVIEW_ATTACHMENT_EXTENSIONS).find(([, ext]) => ext === extension)?.[0];
+      if (!mimetype) throw new BadRequestException('ชนิดไฟล์แนบการทบทวนไม่ถูกต้อง');
+      const filePath = resolve(uploadDir, filename);
+      if (!filePath.startsWith(`${uploadDir}${sep}`) || !existsSync(filePath)) {
+        throw new BadRequestException(`ไม่พบไฟล์แนบ ${filename}`);
+      }
+      const actualSize = statSync(filePath).size;
+      totalBytes += actualSize;
+      if (totalBytes > MAX_REVIEW_ATTACHMENT_BYTES) {
+        throw new BadRequestException('ขนาดไฟล์แนบรวมต้องไม่เกิน 10 MB');
+      }
+      const originalname = basename(String(attachment.originalname || filename).replace(/\\/g, '/'))
+        .replace(/[\u0000-\u001f\u007f]/g, '')
+        .slice(0, 255) || filename;
+      return { filename, originalname, mimetype, size: actualSize };
+    });
+  }
+
+  async addReviewWithAttachments(id: number, reviewDto: CreateIncidentReviewDto, files: any[], user?: any) {
+    const incident = await this.prisma.riskregister.findFirst({ where: { id } });
+    if (!incident) throw new NotFoundException('Incident not found');
+    const permissions = await this.getIncidentPermissions(user, incident);
+    const canAttach = this.isRmCommittee(user)
+      ? await this.isInManagementScope(user, incident)
+      : permissions.canReview || permissions.canTeamReview;
+    this.assertPermission(canAttach, 'ไม่มีสิทธิ์แนบไฟล์ในการทบทวนอุบัติการณ์นี้');
+    validateReviewAttachmentFiles(files);
+
+    const actorId = this.getUserId(user);
+    if (!actorId) throw new ForbiddenException('ไม่พบตัวตนผู้อัปโหลด');
+    const uploadDir = resolve(process.env.UPLOAD_DIR || './uploads');
+    const storedPaths: string[] = [];
+    const attachments: ReviewAttachment[] = [];
+    try {
+      for (const file of files) {
+        const extension = REVIEW_ATTACHMENT_EXTENSIONS[file.mimetype];
+        const filename = `${actorId}-review-${Date.now()}-${randomBytes(8).toString('hex')}${extension}`;
+        const filePath = resolve(uploadDir, filename);
+        await writeFile(filePath, file.buffer, { flag: 'wx' });
+        storedPaths.push(filePath);
+        const originalname = basename(String(file.originalname || filename).replace(/\\/g, '/'))
+          .replace(/[\u0000-\u001f\u007f]/g, '')
+          .slice(0, 255) || filename;
+        attachments.push({ filename, originalname, mimetype: file.mimetype, size: file.size });
+      }
+      return await this.addReview(id, { ...reviewDto, files: attachments }, user);
+    } catch (error) {
+      await Promise.all(storedPaths.map((filePath) => unlink(filePath).catch(() => undefined)));
+      throw error;
+    }
+  }
+
+  async addReview(
+    id: number,
+    reviewDto: CreateIncidentReviewDto & { files?: ReviewAttachment[] },
+    user?: any,
+  ) {
     const incident = await this.prisma.riskregister.findFirst({ where: { id } });
     if (!incident) throw new NotFoundException('Incident not found');
     const permissions = await this.getIncidentPermissions(user, incident);
@@ -2303,6 +2412,7 @@ export class IncidentsService {
     if (reviewDto.learning_action && !serializedContributingFactors) {
       throw new BadRequestException('กรุณาเลือก Contributing Factor ตามมาตรฐาน NRLS อย่างน้อย 1 รายการ');
     }
+    const reviewAttachments = this.validateStoredReviewAttachments(reviewDto.files, user);
 
     let coReviewDepartmentId: string | null = null;
     if (learningAction === 'REQUEST_CO_REVIEW') {
@@ -2343,6 +2453,7 @@ export class IncidentsService {
           notereview: note,
           cause_problem: reviewDto.cause_problem || null,
           contributing_factors: serializedContributingFactors,
+          files: reviewAttachments.length ? JSON.stringify(reviewAttachments) : null,
           reviewresults_id: reviewDto.reviewresults_id ? Number(reviewDto.reviewresults_id) : 1,
           status_risk: 'ทบทวน',
           created_by: actorId || 1,
@@ -2446,6 +2557,7 @@ export class IncidentsService {
             learning_action: learningAction,
             rca_case_id: queuedRcaCaseId,
             co_review_department_id: coReviewDepartmentId,
+            attachment_count: reviewAttachments.length,
           }),
           reason: note,
           changed_by: actorId,

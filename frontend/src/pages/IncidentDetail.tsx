@@ -8,7 +8,7 @@ import {
   MessageSquare, Check, X, ShieldAlert,
   Calendar, Sparkles, RefreshCw, History, Target,
   Share2, Users, Send,
-  Printer, Edit3, ShieldCheck, Building2, Clock
+  Printer, Edit3, ShieldCheck, Building2, Clock, Paperclip, Download
 } from 'lucide-react';
 import { getStatusInfo, getSeverityBadge } from '../utils/statusAdapter';
 import { StandardRiskSelector } from '../components/StandardRiskSelector';
@@ -22,6 +22,25 @@ import {
 } from '../utils/contributingFactors';
 
 type ReviewLearningAction = 'NO_NEW_MEASURE' | 'SEND_RCA' | 'REQUEST_CO_REVIEW';
+type ReviewAttachment = {
+  filename: string;
+  originalname: string;
+  mimetype: string;
+  size: number;
+};
+
+const MAX_REVIEW_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const REVIEW_ATTACHMENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+
+function parseReviewAttachments(value: unknown): ReviewAttachment[] {
+  if (!value) return [];
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed.filter((item) => item?.filename && item?.originalname) : [];
+  } catch {
+    return [];
+  }
+}
 
 const REVIEW_ACTION_NOTES: Record<ReviewLearningAction, string> = {
   NO_NEW_MEASURE: 'ทบทวนร่วมกับทีมงานแล้ว: ยังคงปฏิบัติตามแนวทาง/มาตรการมาตรฐานเดิมต่อไปอย่างเคร่งครัด เนื่องจากมาตรการเดิมยังครอบคลุมและมีประสิทธิภาพ',
@@ -57,6 +76,9 @@ export default function IncidentDetail() {
   const [causeProblem, setCauseProblem] = useState('');
   const [reviewContributingFactors, setReviewContributingFactors] = useState<ContributingFactorSelection[]>([]);
   const [reviewLearningAction, setReviewLearningAction] = useState<ReviewLearningAction>('NO_NEW_MEASURE');
+  const [reviewFiles, setReviewFiles] = useState<File[]>([]);
+  const [openingReviewFile, setOpeningReviewFile] = useState('');
+  const reviewFileInputRef = React.useRef<HTMLInputElement>(null);
   const [coReviewDepartmentId, setCoReviewDepartmentId] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
@@ -396,6 +418,50 @@ export default function IncidentDetail() {
     }
   };
 
+  const handleReviewFileSelection = (files: FileList | null) => {
+    const selected = Array.from(files || []);
+    if (selected.length > 10) {
+      alert('แนบไฟล์ได้ไม่เกิน 10 ไฟล์ต่อการทบทวน');
+      if (reviewFileInputRef.current) reviewFileInputRef.current.value = '';
+      return;
+    }
+    if (selected.some((file) => !REVIEW_ATTACHMENT_TYPES.has(file.type))) {
+      alert('รองรับเฉพาะไฟล์ JPG, PNG, WebP และ PDF');
+      if (reviewFileInputRef.current) reviewFileInputRef.current.value = '';
+      return;
+    }
+    if (selected.reduce((sum, file) => sum + file.size, 0) > MAX_REVIEW_ATTACHMENT_BYTES) {
+      alert('ขนาดไฟล์แนบรวมต้องไม่เกิน 10 MB');
+      if (reviewFileInputRef.current) reviewFileInputRef.current.value = '';
+      return;
+    }
+    setReviewFiles(selected);
+  };
+
+  const openReviewAttachment = async (reviewId: number, attachment: ReviewAttachment) => {
+    if (!incident) return;
+    const key = `${reviewId}:${attachment.filename}`;
+    setOpeningReviewFile(key);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        `/incidents/${incident.id}/reviews/${reviewId}/attachments/${encodeURIComponent(attachment.filename)}`,
+        { responseType: 'blob', headers: token ? { Authorization: `Bearer ${token}` } : {} },
+      );
+      const objectUrl = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (error: any) {
+      alert('เปิดไฟล์แนบไม่สำเร็จ: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setOpeningReviewFile('');
+    }
+  };
+
   const handleAddReview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!incident || !reviewNote.trim()) {
@@ -418,27 +484,39 @@ export default function IncidentDetail() {
     try {
       const token = localStorage.getItem('token');
       const selectedLearningAction = reviewLearningAction;
-      const response = await axios.post(
-        `/incidents/${incident.id}/review`,
-        {
-          review_date: reviewDate,
-          findings: finalNote,
-          notereview: finalNote,
-          cause_problem: finalCause,
-          contributing_factors: reviewContributingFactors,
-          reviewresults_id: 1,
-          learning_action: reviewLearningAction,
-          ...(reviewLearningAction === 'REQUEST_CO_REVIEW'
-            ? { co_review_department_id: coReviewDepartmentId }
-            : {}),
-        },
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
+      const reviewPayload = {
+        review_date: reviewDate,
+        findings: finalNote,
+        notereview: finalNote,
+        cause_problem: finalCause,
+        contributing_factors: reviewContributingFactors,
+        learning_action: reviewLearningAction,
+        ...(reviewLearningAction === 'REQUEST_CO_REVIEW'
+          ? { co_review_department_id: coReviewDepartmentId }
+          : {}),
+      };
+      let response;
+      if (reviewFiles.length) {
+        const formData = new FormData();
+        Object.entries(reviewPayload).forEach(([key, value]) => {
+          formData.append(key, key === 'contributing_factors' ? JSON.stringify(value) : String(value));
+        });
+        reviewFiles.forEach((file) => formData.append('files', file));
+        response = await axios.post(`/incidents/${incident.id}/review`, formData, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+      } else {
+        response = await axios.post(`/incidents/${incident.id}/review`, reviewPayload, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+      }
       setReviewNote(REVIEW_ACTION_NOTES.NO_NEW_MEASURE);
       setCauseProblem('');
       setReviewContributingFactors([]);
       setReviewLearningAction('NO_NEW_MEASURE');
       setCoReviewDepartmentId('');
+      setReviewFiles([]);
+      if (reviewFileInputRef.current) reviewFileInputRef.current.value = '';
       setSaveSuccessMsg(
         selectedLearningAction === 'SEND_RCA'
           ? 'ส่งเรื่องเข้าสู่ศูนย์ RCA และบันทึกผลการทบทวนเรียบร้อยแล้ว'
@@ -1319,6 +1397,50 @@ export default function IncidentDetail() {
             />
           </div>
 
+          <div className="rounded-xl border border-dashed border-indigo-300 bg-indigo-50/40 p-4 dark:border-indigo-800 dark:bg-indigo-950/20">
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+              <Paperclip className="h-4 w-4 text-indigo-600" />
+              แนบหลักฐานประกอบการทบทวน (ไม่บังคับ)
+            </label>
+            <input
+              ref={reviewFileInputRef}
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              onChange={(event) => handleReviewFileSelection(event.target.files)}
+              className="mt-2 block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:font-bold file:text-white hover:file:bg-indigo-700 dark:text-slate-300"
+            />
+            <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+              รองรับ JPG, PNG, WebP และ PDF สูงสุด 10 ไฟล์ โดยขนาดรวมทั้งหมดต้องไม่เกิน 10 MB
+            </p>
+            {reviewFiles.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {reviewFiles.map((file, index) => (
+                  <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center justify-between gap-3 rounded-lg border border-indigo-100 bg-white px-3 py-2 text-xs dark:border-indigo-900 dark:bg-slate-900">
+                    <span className="min-w-0 truncate text-slate-700 dark:text-slate-200">{file.name}</span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-slate-400">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReviewFiles((current) => current.filter((_, itemIndex) => itemIndex !== index));
+                          if (reviewFileInputRef.current) reviewFileInputRef.current.value = '';
+                        }}
+                        className="rounded p-1 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                        aria-label={`ลบไฟล์ ${file.name}`}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="text-right text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
+                  รวม {(reviewFiles.reduce((sum, file) => sum + file.size, 0) / 1024 / 1024).toFixed(2)} / 10 MB
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Action Command Center */}
           <div className="pt-6 border-t border-slate-200/80 dark:border-slate-700/80 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-3">
@@ -1430,6 +1552,7 @@ export default function IncidentDetail() {
               const prevRev = incident.reviews[idx + 1];
               const priorMeasure = prevRev ? prevRev.notereview : (incident.edit || incident.problem_basic || 'มาตรการเบื้องต้นเดิม');
               const reviewFactors = normalizeContributingFactorSelections(rev.contributing_factors);
+              const reviewAttachments = parseReviewAttachments(rev.files);
 
               return (
                 <div 
@@ -1499,6 +1622,32 @@ export default function IncidentDetail() {
                     <div className="text-xs bg-slate-100 dark:bg-slate-800/80 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 flex items-start gap-2">
                       <span className="font-bold text-slate-700 dark:text-slate-200 shrink-0">🔍 สาเหตุ/ข้อสรุปเพิ่มเติม:</span>
                       <span>{rev.cause_problem}</span>
+                    </div>
+                  )}
+
+                  {reviewAttachments.length > 0 && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 dark:border-blue-900 dark:bg-blue-950/30">
+                      <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-blue-800 dark:text-blue-300">
+                        <Paperclip className="h-3.5 w-3.5" /> หลักฐานแนบ ({reviewAttachments.length} ไฟล์)
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {reviewAttachments.map((attachment) => {
+                          const key = `${rev.id}:${attachment.filename}`;
+                          return (
+                            <button
+                              key={attachment.filename}
+                              type="button"
+                              disabled={openingReviewFile === key}
+                              onClick={() => void openReviewAttachment(Number(rev.id), attachment)}
+                              className="flex max-w-full items-center gap-1.5 truncate rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-300"
+                              title={`${attachment.originalname} (${(attachment.size / 1024 / 1024).toFixed(2)} MB)`}
+                            >
+                              <Download className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{openingReviewFile === key ? 'กำลังเปิด...' : attachment.originalname}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>

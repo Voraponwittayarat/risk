@@ -12,13 +12,14 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
+import { diskStorage, memoryStorage } from 'multer';
 import { extname } from 'path';
 import type { Response } from 'express';
 import { readFile, unlink } from 'fs/promises';
 
 import { TelegramService } from './telegram.service';
 import { deidentifyIncidentText, normalizeAiRiskSuggestions } from './ai-incident-assistant.utils';
+import { MAX_REVIEW_ATTACHMENT_BYTES, MAX_REVIEW_ATTACHMENT_FILES, REVIEW_ATTACHMENT_EXTENSIONS } from './review-attachments';
 
 @ApiTags('Incidents')
 @ApiBearerAuth()
@@ -200,6 +201,21 @@ export class IncidentsController {
     return res.sendFile(filePath);
   }
 
+  @Get(':id/reviews/:reviewId/attachments/:filename')
+  @ApiOperation({ summary: 'Download a review attachment after record-level authorization' })
+  async getReviewAttachment(
+    @Param('id') id: string,
+    @Param('reviewId') reviewId: string,
+    @Param('filename') filename: string,
+    @Request() req,
+    @Res() res: Response,
+  ) {
+    const filePath = await this.incidentsService.getReviewAttachmentPath(+id, +reviewId, filename, req.user);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.sendFile(filePath);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Retrieve a single risk incident by ID with review timeline' })
   findOne(@Param('id') id: string, @Request() req) {
@@ -300,13 +316,33 @@ export class IncidentsController {
   }
 
   @Post(':id/review')
-  @ApiOperation({ summary: 'Add a review note or cause analysis log' })
+  @ApiOperation({ summary: 'Add a review note with optional image/PDF evidence (10 MB combined)' })
+  @UseInterceptors(FilesInterceptor('files', MAX_REVIEW_ATTACHMENT_FILES, {
+    storage: memoryStorage(),
+    limits: { fileSize: MAX_REVIEW_ATTACHMENT_BYTES },
+    fileFilter: (_req, file, cb) => {
+      if (!REVIEW_ATTACHMENT_EXTENSIONS[file.mimetype]) {
+        return cb(new BadRequestException('รองรับเฉพาะไฟล์ JPG, PNG, WebP และ PDF'), false);
+      }
+      cb(null, true);
+    },
+  }))
   addReview(
     @Param('id') id: string,
     @Body() reviewDto: CreateIncidentReviewDto,
+    @UploadedFiles() files: any[],
     @Request() req
   ) {
-    return this.incidentsService.addReview(+id, reviewDto, req.user);
+    if (typeof reviewDto.contributing_factors === 'string') {
+      try {
+        reviewDto.contributing_factors = JSON.parse(reviewDto.contributing_factors);
+      } catch {
+        throw new BadRequestException('ข้อมูล Contributing Factor ไม่ถูกต้อง');
+      }
+    }
+    return files?.length
+      ? this.incidentsService.addReviewWithAttachments(+id, reviewDto, files, req.user)
+      : this.incidentsService.addReview(+id, reviewDto, req.user);
   }
 
   @Post(':id/forward')
