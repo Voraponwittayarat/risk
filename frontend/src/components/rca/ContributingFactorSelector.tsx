@@ -131,7 +131,8 @@ export function ContributingFactorSelector({
       )}
 
       {!readOnly && (
-        <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50">
+        <details className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50">
+          <summary className="cursor-pointer text-sm font-semibold text-indigo-700">ค้นหาหรือเพิ่มปัจจัยที่เกี่ยวข้อง</summary>
           <div>
             <label className="relative block">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -172,7 +173,7 @@ export function ContributingFactorSelector({
             })}
           </div>
 
-          <div className="max-h-[32rem] space-y-4 overflow-y-auto pr-1">
+          <div className="max-h-72 space-y-4 overflow-y-auto pr-1">
             {groupedFactors.map((group) => (
               <section key={group.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
                 <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-slate-100/95 px-3 py-2 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/95">
@@ -218,7 +219,7 @@ export function ContributingFactorSelector({
               <div className="py-8 text-center text-xs text-slate-500">ไม่พบปัจจัยที่ตรงกับคำค้น</div>
             )}
           </div>
-        </div>
+        </details>
       )}
     </div>
   );

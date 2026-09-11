@@ -87,7 +87,7 @@ export default function IncidentDetail() {
   const [linkedRca, setLinkedRca] = useState<{ standardCases: any[]; miniConciseCases: any[] } | null>(null);
   // Action / Review State
   const [reviewDate, setReviewDate] = useState(new Date().toISOString().split('T')[0]);
-  const [reviewNote, setReviewNote] = useState(REVIEW_ACTION_NOTES.NO_NEW_MEASURE);
+  const [reviewNote, setReviewNote] = useState('');
   const [causeProblem, setCauseProblem] = useState('');
   const [reviewContributingFactors, setReviewContributingFactors] = useState<ContributingFactorSelection[]>([]);
   const [reviewLearningAction, setReviewLearningAction] = useState<ReviewLearningAction>('NO_NEW_MEASURE');
@@ -150,6 +150,10 @@ export default function IncidentDetail() {
       return;
     }
     setSubmittingConfirm(true);
+    if (targetStatus === 'แก้ไข' && confirmNote.trim().length < 10) {
+      alert('กรุณาระบุข้อมูลที่ต้องแก้ไขและคำแนะนำอย่างน้อย 10 ตัวอักษร');
+      return;
+    }
     try {
       const token = localStorage.getItem('token');
       if (targetStatus === 'ตรวจสอบ') {
@@ -208,11 +212,6 @@ export default function IncidentDetail() {
         setIncident(res.data);
         if (res.data?.rca_required && res.data?.rca_status !== 'COMPLETED') {
           setReviewLearningAction('SEND_RCA');
-          setReviewNote((current) => (
-            !current.trim() || Object.values(REVIEW_ACTION_NOTES).includes(current)
-              ? REVIEW_ACTION_NOTES.SEND_RCA
-              : current
-          ));
         }
         if (res.data?.sendto_team_id) setForwardTeamId(res.data.sendto_team_id.toString());
         if (res.data?.sendto_department_id) setForwardDeptId(res.data.sendto_department_id);
@@ -416,7 +415,7 @@ export default function IncidentDetail() {
 
   const handleQuickNoNewMeasure = () => {
     setReviewLearningAction('NO_NEW_MEASURE');
-    setReviewNote(REVIEW_ACTION_NOTES.NO_NEW_MEASURE);
+    // Preserve the reviewer's own account of what was done.
   };
 
   const handleSendToRca = () => {
@@ -521,7 +520,7 @@ export default function IncidentDetail() {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
       }
-      setReviewNote(REVIEW_ACTION_NOTES.NO_NEW_MEASURE);
+      setReviewNote('');
       setCauseProblem('');
       setReviewContributingFactors([]);
       setReviewLearningAction('NO_NEW_MEASURE');
@@ -737,7 +736,7 @@ export default function IncidentDetail() {
                   </span>
                 </div>
                 <p className="mt-1 text-xs font-semibold text-red-800 dark:text-red-300">
-                  กรุณาเลือก “2. ส่งทำ RCA” ในส่วนการเรียนรู้และปรับปรุง แล้วบันทึกผลการทบทวน
+                  กรุณาเลือก “ส่งวิเคราะห์ RCA เพิ่มเติม” ในส่วนการเรียนรู้และปรับปรุง แล้วบันทึกผลการทบทวน
                 </p>
                 <div className="mt-3 rounded-xl border border-red-200 bg-white/80 p-3 dark:border-red-900 dark:bg-slate-900/70">
                   <div className="text-[11px] font-black uppercase tracking-wide text-red-800 dark:text-red-300">เกณฑ์ที่ตรวจพบ</div>
@@ -949,7 +948,7 @@ export default function IncidentDetail() {
                   </>
                 )}
 
-                {permissions.canReject && incident.status_risk !== 'ไม่ใช่ความเสี่ยง' && (
+                {permissions.canReject && !permissions.canReview && incident.status_risk !== 'ไม่ใช่ความเสี่ยง' && (
                   <button
                     type="button"
                     onClick={() => requestFinalStatus('ไม่ใช่ความเสี่ยง')}
@@ -961,7 +960,7 @@ export default function IncidentDetail() {
                   </button>
                 )}
 
-                {permissions.canForward && incident.status_risk !== 'จำหน่าย' && (
+                {permissions.canForward && !permissions.canReview && incident.status_risk !== 'จำหน่าย' && (
                   <>
                     <button
                       type="button"
@@ -1068,6 +1067,19 @@ export default function IncidentDetail() {
         </div>
       </div>
 
+        {/* Success Alert Banner */}
+        {saveSuccessMsg && (
+          <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-xl text-xs text-emerald-800 dark:text-emerald-200 flex flex-wrap items-center gap-2 font-bold animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{saveSuccessMsg}</span>
+            {saveSuccessLink && (
+              <Link to={saveSuccessLink.to} className="ml-auto rounded-lg bg-emerald-600 px-3 py-1.5 text-white hover:bg-emerald-700">
+                {saveSuccessLink.label}
+              </Link>
+            )}
+          </div>
+        )}
+
       {/* Collaborative Co-Review / Forward Status Banner */}
       {(incident.sendto_team_name || incident.sendto_department_name) && (
         <div className="official-print-academic-section bg-gradient-to-r from-purple-500/15 via-indigo-500/10 to-transparent border-l-4 border-purple-600 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-900/50">
@@ -1081,7 +1093,7 @@ export default function IncidentDetail() {
                   📤 ส่งต่อให้ {incident.sendto_team_name ? `ทีมนำ: ${incident.sendto_team_name}` : `หน่วยงาน: ${incident.sendto_department_name}`} ร่วมทบทวน
                 </h3>
                 <span className="print-screen-only text-[10px] px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/70 dark:text-purple-200 font-bold border border-purple-300 dark:border-purple-800">
-                  Co-Review Mode
+                  {FORWARDING_PURPOSE_LABELS[incident.review_forwarding_purpose as ForwardingPurpose] || 'ผู้รับผิดชอบการทบทวน'}
                 </span>
               </div>
 
@@ -1112,7 +1124,7 @@ export default function IncidentDetail() {
             </div>
           </div>
 
-          {permissions.canForward && (
+          {permissions.canForward && !permissions.canReview && (
             <button
               type="button"
               onClick={() => {
@@ -1131,7 +1143,7 @@ export default function IncidentDetail() {
       {/* INLINE REVIEW & RCA WORKSTATION (รวมในหน้าเดียว ไม่ต้องเปิด Popup Modal) */}
       {/* ========================================================================= */}
       {(permissions.canReview || permissions.canTeamReview || permissions.canRecordRmReview) && (
-      <div id="review-workstation" className="print-screen-only bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 border-2 border-indigo-500/40 dark:border-indigo-500/50 shadow-md space-y-6">
+      <div id="review-workstation" className="print-screen-only bg-white dark:bg-slate-800 rounded-2xl p-4 sm:p-5 border border-indigo-500/40 dark:border-indigo-500/50 shadow-sm space-y-4">
         {/* Header with Date Picker */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-center gap-3">
@@ -1142,11 +1154,11 @@ export default function IncidentDetail() {
               <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <span>บันทึกการทบทวน & จัดการมาตรการ</span>
                 <span className="text-xs font-normal px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                  Review & RCA Station
+                  ทบทวนระดับหน่วยงาน
                 </span>
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                ทบทวนอุบัติการณ์ วิเคราะห์สาเหตุเชิงระบบ ปรับปรุงมาตรการ และบันทึกผลได้โดยตรงที่นี่
+                ทุกการทบทวนช่วยให้เราดูแลกันได้ปลอดภัยขึ้น
               </p>
             </div>
           </div>
@@ -1164,98 +1176,18 @@ export default function IncidentDetail() {
           </div>
         </div>
 
-        {/* Success Alert Banner */}
-        {saveSuccessMsg && (
-          <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-xl text-xs text-emerald-800 dark:text-emerald-200 flex flex-wrap items-center gap-2 font-bold animate-in fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{saveSuccessMsg}</span>
-            {saveSuccessLink && (
-              <Link to={saveSuccessLink.to} className="ml-auto rounded-lg bg-emerald-600 px-3 py-1.5 text-white hover:bg-emerald-700">
-                {saveSuccessLink.label}
-              </Link>
-            )}
-          </div>
+        {incident.reviews?.length > 0 && (
+          <details className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900">
+            <summary className="cursor-pointer text-sm font-semibold">ผลการทบทวนล่าสุด — เปิดอ่านก่อนบันทึกครั้งนี้</summary>
+            <p className="mt-2 whitespace-pre-wrap text-sm">{incident.reviews[0].notereview}</p>
+          </details>
         )}
-
-        {/* NRLS essentials kept close to the legacy review form. */}
-        <section className="overflow-hidden rounded-2xl border border-sky-200 bg-sky-50/50 dark:border-sky-900 dark:bg-sky-950/20">
-          <div className="flex flex-col gap-2 border-b border-sky-200/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-sky-900">
-            <div>
-              <h3 className="text-sm font-black text-sky-950 dark:text-sky-200">ข้อมูลสำคัญตาม NRLS สำหรับการทบทวน</h3>
-              <p className="mt-0.5 text-[11px] text-sky-700 dark:text-sky-400">แสดงเฉพาะข้อมูลที่บันทึกอยู่ในเหตุการณ์นี้ เพื่อใช้ประกอบการทบทวนโดยไม่เปลี่ยนแบบฟอร์มเดิม</p>
-            </div>
-            <span className="w-fit rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-bold text-sky-800 dark:border-sky-800 dark:bg-slate-900 dark:text-sky-300">
-              ยืนยัน NRLS: {incident.classification_status || 'PENDING'}
-            </span>
-          </div>
-
-          <dl className="grid grid-cols-1 gap-px bg-sky-200/70 text-xs sm:grid-cols-2 lg:grid-cols-4 dark:bg-sky-900/70">
-            {[
-              ['รหัสและชื่อความเสี่ยง NRLS', incident.nrls_code ? `${incident.nrls_code} : ${incident.nrls_name || '-'}` : 'ข้อมูลเดิม—รอตรวจสอบ'],
-              ['ระดับความรุนแรง', severity.label || '-'],
-              ['หน่วยงานผู้รายงาน', incident.department_name || '-'],
-              ['หน่วยงาน/ทีมรับผิดชอบ', incident.sendto_team_name || incident.sendto_department_name || incident.department_name || '-'],
-              ['วันที่และเวลาที่เกิดเหตุ', `${dtEvent}${incident.time_report ? ` เวลา ${incident.time_report}` : ''}`],
-              ['สถานที่เกิดเหตุ', incident.location_name || '-'],
-              ['ผู้ได้รับผลกระทบ', incident.affected || 'ไม่ระบุ'],
-              ['สถานะเอกสาร RCA', incident.rca_required ? (incident.rca_status === 'COMPLETED' ? 'เสร็จสมบูรณ์' : `ต้องทำ • ${incident.rca_status || 'REQUIRED'}`) : 'ไม่เข้าเกณฑ์บังคับ RCA'],
-            ].map(([label, value]) => (
-              <div key={label} className="bg-white/95 px-3.5 py-3 dark:bg-slate-900/90">
-                <dt className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{label}</dt>
-                <dd className="mt-1 break-words font-semibold leading-relaxed text-slate-800 dark:text-slate-200">{value}</dd>
-              </div>
-            ))}
-            <div className="bg-white/95 px-3.5 py-3 sm:col-span-2 dark:bg-slate-900/90">
-              <dt className="text-[11px] font-bold text-slate-500 dark:text-slate-400">รายละเอียดอุบัติการณ์</dt>
-              <dd className="mt-1 whitespace-pre-wrap leading-relaxed text-slate-700 dark:text-slate-300">{incident.detail || '-'}</dd>
-            </div>
-            <div className="bg-white/95 px-3.5 py-3 sm:col-span-2 dark:bg-slate-900/90">
-              <dt className="text-[11px] font-bold text-slate-500 dark:text-slate-400">สรุปประเด็นปัญหา</dt>
-              <dd className="mt-1 whitespace-pre-wrap leading-relaxed text-slate-700 dark:text-slate-300">{incident.problem_basic || '-'}</dd>
-            </div>
-          </dl>
-        </section>
-
-        {/* 1. ส่วนแสดงมาตรการเดิมอย่างชัดเจน (Current / Baseline Measure) */}
-        <div className="bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-800/80 rounded-2xl p-4 sm:p-5 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-200 text-sm">
-              <span className="p-1 rounded-md bg-amber-200/80 dark:bg-amber-900 text-amber-800 dark:text-amber-300">📌</span>
-              <span>เดิมทำอย่างไร / มาตรการเดิมที่มีอยู่ (Current & Baseline Measure):</span>
-            </div>
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-200/60 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-medium">
-              ข้อมูลอ้างอิงเดิม
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-xs">
-            <div className="p-3 bg-white dark:bg-slate-900/70 rounded-xl border border-amber-200/60 dark:border-amber-800/40">
-              <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                🔹 การแก้ไขปัญหาเบื้องต้น ณ ที่เกิดเหตุ (เมื่อรายงาน):
-              </span>
-              <p className="text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed">
-                {incident.edit || 'ไม่มีการบันทึกมาตรการเบื้องต้นไว้'}
-              </p>
-            </div>
-
-            <div className="p-3 bg-white dark:bg-slate-900/70 rounded-xl border border-amber-200/60 dark:border-amber-800/40">
-              <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                🔹 มาตรการจากการทบทวนรอบล่าสุด (ถ้ามี):
-              </span>
-              <p className="text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed">
-                {incident.reviews && incident.reviews.length > 0
-                  ? incident.reviews[0].notereview
-                  : 'ยังไม่เคยมีการบันทึกการทบทวนรอบก่อนหน้า'}
-              </p>
-            </div>
-          </div>
-        </div>
 
         {/* 2. Cause analysis — the primary review input */}
         <section className="space-y-4 rounded-2xl border-2 border-indigo-300 bg-indigo-50/30 p-4 dark:border-indigo-800 dark:bg-indigo-950/20 sm:p-5">
           <div>
             <h3 className="text-sm font-black text-indigo-950 dark:text-indigo-200">
-              สาเหตุที่ทำให้เกิดความเสี่ยง <span className="text-rose-500">*</span>
+              1. สาเหตุและปัจจัยที่เกี่ยวข้อง <span className="text-rose-500">*</span>
             </h3>
             <p className="mt-1 text-xs text-indigo-700 dark:text-indigo-300">เลือก Contributing Factor ที่เกี่ยวข้องได้มากกว่า 1 ปัจจัย โดยแยกตามหมวดด้านต่าง ๆ</p>
           </div>
@@ -1265,10 +1197,10 @@ export default function IncidentDetail() {
               onChange={setReviewContributingFactors}
             />
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/70">
-            <label className="block text-sm font-black text-slate-800 dark:text-slate-100">
+          <details className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/70">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-800 dark:text-slate-100">
               สาเหตุอื่น ๆ เพิ่มเติม
-            </label>
+            </summary>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               ใช้สำหรับสาเหตุหรือข้อสรุปที่ไม่ครอบคลุมใน Contributing Factor ที่เลือกด้านบน
             </p>
@@ -1281,180 +1213,15 @@ export default function IncidentDetail() {
               className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
             />
             <div className="mt-1 text-right text-[11px] text-slate-400">{causeProblem.length}/255 ตัวอักษร</div>
-          </div>
+          </details>
         </section>
-
-        {/* 3. Department outcome */}
-        <section className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
-          <div>
-            <h3 className="text-sm font-black text-emerald-950 dark:text-emerald-200">
-              ผลการดำเนินการแก้ไขปัญหาระดับหน่วยงาน <span className="text-rose-500">*</span>
-            </h3>
-            <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
-              ระดับ {String(incident.level_id || '-').toUpperCase()}: {['A', 'B', '1'].includes(String(incident.level_id || '').toUpperCase())
-                ? 'เมื่อยุติปัญหาได้และไม่มีงานส่งต่อ ระบบจะสิ้นสุดเคสระดับหน่วยงานอัตโนมัติ'
-                : 'เมื่อหน่วยงานดำเนินการเสร็จ เคสยังต้องผ่านการปิดโดยคณะกรรมการ RM'}
-            </p>
-          </div>
-          <div className={`grid grid-cols-1 gap-3 ${['A', 'B', '1'].includes(String(incident.level_id || '').toUpperCase()) ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
-            {([
-              ['IN_PROGRESS', 'อยู่ระหว่างการดำเนินการแก้ปัญหาระดับหน่วยงาน', 'ยังมีงานที่หน่วยงานต้องติดตามต่อ'],
-              ['RESOLVED', 'สิ้นสุดการแก้ปัญหาระดับหน่วยงาน โดยยุติปัญหาได้', 'หน่วยงานแก้ไขและควบคุมปัญหาได้แล้ว'],
-              ...(['A', 'B', '1'].includes(String(incident.level_id || '').toUpperCase())
-                ? []
-                : [['UNRESOLVED', 'สิ้นสุดการแก้ปัญหาระดับหน่วยงาน แต่ไม่สามารถยุติปัญหาได้', 'ส่งต่อให้ RM พิจารณาการจัดการระดับระบบ']]),
-            ] as Array<[DepartmentOutcome, string, string]>).map(([value, label, description]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setDepartmentOutcome(value)}
-                className={`rounded-xl border p-3 text-left transition-all ${departmentOutcome === value
-                  ? 'border-emerald-500 bg-white shadow-sm ring-2 ring-emerald-500/20 dark:bg-emerald-950/60'
-                  : 'border-emerald-100 bg-white/60 hover:border-emerald-300 dark:border-emerald-900 dark:bg-slate-900/40'}`}
-              >
-                <span className="block text-xs font-black text-slate-900 dark:text-white">{label}</span>
-                <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{description}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* 4. Forwarding purpose */}
-        <section className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-900 dark:bg-amber-950/20">
-          <div>
-            <h3 className="text-sm font-black text-amber-950 dark:text-amber-200">การส่งต่อหลังทบทวน</h3>
-            <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">ผลการแก้ไขและการส่งต่อเป็นคนละเรื่องกัน จึงเลือก “ยุติปัญหาได้” พร้อมส่งเพื่อรับทราบได้</p>
-          </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {([
-              ['NONE', 'ไม่ส่งต่อ', 'จบงานตามผลการทบทวนของหน่วยงาน'],
-              ['INFORM', 'ส่งเพื่อรับทราบ / แลกเปลี่ยนเรียนรู้', 'ไม่สร้างภาระงานให้หน่วยงานปลายทาง'],
-              ['CO_REVIEW', 'ขอร่วมทบทวน', 'รอข้อเสนอแนะจากหน่วยงานปลายทาง'],
-              ['ADDITIONAL_ACTION', 'ขอให้ดำเนินการเพิ่มเติม', 'มีงานที่หน่วยงานปลายทางต้องดำเนินการ'],
-              ['TRANSFER_OWNER', 'โอนผู้รับผิดชอบหลัก', 'ส่งความรับผิดชอบหลักให้หน่วยงานปลายทาง'],
-            ] as Array<[ForwardingPurpose, string, string]>).map(([value, label, description]) => (
-              <button
-                key={value}
-                type="button"
-                disabled={value !== 'NONE' && !permissions.canForward}
-                onClick={() => {
-                  setForwardingPurpose(value);
-                  if (value === 'NONE') setCoReviewDepartmentId('');
-                }}
-                className={`rounded-xl border p-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 ${forwardingPurpose === value
-                  ? 'border-amber-500 bg-white shadow-sm ring-2 ring-amber-500/20 dark:bg-amber-950/60'
-                  : 'border-amber-100 bg-white/60 hover:border-amber-300 dark:border-amber-900 dark:bg-slate-900/40'}`}
-              >
-                <span className="block text-xs font-black text-slate-900 dark:text-white">{label}</span>
-                <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{description}</span>
-              </button>
-            ))}
-          </div>
-          {forwardingPurpose !== 'NONE' && (
-            <div>
-              <label className="block text-xs font-black text-amber-950 dark:text-amber-200">
-                หน่วยงานปลายทาง <span className="text-rose-500">*</span>
-              </label>
-              <select
-                value={coReviewDepartmentId}
-                onChange={(event) => setCoReviewDepartmentId(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-amber-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-amber-500 dark:border-amber-800 dark:bg-slate-900 dark:text-white"
-              >
-                <option value="">-- เลือกหน่วยงานอื่น --</option>
-                {departmentsList
-                  .filter((department: any) => String(department.id) !== String(incident.department_id))
-                  .map((department: any) => (
-                    <option key={department.id} value={department.id}>{department.depart_name || department.name}</option>
-                  ))}
-              </select>
-              <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
-                {forwardingPurpose === 'INFORM'
-                  ? 'ปลายทางเปิดดูข้อมูลได้ แต่ไม่ถูกกำหนดให้ทบทวนหรือดำเนินการ'
-                  : 'เคสจะยังเปิดอยู่จนกว่างานที่ส่งต่อจะดำเนินการครบ'}
-              </p>
-            </div>
-          )}
-        </section>
-
-        {/* 5. Learning & improvement decision */}
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-black text-slate-800 dark:text-slate-100">
-              การเรียนรู้และปรับปรุง <span className="text-rose-500">*</span>
-            </label>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              เลือกแนวทางหลัก 1 รายการ ระบบจะบันทึกเป็นขั้นตอนถัดไปของเคส
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={handleQuickNoNewMeasure}
-              className={`rounded-2xl border p-4 text-left transition-all ${reviewLearningAction === 'NO_NEW_MEASURE'
-                ? 'border-blue-500 bg-blue-50 shadow-sm ring-2 ring-blue-500/20 dark:bg-blue-950/40'
-                : 'border-slate-200 bg-slate-50 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-900/40'}`}
-            >
-              <span className="flex items-start gap-3">
-                <span className="rounded-xl bg-blue-100 p-2 text-blue-700 dark:bg-blue-900 dark:text-blue-300"><Check className="h-4 w-4" /></span>
-                <span>
-                  <span className="block text-xs font-black text-slate-900 dark:text-white">1. ทบทวนแล้วไม่เกิดมาตรการใหม่</span>
-                  <span className="mt-1 block text-[11px] leading-relaxed text-slate-500">คงมาตรการเดิมและรอทบทวนผลซ้ำ</span>
-                </span>
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSendToRca}
-              disabled={!permissions.canForward}
-              title={!permissions.canForward ? 'สิทธิ์ของคุณบันทึกผลร่วมทบทวนได้ แต่ส่งเข้าศูนย์ RCA ไม่ได้' : undefined}
-              className={`rounded-2xl border p-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 ${reviewLearningAction === 'SEND_RCA'
-                ? 'border-purple-500 bg-purple-50 shadow-sm ring-2 ring-purple-500/20 dark:bg-purple-950/40'
-                : 'border-slate-200 bg-slate-50 hover:border-purple-300 dark:border-slate-700 dark:bg-slate-900/40'}`}
-            >
-              <span className="flex items-start gap-3">
-                <span className="rounded-xl bg-purple-100 p-2 text-purple-700 dark:bg-purple-900 dark:text-purple-300"><Target className="h-4 w-4" /></span>
-                <span>
-                  <span className="flex flex-wrap items-center gap-1.5 text-xs font-black text-slate-900 dark:text-white">
-                    2. ส่งทำ RCA
-                    {rcaNeedsAction && <span className="rounded-full bg-red-600 px-2 py-0.5 text-[9px] text-white">เข้าเกณฑ์ • ต้องทำต่อ</span>}
-                  </span>
-                  <span className="mt-1 block text-[11px] font-bold leading-relaxed text-purple-700 dark:text-purple-300">สร้างเคสและแสดงในศูนย์ RCA ทันทีหลังบันทึก</span>
-                </span>
-              </span>
-            </button>
-
-          </div>
-
-          {reviewLearningAction === 'SEND_RCA' && (
-            <div className="rounded-2xl border border-purple-200 bg-purple-50/70 p-4 text-xs text-purple-950 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-200">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="font-black">เมื่อบันทึก ระบบจะส่งเคสนี้ไปยังศูนย์ RCA โดยอัตโนมัติ</div>
-                  <p className="mt-1 text-[11px] text-purple-700 dark:text-purple-300">สถานะเคส RCA เริ่มต้นเป็น “รอรับเรื่อง” และเคสนี้จะยังจำหน่ายไม่ได้จนกว่า RCA จะเสร็จสมบูรณ์</p>
-                </div>
-                <Link to="/rca" className="shrink-0 rounded-xl bg-purple-600 px-3 py-2 text-center font-bold text-white hover:bg-purple-700">เปิดศูนย์ RCA</Link>
-              </div>
-              {linkedRca && ((linkedRca.standardCases?.length || 0) + (linkedRca.miniConciseCases?.length || 0) > 0) && (
-                <div className="mt-3 rounded-xl border border-purple-200 bg-white px-3 py-2 dark:border-purple-800 dark:bg-slate-900">
-                  พบ RCA ที่เชื่อมโยงกับเคสนี้แล้ว {(linkedRca.standardCases?.length || 0) + (linkedRca.miniConciseCases?.length || 0)} รายการ
-                  {linkedRca.standardCases?.map((rcaCase: any) => (
-                    <Link key={rcaCase.id} to={`/rca/standard/${rcaCase.id}`} className="ml-2 font-bold text-purple-700 hover:underline dark:text-purple-300">{rcaCase.id}</Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-        </div>
 
         {/* 4. ฟอร์มบันทึกข้อมูลหลัก (Main Review Inputs) */}
         <form onSubmit={handleAddReview} className="space-y-4">
           {/* ช่องเพิ่มมาตรการใหม่ / รายละเอียดการทบทวน */}
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              ✨ มีการแก้ไขปัญหาอย่างไร / รายละเอียดการแก้ไข (Action Taken) *
+              2. การแก้ไขในการทบทวนครั้งนี้ *
             </label>
             <textarea
               required
@@ -1511,7 +1278,166 @@ export default function IncidentDetail() {
             )}
           </div>
 
+        {/* 3. Department outcome */}
+        <section className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
+          <div>
+            <h3 className="text-sm font-black text-emerald-950 dark:text-emerald-200">
+              3. ผลการดำเนินการระดับหน่วยงาน <span className="text-rose-500">*</span>
+            </h3>
+            <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
+              ระดับ {String(incident.level_id || '-').toUpperCase()}: {['A', 'B', '1'].includes(String(incident.level_id || '').toUpperCase())
+                ? 'เมื่อยุติปัญหาได้และไม่มีงานส่งต่อ ระบบจะสิ้นสุดเคสระดับหน่วยงานอัตโนมัติ'
+                : 'เมื่อหน่วยงานดำเนินการเสร็จ เคสยังต้องผ่านการปิดโดยคณะกรรมการ RM'}
+            </p>
+          </div>
+          <div className={`grid grid-cols-1 gap-3 ${['A', 'B', '1'].includes(String(incident.level_id || '').toUpperCase()) ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+            {([
+              ['IN_PROGRESS', 'อยู่ระหว่างการดำเนินการแก้ปัญหาระดับหน่วยงาน', 'ยังมีงานที่หน่วยงานต้องติดตามต่อ'],
+              ['RESOLVED', 'สิ้นสุดการแก้ปัญหาระดับหน่วยงาน โดยยุติปัญหาได้', 'หน่วยงานแก้ไขและควบคุมปัญหาได้แล้ว'],
+              ...(['A', 'B', '1'].includes(String(incident.level_id || '').toUpperCase())
+                ? []
+                : [['UNRESOLVED', 'สิ้นสุดการแก้ปัญหาระดับหน่วยงาน แต่ไม่สามารถยุติปัญหาได้', 'ส่งต่อให้ RM พิจารณาการจัดการระดับระบบ']]),
+            ] as Array<[DepartmentOutcome, string, string]>).map(([value, label, description]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setDepartmentOutcome(value)}
+                className={`rounded-xl border p-3 text-left transition-all ${departmentOutcome === value
+                  ? 'border-emerald-500 bg-white shadow-sm ring-2 ring-emerald-500/20 dark:bg-emerald-950/60'
+                  : 'border-emerald-100 bg-white/60 hover:border-emerald-300 dark:border-emerald-900 dark:bg-slate-900/40'}`}
+              >
+                <span className="block text-xs font-black text-slate-900 dark:text-white">{label}</span>
+                <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{description}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* 4. Forwarding purpose */}
+        <section className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-900 dark:bg-amber-950/20">
+          <div>
+            <h3 className="text-sm font-black text-amber-950 dark:text-amber-200">4. การส่งต่อหลังทบทวน</h3>
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">ผลการแก้ไขและการส่งต่อเป็นคนละเรื่องกัน จึงเลือก “ยุติปัญหาได้” พร้อมส่งเพื่อรับทราบได้</p>
+          </div>
+          <select aria-label="การส่งต่อหลังทบทวน" value={forwardingPurpose}
+            onChange={(event) => { setForwardingPurpose(event.target.value as ForwardingPurpose); setCoReviewDepartmentId(''); }}
+            className="w-full rounded-xl border border-amber-200 bg-white p-3 text-sm dark:bg-slate-900">
+            {Object.entries(FORWARDING_PURPOSE_LABELS).map(([value, label]) => (
+              <option key={value} value={value} disabled={value !== 'NONE' && !permissions.canForward}>{label}</option>
+            ))}
+          </select>
+          {permissions.canForwardToTeam && (
+            <button type="button" onClick={() => { setForwardTargetType('team'); setIsForwardModalOpen(true); }}
+              className="text-xs font-semibold text-purple-700 underline dark:text-purple-300">
+              ส่งผลที่บันทึกแล้วเข้าภาพรวมทีมนำ
+            </button>
+          )}
+          {forwardingPurpose !== 'NONE' && (
+            <div>
+              <label className="block text-xs font-black text-amber-950 dark:text-amber-200">
+                หน่วยงานปลายทาง <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={coReviewDepartmentId}
+                onChange={(event) => setCoReviewDepartmentId(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-amber-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-amber-500 dark:border-amber-800 dark:bg-slate-900 dark:text-white"
+              >
+                <option value="">-- เลือกหน่วยงานอื่น --</option>
+                {departmentsList
+                  .filter((department: any) => String(department.id) !== String(incident.department_id))
+                  .map((department: any) => (
+                    <option key={department.id} value={department.id}>{department.depart_name || department.name}</option>
+                  ))}
+              </select>
+              <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
+                {forwardingPurpose === 'INFORM'
+                  ? 'ปลายทางเปิดดูข้อมูลได้ แต่ไม่ถูกกำหนดให้ทบทวนหรือดำเนินการ'
+                  : 'เคสจะยังเปิดอยู่จนกว่างานที่ส่งต่อจะดำเนินการครบ'}
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* 5. Learning & improvement decision */}
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-black text-slate-800 dark:text-slate-100">
+              การวิเคราะห์เพิ่มเติม <span className="text-rose-500">*</span>
+            </label>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              เลือกแนวทางหลัก 1 รายการ ระบบจะบันทึกเป็นขั้นตอนถัดไปของเคส
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={handleQuickNoNewMeasure}
+              className={`rounded-2xl border p-4 text-left transition-all ${reviewLearningAction === 'NO_NEW_MEASURE'
+                ? 'border-blue-500 bg-blue-50 shadow-sm ring-2 ring-blue-500/20 dark:bg-blue-950/40'
+                : 'border-slate-200 bg-slate-50 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-900/40'}`}
+            >
+              <span className="flex items-start gap-3">
+                <span className="rounded-xl bg-blue-100 p-2 text-blue-700 dark:bg-blue-900 dark:text-blue-300"><Check className="h-4 w-4" /></span>
+                <span>
+                  <span className="block text-xs font-black text-slate-900 dark:text-white">ดำเนินการและติดตามในหน่วยงาน</span>
+                  <span className="mt-1 block text-[11px] leading-relaxed text-slate-500">บันทึกการแก้ไขหรือมาตรการใหม่ในรายละเอียดด้านบน</span>
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSendToRca}
+              disabled={!permissions.canForward}
+              title={!permissions.canForward ? 'สิทธิ์ของคุณบันทึกผลร่วมทบทวนได้ แต่ส่งเข้าศูนย์ RCA ไม่ได้' : undefined}
+              className={`rounded-2xl border p-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 ${reviewLearningAction === 'SEND_RCA'
+                ? 'border-purple-500 bg-purple-50 shadow-sm ring-2 ring-purple-500/20 dark:bg-purple-950/40'
+                : 'border-slate-200 bg-slate-50 hover:border-purple-300 dark:border-slate-700 dark:bg-slate-900/40'}`}
+            >
+              <span className="flex items-start gap-3">
+                <span className="rounded-xl bg-purple-100 p-2 text-purple-700 dark:bg-purple-900 dark:text-purple-300"><Target className="h-4 w-4" /></span>
+                <span>
+                  <span className="flex flex-wrap items-center gap-1.5 text-xs font-black text-slate-900 dark:text-white">
+                    ส่งวิเคราะห์ RCA เพิ่มเติม
+                    {rcaNeedsAction && <span className="rounded-full bg-red-600 px-2 py-0.5 text-[9px] text-white">เข้าเกณฑ์ • ต้องทำต่อ</span>}
+                  </span>
+                  <span className="mt-1 block text-[11px] font-bold leading-relaxed text-purple-700 dark:text-purple-300">สร้างเคสและแสดงในศูนย์ RCA ทันทีหลังบันทึก</span>
+                </span>
+              </span>
+            </button>
+
+          </div>
+
+          {reviewLearningAction === 'SEND_RCA' && (
+            <div className="rounded-2xl border border-purple-200 bg-purple-50/70 p-4 text-xs text-purple-950 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-200">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="font-black">เมื่อบันทึก ระบบจะส่งเคสนี้ไปยังศูนย์ RCA โดยอัตโนมัติ</div>
+                  <p className="mt-1 text-[11px] text-purple-700 dark:text-purple-300">สถานะเคส RCA เริ่มต้นเป็น “รอรับเรื่อง” และเคสนี้จะยังจำหน่ายไม่ได้จนกว่า RCA จะเสร็จสมบูรณ์</p>
+                </div>
+                <Link to="/rca" className="shrink-0 rounded-xl bg-purple-600 px-3 py-2 text-center font-bold text-white hover:bg-purple-700">เปิดศูนย์ RCA</Link>
+              </div>
+              {linkedRca && ((linkedRca.standardCases?.length || 0) + (linkedRca.miniConciseCases?.length || 0) > 0) && (
+                <div className="mt-3 rounded-xl border border-purple-200 bg-white px-3 py-2 dark:border-purple-800 dark:bg-slate-900">
+                  พบ RCA ที่เชื่อมโยงกับเคสนี้แล้ว {(linkedRca.standardCases?.length || 0) + (linkedRca.miniConciseCases?.length || 0)} รายการ
+                  {linkedRca.standardCases?.map((rcaCase: any) => (
+                    <Link key={rcaCase.id} to={`/rca/standard/${rcaCase.id}`} className="ml-2 font-bold text-purple-700 hover:underline dark:text-purple-300">{rcaCase.id}</Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+
           {/* Action Command Center */}
+          <div className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed dark:bg-slate-900" aria-live="polite">
+            <strong>สรุปก่อนบันทึก</strong>
+            <p>{DEPARTMENT_OUTCOME_LABELS[departmentOutcome]}</p>
+            <p>{FORWARDING_PURPOSE_LABELS[forwardingPurpose]}{coReviewDepartmentId ? ` • ${departmentsList.find(d => String(d.id) === coReviewDepartmentId)?.depart_name || ''}` : ''}</p>
+            <p>{reviewLearningAction === 'SEND_RCA' ? 'ส่งเข้าศูนย์ RCA เพื่อดำเนินการต่อ' : 'ระบบจะตรวจเงื่อนไขการปิดเคสและงานที่ต้องติดตามหลังบันทึก'}</p>
+          </div>
           <div className="pt-6 border-t border-slate-200/80 dark:border-slate-700/80 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-3">
               {/* Left Action: Not Risk / Dismiss */}
@@ -1525,7 +1451,7 @@ export default function IncidentDetail() {
                     title="ปฏิเสธเหตุการณ์นี้เนื่องจากไม่ใช่ความเสี่ยงทางคลินิกหรือทั่วไป"
                   >
                     <X className="w-4 h-4 text-slate-500" />
-                    1. ไม่ใช่ความเสี่ยง
+                    ไม่ใช่ความเสี่ยง
                   </button>
                 )}
               </div>
@@ -1561,7 +1487,7 @@ export default function IncidentDetail() {
                     title={rcaBlocksClose ? 'ยังปิดเคสไม่ได้: RCA ต้องเสร็จและมี completed_at ก่อน' : 'ปิดเคสความเสี่ยงนี้เมื่อทบทวนและกำหนดมาตรการเสร็จสิ้นแล้ว'}
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    3. จำหน่ายปิดเคส
+                    พิจารณาปิดเคส
                   </button>
                 )}
                 {permissions.canClose && rcaBlocksClose && <p className="mt-2 text-xs text-amber-700">ยังจำหน่ายไม่ได้: RCA อยู่สถานะ {incident.rca_status || 'REQUIRED'}</p>}
@@ -1642,7 +1568,7 @@ export default function IncidentDetail() {
                         #{rev.riskvisit || `REV-${idx + 1}`}
                       </span>
                       <span className="font-bold text-slate-800 dark:text-white text-sm">
-                        {rev.reviewresults_name}
+                        {DEPARTMENT_OUTCOME_LABELS[rev.department_outcome as DepartmentOutcome] || rev.reviewresults_name}
                       </span>
                     </div>
 
@@ -2322,7 +2248,7 @@ export default function IncidentDetail() {
                   className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
-                  {submittingConfirm ? 'กำลังยืนยัน...' : 'ยืนยันความเสี่ยง (สถานะ: ตรวจสอบ)'}
+                    {submittingConfirm ? 'กำลังยืนยัน...' : 'ยืนยันและส่งให้หน่วยงานทบทวน'}
                 </button>
               </div>
             </div>
