@@ -2,6 +2,19 @@ import { IsDateString, IsIn, IsInt, IsOptional, IsString, MaxLength, MinLength }
 
 export class CreateIncidentReviewDto {
   @IsOptional()
+  @IsIn(['IN_PROGRESS', 'RESOLVED', 'UNRESOLVED'])
+  department_outcome?: string;
+
+  @IsOptional()
+  @IsIn(['NONE', 'INFORM', 'CO_REVIEW', 'ADDITIONAL_ACTION', 'TRANSFER_OWNER'])
+  forwarding_purpose?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  forwarded_department_id?: string;
+
+  @IsOptional()
   @IsIn(['NO_NEW_MEASURE', 'SEND_RCA', 'REQUEST_CO_REVIEW'])
   learning_action?: string;
 

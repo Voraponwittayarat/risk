@@ -227,6 +227,103 @@ describe('IncidentsService incident permissions', () => {
     }));
   });
 
+  it('closes a low-severity incident when the owner resolves it without actionable forwarding', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({
+      ...pendingIncident,
+      status_risk: 'ทบทวน',
+      level_id: 'B',
+    });
+
+    const result = await service.addReview(
+      pendingIncident.id,
+      {
+        findings: 'หน่วยงานแก้ไขสาเหตุและควบคุมปัญหาได้เรียบร้อยแล้ว',
+        department_outcome: 'RESOLVED',
+        forwarding_purpose: 'NONE',
+      },
+      { id: 30, name: 'หัวหน้าหน่วยงาน', role: 'head', departmentId: 1, departmentGroup: 1 },
+    );
+
+    expect(prisma.riskregister.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        status_risk: 'จำหน่าย',
+        department_review_outcome: 'RESOLVED',
+        review_forwarding_purpose: 'NONE',
+        operational_closed_at: expect.any(Date),
+      }),
+    }));
+    expect(result.incident_status).toBe('จำหน่าย');
+  });
+
+  it('keeps a high-severity resolved incident open for RM closure', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({
+      ...pendingIncident,
+      status_risk: 'ทบทวน',
+      level_id: 'C',
+    });
+
+    const result = await service.addReview(
+      pendingIncident.id,
+      {
+        findings: 'หน่วยงานดำเนินการแก้ไขปัญหาเสร็จและส่งให้ RM พิจารณาปิดเคส',
+        department_outcome: 'RESOLVED',
+        forwarding_purpose: 'NONE',
+      },
+      { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 },
+    );
+
+    expect(prisma.riskregister.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status_risk: 'ทบทวน', department_review_outcome: 'RESOLVED' }),
+    }));
+    expect(result.incident_status).toBe('ทบทวน');
+  });
+
+  it('keeps a resolved low-severity incident open when another department must take action', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({
+      ...pendingIncident,
+      status_risk: 'ทบทวน',
+      level_id: '1',
+    });
+    prisma.department.findUnique.mockResolvedValue({ id: 2 });
+
+    const result = await service.addReview(
+      pendingIncident.id,
+      {
+        findings: 'หน่วยงานแก้ไขส่วนของตนแล้วและขอให้หน่วยงานปลายทางดำเนินการเพิ่มเติม',
+        department_outcome: 'RESOLVED',
+        forwarding_purpose: 'ADDITIONAL_ACTION',
+        forwarded_department_id: '2',
+      },
+      { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 },
+    );
+
+    expect(prisma.riskregister.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        status_risk: 'ทบทวน',
+        sendto_department_id: '2',
+        review_forwarding_purpose: 'ADDITIONAL_ACTION',
+      }),
+    }));
+    expect(result.incident_status).toBe('ทบทวน');
+  });
+
+  it('rejects the unresolved outcome for severity A-B or 1', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({
+      ...pendingIncident,
+      status_risk: 'ทบทวน',
+      level_id: 'A',
+    });
+
+    await expect(service.addReview(
+      pendingIncident.id,
+      {
+        findings: 'หน่วยงานทบทวนแล้วแต่ยังไม่สามารถยุติปัญหาได้ในขณะนี้',
+        department_outcome: 'UNRESOLVED',
+      },
+      { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 },
+    )).rejects.toThrow('ไม่มีตัวเลือก “ไม่สามารถยุติปัญหาได้”');
+  });
+
   it('allows an authorized reviewer to mark a reviewing incident as not risk', async () => {
     const permissions = await (service as any).getIncidentPermissions(
       { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 },

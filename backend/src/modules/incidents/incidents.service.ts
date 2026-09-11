@@ -140,7 +140,12 @@ export class IncidentsService {
     const isDepartmentVisible = !isPendingOrReturned;
     const managementScope = await this.isInManagementScope(user, incident);
     const adminDepartmentScope = this.isInAdminDepartmentScope(user, incident);
-    const workflowDecisionScope = managementScope || adminDepartmentScope;
+    const userDepartmentIds = this.getUserDepartmentIds(user);
+    const informationalRecipient = String(incident?.review_forwarding_purpose || '').toUpperCase() === 'INFORM'
+      && userDepartmentIds.includes(String(incident?.sendto_department_id || ''))
+      && !userDepartmentIds.includes(String(incident?.department_id || ''))
+      && !this.isRmCommittee(user);
+    const workflowDecisionScope = (managementScope || adminDepartmentScope) && !informationalRecipient;
     const adminAccess = this.isAdmin(user);
     const creator = this.isCreator(user, incident);
     const teamRecipient = this.isTeamRecipient(user, incident);
@@ -2408,6 +2413,23 @@ export class IncidentsService {
     if (learningAction && !['NO_NEW_MEASURE', 'SEND_RCA', 'REQUEST_CO_REVIEW'].includes(learningAction)) {
       throw new BadRequestException('รูปแบบการเรียนรู้และปรับปรุงไม่ถูกต้อง');
     }
+    const severity = String(incident.level_id || '').trim().toUpperCase();
+    const isLowSeverity = ['A', 'B', '1'].includes(severity);
+    const departmentOutcome = reviewDto.department_outcome
+      ? String(reviewDto.department_outcome).toUpperCase()
+      : null;
+    if (departmentOutcome && !['IN_PROGRESS', 'RESOLVED', 'UNRESOLVED'].includes(departmentOutcome)) {
+      throw new BadRequestException('ผลการดำเนินการแก้ไขปัญหาระดับหน่วยงานไม่ถูกต้อง');
+    }
+    if (isLowSeverity && departmentOutcome === 'UNRESOLVED') {
+      throw new BadRequestException('อุบัติการณ์ระดับ A–B หรือ 1 ไม่มีตัวเลือก “ไม่สามารถยุติปัญหาได้” กรุณาเลือกอยู่ระหว่างดำเนินการหรือยุติปัญหาได้');
+    }
+    const forwardingPurpose = String(
+      reviewDto.forwarding_purpose || (learningAction === 'REQUEST_CO_REVIEW' ? 'CO_REVIEW' : 'NONE'),
+    ).toUpperCase();
+    if (!['NONE', 'INFORM', 'CO_REVIEW', 'ADDITIONAL_ACTION', 'TRANSFER_OWNER'].includes(forwardingPurpose)) {
+      throw new BadRequestException('วัตถุประสงค์การส่งต่อไม่ถูกต้อง');
+    }
     const serializedContributingFactors = serializeContributingFactors(reviewDto.contributing_factors);
     if (reviewDto.learning_action && !serializedContributingFactors) {
       throw new BadRequestException('กรุณาเลือก Contributing Factor ตามมาตรฐาน NRLS อย่างน้อย 1 รายการ');
@@ -2415,10 +2437,10 @@ export class IncidentsService {
     const reviewAttachments = this.validateStoredReviewAttachments(reviewDto.files, user);
 
     let coReviewDepartmentId: string | null = null;
-    if (learningAction === 'REQUEST_CO_REVIEW') {
+    if (forwardingPurpose !== 'NONE') {
       this.assertPermission(permissions.canForward, 'ไม่มีสิทธิ์ส่งให้หน่วยงานอื่นทบทวนเพิ่มเติม');
-      coReviewDepartmentId = String(reviewDto.co_review_department_id || '').trim();
-      if (!coReviewDepartmentId) throw new BadRequestException('กรุณาเลือกหน่วยงานที่ต้องการส่งทบทวนเพิ่มเติม');
+      coReviewDepartmentId = String(reviewDto.forwarded_department_id || reviewDto.co_review_department_id || '').trim();
+      if (!coReviewDepartmentId) throw new BadRequestException('กรุณาเลือกหน่วยงานปลายทาง');
       if (coReviewDepartmentId === String(incident.department_id || '')) {
         throw new BadRequestException('กรุณาเลือกหน่วยงานอื่นที่ไม่ใช่หน่วยงานต้นทาง');
       }
@@ -2453,6 +2475,9 @@ export class IncidentsService {
           notereview: note,
           cause_problem: reviewDto.cause_problem || null,
           contributing_factors: serializedContributingFactors,
+          department_outcome: departmentOutcome,
+          forwarding_purpose: forwardingPurpose,
+          forwarded_department_id: coReviewDepartmentId,
           files: reviewAttachments.length ? JSON.stringify(reviewAttachments) : null,
           reviewresults_id: reviewDto.reviewresults_id ? Number(reviewDto.reviewresults_id) : 1,
           status_risk: 'ทบทวน',
@@ -2477,6 +2502,9 @@ export class IncidentsService {
           recommendation: reviewDto.recommendation?.trim() || null,
           decision,
           returned_reason: reviewDto.returned_reason?.trim() || null,
+          department_outcome: departmentOutcome,
+          forwarding_purpose: forwardingPurpose,
+          forwarded_department_id: coReviewDepartmentId,
           submitted_at: new Date(reviewDto.review_date || new Date()),
           accepted_at: decision === 'ACCEPT' ? new Date() : null,
           accepted_by: decision === 'ACCEPT' ? actorId : null,
@@ -2485,16 +2513,40 @@ export class IncidentsService {
 
       const incidentUpdateData: any = {
         status_risk: 'ทบทวน',
+        department_review_outcome: departmentOutcome,
+        review_forwarding_purpose: forwardingPurpose,
         modify_date: new Date(),
         updated_by: actorId || 1,
       };
 
-      if (learningAction === 'REQUEST_CO_REVIEW' && coReviewDepartmentId) {
+      if (forwardingPurpose !== 'NONE' && coReviewDepartmentId) {
         incidentUpdateData.sendto_department_id = coReviewDepartmentId;
         incidentUpdateData.refer_type = '1';
         incidentUpdateData.send_date = new Date();
         incidentUpdateData.send_use = user?.name || 'ผู้ทบทวนความเสี่ยง';
         incidentUpdateData.note = note;
+      }
+
+      const forwardingNeedsAction = ['CO_REVIEW', 'ADDITIONAL_ACTION', 'TRANSFER_OWNER'].includes(forwardingPurpose);
+      const shouldCloseAtDepartment = reviewRole === 'OWNER'
+        && isLowSeverity
+        && departmentOutcome === 'RESOLVED'
+        && !forwardingNeedsAction
+        && learningAction !== 'SEND_RCA';
+      if (shouldCloseAtDepartment) {
+        const capaActions = await (tx as any).capa_action.findMany({
+          where: { incident_id: incident.id, incident_id_risk: incident.id_risk },
+          select: { status: true },
+        });
+        const capaStatuses = capaActions.map((action: any) => String(action.status || '').toUpperCase());
+        const activeCapaCount = capaStatuses.filter((status: string) => !['CLOSED', 'CANCELLED'].includes(status)).length;
+        const closedCapaCount = capaStatuses.filter((status: string) => status === 'CLOSED').length;
+        incidentUpdateData.status_risk = 'จำหน่าย';
+        incidentUpdateData.operational_closed_at = new Date();
+        incidentUpdateData.improvement_status = capaStatuses.length === 0 || (activeCapaCount === 0 && closedCapaCount === 0)
+          ? 'NOT_REQUIRED'
+          : activeCapaCount === 0 ? 'CLOSED' : 'MONITORING';
+        incidentUpdateData.effectiveness_closed_at = incidentUpdateData.improvement_status === 'CLOSED' ? new Date() : null;
       }
 
       if (learningAction === 'SEND_RCA') {
@@ -2549,12 +2601,15 @@ export class IncidentsService {
           action: 'REVIEW_RECORDED',
           old_value: JSON.stringify({ status_risk: incident.status_risk || 'ตรวจสอบ' }),
           new_value: JSON.stringify({
-            status_risk: 'ทบทวน',
+            status_risk: incidentUpdateData.status_risk,
             review_id: review.id,
             structured_review_id: structured.id,
             review_role: reviewRole,
             review_status: reviewStatus,
             learning_action: learningAction,
+            department_outcome: departmentOutcome,
+            forwarding_purpose: forwardingPurpose,
+            forwarded_department_id: coReviewDepartmentId,
             rca_case_id: queuedRcaCaseId,
             co_review_department_id: coReviewDepartmentId,
             attachment_count: reviewAttachments.length,
@@ -2578,6 +2633,10 @@ export class IncidentsService {
         ...review,
         structured_review: structured,
         learning_action: learningAction,
+        department_outcome: departmentOutcome,
+        forwarding_purpose: forwardingPurpose,
+        forwarded_department_id: coReviewDepartmentId,
+        incident_status: incidentUpdateData.status_risk,
         rca_case_id: queuedRcaCaseId,
         co_review_department_id: coReviewDepartmentId,
       };

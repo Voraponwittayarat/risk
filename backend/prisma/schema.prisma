@@ -369,6 +369,8 @@ model riskregister {
   classified_by            Int?
   classified_at            DateTime?                       @db.DateTime(0)
   operational_closed_at    DateTime?                       @db.DateTime(0)
+  department_review_outcome String?                        @db.VarChar(30)
+  review_forwarding_purpose String?                        @db.VarChar(30)
   improvement_status       String?                         @default("NOT_STARTED") @db.VarChar(30)
   effectiveness_closed_at  DateTime?                       @db.DateTime(0)
   nrls_standard            NRLS_riskstore?                 @relation(fields: [nrls_code], references: [nrls_code])
@@ -454,6 +456,9 @@ model riskreview {
   hits                 Int?
   cause_problem        String?   @db.VarChar(255)
   contributing_factors String?   @db.Text
+  department_outcome   String?   @db.VarChar(30)
+  forwarding_purpose   String?   @db.VarChar(30)
+  forwarded_department_id String? @db.VarChar(10)
   notereview           String    @db.Text
   reviewresults_id     Int
   review_cid           String?   @db.Text
@@ -989,6 +994,9 @@ model incident_review_entry {
   recommendation         String?   @db.Text
   decision               String?   @db.VarChar(30)
   returned_reason        String?   @db.Text
+  department_outcome     String?   @db.VarChar(30)
+  forwarding_purpose     String?   @db.VarChar(30)
+  forwarded_department_id String?  @db.VarChar(10)
   submitted_at           DateTime  @default(now()) @db.DateTime(0)
   accepted_at            DateTime? @db.DateTime(0)
   accepted_by            Int?
