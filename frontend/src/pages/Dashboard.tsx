@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { 
-  Activity, ShieldAlert, AlertTriangle, TrendingUp, 
+  Activity, ShieldAlert, AlertTriangle,
   Clock, AlertOctagon, Plus, ExternalLink, ChevronRight,
   FileText, CheckCircle2, HeartHandshake,
   LayoutGrid, PlusCircle, ClipboardList, ShieldCheck, Sparkles, 
@@ -230,11 +230,11 @@ export default function Dashboard() {
         
         <div className="flex items-center gap-3">
           <Link
-            to="/reports"
+            to="/my-reported"
             className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 shadow-xs transition-all"
           >
-            <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            Risk Matrix 5x5
+            <FileCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            ติดตามความเสี่ยงของฉัน
           </Link>
           <Link 
             to="/incidents/new" 
