@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ClipboardCheck, RotateCcw, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function DashboardTasks() {
@@ -22,39 +22,57 @@ export default function DashboardTasks() {
   }, [user?.id, attempt]);
 
   const tasks = [
-    ...(canConfirm ? [{ title: 'ตรวจสอบและยืนยันความเสี่ยง', description: 'ตรวจข้อเท็จจริงของเรื่องใหม่ ก่อนส่งให้หน่วยงานทบทวน', to: '/incidents/pending', count: counts?.pending }] : []),
-    { title: 'ทบทวนความเสี่ยงของหน่วยงาน', description: 'วิเคราะห์สาเหตุและบันทึกแนวทางป้องกันการเกิดซ้ำ', to: '/incidents/dept?tab=ตรวจสอบ', count: counts?.verified },
-    { title: 'เรื่องที่ส่งกลับให้แก้ไข', description: 'ตรวจข้อเสนอแนะและปรับข้อมูลให้ครบถ้วน', to: '/incidents/dept?tab=แก้ไข', count: counts?.returnedForEdit },
+    ...(canConfirm ? [{
+      title: 'ตรวจสอบและยืนยันความเสี่ยง', description: 'ตรวจข้อเท็จจริงของเรื่องใหม่', to: '/incidents/pending', count: counts?.pending,
+      icon: ShieldCheck, cardClass: 'border-amber-200 border-l-amber-500 bg-amber-50/80 dark:border-amber-900 dark:border-l-amber-500 dark:bg-amber-950/25',
+      iconClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300', linkClass: 'text-amber-700 dark:text-amber-300',
+    }] : []),
+    {
+      title: 'ทบทวนความเสี่ยงของหน่วยงาน', description: 'วิเคราะห์สาเหตุและวางแนวทางป้องกัน', to: '/incidents/dept?tab=ตรวจสอบ', count: counts?.verified,
+      icon: ClipboardCheck, cardClass: 'border-blue-200 border-l-blue-500 bg-blue-50/80 dark:border-blue-900 dark:border-l-blue-500 dark:bg-blue-950/25',
+      iconClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300', linkClass: 'text-blue-700 dark:text-blue-300',
+    },
+    {
+      title: 'เรื่องที่ส่งกลับให้แก้ไข', description: 'ตรวจข้อเสนอแนะและปรับข้อมูลให้ครบ', to: '/incidents/dept?tab=แก้ไข', count: counts?.returnedForEdit,
+      icon: RotateCcw, cardClass: 'border-rose-200 border-l-rose-500 bg-rose-50/80 dark:border-rose-900 dark:border-l-rose-500 dark:bg-rose-950/25',
+      iconClass: 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300', linkClass: 'text-rose-700 dark:text-rose-300',
+    },
   ];
   const nextTask = tasks.find((task) => (task.count ?? 0) > 0);
   return (
-    <section aria-labelledby="today-tasks" className="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm dark:border-blue-900 dark:bg-slate-800 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section aria-labelledby="today-tasks" className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50/70 to-white p-4 shadow-sm dark:border-blue-900 dark:from-blue-950/20 dark:to-slate-800 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold text-blue-600 dark:text-blue-300">เริ่มต้นตรงนี้</p>
-          <h2 id="today-tasks" className="mt-1 text-xl font-bold text-slate-900 dark:text-white">งานที่ควรดำเนินการวันนี้</h2>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+          <h2 id="today-tasks" className="mt-0.5 text-lg font-bold text-slate-900 dark:text-white">งานที่ควรดำเนินการวันนี้</h2>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 sm:text-sm">
             {failed ? 'ยังโหลดจำนวนงานไม่ได้ คุณยังเปิดรายการเพื่อตรวจสอบได้' : !counts ? 'กำลังตรวจสอบงานในขอบเขตที่คุณรับผิดชอบ…' : nextTask ? `แนะนำให้เริ่มจาก “${nextTask.title}” และตรวจเรื่องเร่งด่วนก่อน` : 'ขอบคุณที่ร่วมดูแลความปลอดภัย ขณะนี้ไม่มีงานค้างในรายการด้านล่าง'}
           </p>
         </div>
         {failed && <button type="button" onClick={() => setAttempt((value) => value + 1)} className="rounded-lg border px-4 py-2 text-sm text-blue-600 dark:text-blue-300">โหลดจำนวนงานอีกครั้ง</button>}
       </div>
-      <div className="mt-5 grid gap-3 md:grid-cols-3">
-        {tasks.map((task) => (
-          <Link key={task.to} to={task.to} className={`flex flex-col rounded-xl border p-4 transition hover:shadow-md focus-visible:outline-2 focus-visible:outline-blue-600 ${nextTask?.to === task.to ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/40' : 'border-slate-200 dark:border-slate-700'}`}>
+      <div className="mt-4 grid gap-2.5 md:grid-cols-3">
+        {tasks.map((task) => {
+          const Icon = task.icon;
+          return (
+          <Link key={task.to} to={task.to} className={`flex flex-col rounded-xl border border-l-4 p-3 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-2 focus-visible:outline-blue-600 ${task.cardClass} ${nextTask?.to === task.to ? 'ring-2 ring-blue-500/40' : ''}`}>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white">{task.count === undefined ? '—' : task.count.toLocaleString()} <span className="text-xs font-normal">เรื่อง</span></span>
-              {nextTask?.to === task.to && <span className="rounded-full bg-blue-600 px-2 py-1 text-xs text-white">แนะนำให้เริ่ม</span>}
+              <div className="flex items-center gap-2.5">
+                <span className={`rounded-lg p-2 ${task.iconClass}`}><Icon className="h-4 w-4" /></span>
+                <span className="text-xl font-bold text-slate-900 dark:text-white">{task.count === undefined ? '—' : task.count.toLocaleString()} <span className="text-[11px] font-normal">เรื่อง</span></span>
+              </div>
+              {nextTask?.to === task.to && <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] text-white">เริ่มก่อน</span>}
             </div>
-            <h3 className="mt-3 font-bold text-slate-900 dark:text-white">{task.title}</h3>
-            <p className="mt-1 flex-1 text-sm text-slate-600 dark:text-slate-300">{task.description}</p>
-            <span className="mt-4 flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-300">เปิดรายการ <ArrowRight className="h-4 w-4" /></span>
+            <h3 className="mt-2.5 text-sm font-bold text-slate-900 dark:text-white">{task.title}</h3>
+            <p className="mt-0.5 flex-1 text-xs text-slate-600 dark:text-slate-300">{task.description}</p>
+            <span className={`mt-2.5 flex items-center gap-1.5 text-xs font-semibold ${task.linkClass}`}>เปิดรายการ <ArrowRight className="h-3.5 w-3.5" /></span>
           </Link>
-        ))}
+          );
+        })}
       </div>
-      <div className="mt-4 flex flex-wrap gap-3 border-t border-slate-100 pt-4 dark:border-slate-700">
-        <Link to="/my-reported" className="flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200"><CheckCircle2 className="h-4 w-4" />ติดตามความเสี่ยงของฉัน</Link>
-        {(user?.teamId || user?.role === 'admin') && <Link to="/incidents/team" className="rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200">งานทบทวนของทีม</Link>}
+      <div className="mt-3 flex flex-wrap gap-2 border-t border-blue-100 pt-3 dark:border-slate-700">
+        <Link to="/my-reported" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300"><CheckCircle2 className="h-4 w-4" />ติดตามความเสี่ยงของฉัน</Link>
+        {(user?.teamId || user?.role === 'admin') && <Link to="/incidents/team" className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-300">งานทบทวนของทีม</Link>}
       </div>
     </section>
   );
