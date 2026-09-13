@@ -133,7 +133,6 @@ export default function IncidentDetail() {
 
   // Confirmation Modal State
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [confirmSendToDeptId, setConfirmSendToDeptId] = useState('');
   const [confirmNrlsCode, setConfirmNrlsCode] = useState('');
   const [confirmRiskstoreId, setConfirmRiskstoreId] = useState<number | null>(null);
   const [confirmLevelId, setConfirmLevelId] = useState('');
@@ -179,7 +178,6 @@ export default function IncidentDetail() {
         {
           status_risk: targetStatus,
           note: confirmNote.trim() || (targetStatus === 'ตรวจสอบ' ? 'หัวหน้างานยืนยันความเสี่ยงเรียบร้อยแล้ว' : 'ส่งกลับให้ผู้รายงานแก้ไขข้อมูล'),
-          ...(targetStatus === 'ตรวจสอบ' ? { sendto_department_id: confirmSendToDeptId } : {}),
         },
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
@@ -932,7 +930,6 @@ export default function IncidentDetail() {
                   <>
                     <button
                       onClick={() => {
-                        setConfirmSendToDeptId(String(incident.sendto_department_id || incident.department_id || ''));
                         setConfirmNrlsCode(String(incident.nrls_code || ''));
                         setConfirmRiskstoreId(incident.riskstore_id ? Number(incident.riskstore_id) : null);
                         setConfirmLevelId(String(incident.level_id || ''));
@@ -960,7 +957,7 @@ export default function IncidentDetail() {
                   </button>
                 )}
 
-                {permissions.canForward && !permissions.canReview && incident.status_risk !== 'จำหน่าย' && (
+                {permissions.canForward && !permissions.canReview && incident.status_risk === 'ทบทวน' && (
                   <>
                     <button
                       type="button"
@@ -1124,7 +1121,7 @@ export default function IncidentDetail() {
             </div>
           </div>
 
-          {permissions.canForward && !permissions.canReview && (
+          {permissions.canForward && !permissions.canReview && incident.status_risk === 'ทบทวน' && (
             <button
               type="button"
               onClick={() => {
@@ -2119,8 +2116,8 @@ export default function IncidentDetail() {
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 dark:text-white text-base">ยืนยันความเสี่ยง & ตรวจสอบหน่วยงาน</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">ตรวจสอบหน่วยงานรับผิดชอบและส่งเรื่องเข้าสู่กระบวนการทบทวน</p>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base">ยืนยันความเสี่ยง</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">ตรวจสอบข้อมูลและให้หน่วยงานต้นทางทบทวนเบื้องต้น</p>
                 </div>
               </div>
               <button
@@ -2184,26 +2181,7 @@ export default function IncidentDetail() {
               <div className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 dark:border-slate-700 dark:bg-slate-900">
                 <span className="block font-bold text-slate-700 dark:text-slate-300">🏢 หน่วยงานต้นทางของรายงาน (แก้ไขไม่ได้)</span>
                 <span className="block text-sm font-semibold text-slate-900 dark:text-white">{incident.department_name || `แผนก ${incident.department_id}`}</span>
-                <p className="text-[11px] text-slate-500">เก็บเป็นหลักฐานต้นทาง ส่วนผู้รับผิดชอบ Workflow ให้เลือกด้านล่าง</p>
-              </div>
-
-              {/* Target / Forwarded Department */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block">
-                  📤 หน่วยงานผู้รับผิดชอบหลักในการทบทวน:
-                </label>
-                <select
-                  value={confirmSendToDeptId}
-                  onChange={e => setConfirmSendToDeptId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-                >
-                  <option value="">-- ใช้หน่วยงานต้นทางเป็นผู้รับผิดชอบ --</option>
-                  {departmentsList.map((d: any) => (
-                    <option key={d.id} value={d.id}>
-                      {d.depart_name || d.name} (ID: {d.id})
-                    </option>
-                  ))}
-                </select>
+                <p className="text-[11px] text-slate-500">หน่วยงานต้นทางทบทวนเบื้องต้นก่อน หากต้องการความเห็นจากหน่วยงานอื่น ให้เลือก Co-review ท้ายแบบฟอร์มทบทวน</p>
               </div>
 
               {/* Confirmation Note / Reason */}

@@ -452,7 +452,7 @@ describe('IncidentsService incident permissions', () => {
       'ตรวจสอบข้อมูลและยืนยันความเสี่ยงแล้ว',
       undefined,
       '2',
-    )).rejects.toThrow('เฉพาะหน่วยงานของตนเอง');
+    )).rejects.toThrow('หน่วยงานต้นทางต้องทบทวนเบื้องต้นก่อน');
 
     expect(prisma.riskregister.updateMany).not.toHaveBeenCalled();
   });
@@ -694,6 +694,23 @@ describe('IncidentsService incident permissions', () => {
       { sendto_team_id: 7, note: 'ขอให้ทีมช่วยดูภาพรวม' },
       { id: 30, name: 'หัวหน้าหน่วยงาน', role: 'head', departmentId: 1, departmentGroup: 1 },
     )).rejects.toThrow('ต้องบันทึกผลการทบทวนของหน่วยงาน');
+  });
+
+  it.each(['รายงาน', 'แก้ไข', 'ตรวจสอบ'])('blocks department forwarding before review from %s', async (status) => {
+    prisma.riskregister.findFirst.mockResolvedValue({ ...pendingIncident, status_risk: status });
+    await expect(service.forwardIncident(10, { sendto_department_id: '2' },
+      { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 },
+    )).rejects.toThrow('ต้องบันทึกผลการทบทวนของหน่วยงานก่อนส่งต่อ');
+    expect(prisma.riskregister.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects assigning another department during confirmation', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue(pendingIncident);
+    await expect(service.updateStatus(10, 'ตรวจสอบ',
+      { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 },
+      'ตรวจสอบข้อมูลก่อนยืนยันแล้ว', undefined, '2',
+    )).rejects.toThrow('หน่วยงานต้นทางต้องทบทวนเบื้องต้นก่อน');
+    expect(prisma.riskregister.updateMany).not.toHaveBeenCalled();
   });
 
   it('queues a reviewed incident in the team workspace when forwarded', async () => {

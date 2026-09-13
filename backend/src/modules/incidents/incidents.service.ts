@@ -2072,6 +2072,11 @@ export class IncidentsService {
     }
 
     const currentStatus = incident.status_risk || 'รายงาน';
+    if (['รายงาน', 'แก้ไข'].includes(currentStatus)
+      && sendto_department_id
+      && String(sendto_department_id) !== String(incident.department_id)) {
+      throw new BadRequestException('หน่วยงานต้นทางต้องทบทวนเบื้องต้นก่อนส่งให้หน่วยงานอื่น');
+    }
     if (newStatus !== currentStatus
       && ['แก้ไข', 'ตรวจสอบ', 'ทบทวน'].includes(newStatus)
       && String(note || '').trim().length < 10) {
@@ -2189,7 +2194,9 @@ export class IncidentsService {
       // An incident always has one accountable owner. If no destination was
       // explicitly selected, the reporting department owns the first review.
       updateData.sendto_department_id = String(
-        sendto_department_id || incident.sendto_department_id || incident.department_id,
+        ['รายงาน', 'แก้ไข'].includes(currentStatus)
+          ? incident.department_id
+          : sendto_department_id || incident.sendto_department_id || incident.department_id,
       );
     }
 
@@ -2650,6 +2657,9 @@ export class IncidentsService {
     if (!incident) throw new NotFoundException('Incident not found');
     const permissions = await this.getIncidentPermissions(user, incident);
     this.assertPermission(permissions.canForward, 'ไม่มีสิทธิ์ส่งต่ออุบัติการณ์นี้');
+    if (incident.status_risk !== 'ทบทวน') {
+      throw new BadRequestException('ต้องบันทึกผลการทบทวนของหน่วยงานก่อนส่งต่อ');
+    }
     if (!forwardDto.sendto_team_id && !forwardDto.sendto_department_id) {
       throw new BadRequestException('กรุณาเลือกทีมนำหรือหน่วยงานปลายทาง');
     }
