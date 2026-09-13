@@ -82,7 +82,8 @@ export class RiskAnalysisService {
 
   private async scopeDepartments(user: any): Promise<string[] | null> {
     if (user?.role === 'admin' || (user?.role === 'rm_committee' && user?.rmScope === 'hospital')) return null;
-    if ((user?.role === 'rm_committee' && user?.rmScope === 'group') || user?.role === 'head') {
+    if (['rm_committee', 'head'].includes(user?.role) && user?.rmScope === 'group') {
+      if (!user?.departmentGroup) return [];
       const rows = await this.prisma.department.findMany({ where: { depart_group_id: Number(user?.departmentGroup) }, select: { id: true } });
       return rows.map((r) => String(r.id));
     }
@@ -220,7 +221,7 @@ export class RiskAnalysisService {
     };
   }
 
-  async getStats(query: { scope_level?: string; department_id?: string }, user?: any) {
+  async getStats(query: { scope_level?: string; department_id?: string; due_soon?: boolean }, user?: any) {
     const where: any = {};
     if (query.scope_level && query.scope_level !== 'all') {
       where.scope_level = query.scope_level;
@@ -230,7 +231,16 @@ export class RiskAnalysisService {
     }
 
     const allowed = await this.scopeDepartments(user);
-    if (allowed) where.department_id = { in: allowed };
+    if (allowed) {
+      if (query.department_id && query.department_id !== 'all' && !allowed.includes(query.department_id)) throw new ForbiddenException('ไม่มีสิทธิ์ดูหน่วยงานนี้');
+      if (!query.department_id || query.department_id === 'all') where.department_id = { in: allowed };
+    }
+    if (query.due_soon) {
+      const until = new Date();
+      until.setDate(until.getDate() + 30);
+      where.next_review_date = { lte: until };
+      where.status = { not: 'closed' };
+    }
     const allRisks = await this.prisma.riskanalysis.findMany({ where });
 
     const total = allRisks.length;
@@ -467,9 +477,24 @@ export class RiskAnalysisService {
     return review;
   }
 
-  async getNineStandards() {
-    return this.prisma.nine_standards.findMany({
-      orderBy: { std_number: 'asc' },
+  async getNineStandards(query: { department_id?: string } = {}, user?: any) {
+    const [standards, localRisks, profiles] = await Promise.all([
+      this.prisma.nine_standards.findMany({ orderBy: { std_number: 'asc' } }),
+      this.prisma.riskstore.findMany({ select: { riskstore_id: true, nrls_code: true } }),
+      this.findAll({ department_id: query.department_id }, user),
+    ]);
+    const codeMap = new Map(localRisks.map(r => [String(r.riskstore_id), r.nrls_code]));
+    return standards.map(standard => {
+      // Existing standards store comma-separated local risk IDs; resolve their actual NRLS mapping.
+      const codes = String(standard.risk_codes || '').split(',').map(v => v.trim()).filter(Boolean)
+        .map(v => /^\d+$/.test(v) ? codeMap.get(v) : v).filter((v): v is string => !!v);
+      const matched = profiles.filter(p => p.nrls_code && codes.includes(p.nrls_code));
+      return { id: standard.id, number: standard.std_number, name: standard.std_name,
+        category: standard.safety_category, mappedCodes: [...new Set(codes)],
+        total: matched.length,
+        withMeasures: matched.filter(p => p.risk_prevention?.trim() || p.risk_mitigation?.trim()).length,
+        profiles: matched.map(p => ({ id: p.id, title: p.risk_title, department: p.department_name })),
+      };
     });
   }
 }

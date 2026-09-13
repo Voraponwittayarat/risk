@@ -56,6 +56,11 @@ export class IncidentsController {
     return this.incidentsService.getRiskMatrixStats(query, req.user);
   }
 
+  @Get('reports/decision-support')
+  getDecisionSupport(@Query() query: any, @Request() req) {
+    return this.incidentsService.getDecisionSupport(query, req.user);
+  }
+
   @Get('reports/analytics')
   @ApiOperation({ summary: 'Retrieve summary reports and breakdown by program & department' })
   getReportAnalytics(@Query() query: any, @Request() req) {

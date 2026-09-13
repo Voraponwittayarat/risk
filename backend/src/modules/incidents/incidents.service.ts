@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { analyticsPeriod, summarizeSignals } from './decision-support';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GetIncidentsQueryDto } from './dto/get-incidents-query.dto';
 import { IncidentRcaPolicyService } from '../rca/incident-rca-policy.service';
@@ -2808,6 +2809,74 @@ export class IncidentsService {
       totalConfirmed: incidents.length,
       matrix: matrix.slice(1).map(row => row.slice(1)), // Return 5x5 array
       frequencies: groupCount,
+    };
+  }
+
+  async getDecisionSupport(query: any, user: any) {
+    const now = new Date();
+    const period = analyticsPeriod(query.days, now);
+    const department = query.department_id && query.department_id !== 'all' ? String(query.department_id) : undefined;
+    const scope = await this.scopeIncidentWhere(department ? { department_id: department } : {}, user);
+    // All visible dates are needed for open RCA/CAPA; never retrieve narratives or identifiers.
+    const incidents = await this.prisma.riskregister.findMany({ where: scope, select: {
+      id: true, id_risk: true, date_report: true, department_id: true, nrls_code: true,
+      classification_status: true, level_id: true, rca_required: true, rca_status: true, rca_due_at: true,
+    } });
+    const allowed = await this.getVisibleReportDepartmentIds(user);
+    const profileWhere: any = { status: { not: 'closed' } };
+    if (allowed) profileWhere.department_id = { in: allowed.map(String) };
+    if (department) profileWhere.AND = [{ department_id: department }];
+    const [profiles, departments, names] = await Promise.all([
+      this.prisma.riskanalysis.findMany({ where: profileWhere, select: {
+        id: true, risk_title: true, nrls_code: true, department_id: true, scope_level: true, source: true,
+        is_never_event: true, initial_risk_level: true, next_review_date: true, risk_owner_name: true,
+        reviews: { orderBy: [{ review_date: 'desc' }, { id: 'desc' }], take: 1, select: { current_risk_level: true } },
+      } }),
+      this.prisma.department.findMany({ select: { id: true, depart_name: true } }),
+      this.prisma.nRLS_riskstore.findMany({ select: { nrls_code: true, name: true } }),
+    ]);
+    const capas: Array<{ id: number; incident_id: number; nrls_code: string; status: string; due_date: Date | null; effectiveness_status: string; effectiveness_due_date: Date | null; completed_at: Date | null }> = [];
+    // Match both parts of the incident identity; bound each SQL parameter list.
+    for (let offset = 0; offset < incidents.length; offset += 500) {
+      capas.push(...await this.prisma.capa_action.findMany({ where: {
+        OR: incidents.slice(offset, offset + 500).map(i => ({ incident_id: i.id, incident_id_risk: i.id_risk })),
+        status: { not: 'CANCELLED' },
+      }, select: { id: true, incident_id: true, nrls_code: true, status: true, due_date: true, effectiveness_status: true, effectiveness_due_date: true, completed_at: true } }));
+    }
+    const signals = summarizeSignals(incidents, period);
+    const nameMap = new Map(names.map(r => [r.nrls_code, r.name]));
+    const deptMap = new Map(departments.map(d => [String(d.id), d.depart_name]));
+    const rca = incidents.filter(i => (i.rca_required || ['PENDING', 'IN_PROGRESS'].includes(i.rca_status?.toUpperCase() || '')) && i.rca_status?.toUpperCase() !== 'COMPLETED');
+    const overdueRca = rca.filter(i => i.rca_due_at && i.rca_due_at < now);
+    const pendingCapa = capas.filter(c => c.status !== 'CLOSED');
+    const overdueCapa = pendingCapa.filter(c => !c.completed_at && c.due_date && c.due_date < period.end);
+    const followup = profiles.map(p => {
+      const count = p.nrls_code && p.scope_level !== 'group' ? signals.current.filter(i => i.classification_status === 'CONFIRMED' && i.nrls_code === p.nrls_code && (p.scope_level === 'hospital' || i.department_id === p.department_id)).length : null;
+      const level = p.reviews[0]?.current_risk_level || p.initial_risk_level;
+      const reasons = [p.is_never_event ? 'Never Event' : '', ['red', 'orange'].includes(level) ? 'ความเสี่ยงคงเหลือสูง' : '',
+        p.next_review_date && p.next_review_date < period.end ? 'เกินกำหนดทบทวน' : '', !p.next_review_date ? 'ยังไม่มีกำหนดทบทวน' : ''].filter(Boolean);
+      return { id: p.id, title: p.risk_title, code: p.nrls_code, owner: p.risk_owner_name, count, reasons, nextReview: p.next_review_date, assessed: !!p.reviews.length };
+    }).filter(p => p.reasons.length).sort((a, b) => b.reasons.length - a.reasons.length || a.id - b.id);
+    return {
+      generatedAt: now, period, scope: department ? deptMap.get(department) || 'หน่วยงานที่เลือก' : allowed ? 'เฉพาะข้อมูลตามสิทธิ์ของคุณ' : 'ทั้งโรงพยาบาล',
+      summary: signals.summary,
+      proactive: { count: profiles.filter(p => ['FMEA', 'Safety Walkround', 'Proactive Risk Assessment'].includes(p.source || '')).length, total: profiles.length },
+      priorities: signals.priorities.map(p => ({ ...p, name: nameMap.get(p.code) || p.code })),
+      departments: [...new Set([...signals.current, ...rca].map(i => i.department_id))].map(id => ({ id, name: deptMap.get(id) || id,
+        total: signals.current.filter(i => i.department_id === id).length,
+        severe: signals.current.filter(i => i.department_id === id && ['G', 'H', 'I', '4', '5'].includes(i.level_id)).length,
+        rca: rca.filter(i => i.department_id === id).length,
+      })).sort((a, b) => b.severe - a.severe || b.rca - a.rca || b.total - a.total),
+      backlog: { rca: rca.length, overdueRca: overdueRca.length, capa: pendingCapa.length, overdueCapa: overdueCapa.length,
+        rcaItems: rca.map(i => ({ id: i.id, code: i.nrls_code, due: i.rca_due_at })),
+        capaItems: pendingCapa.map(c => ({ id: c.id, incidentId: c.incident_id, code: c.nrls_code, status: c.status, due: c.due_date })),
+      },
+      effectiveness: { total: capas.length, effective: capas.filter(c => c.effectiveness_status === 'EFFECTIVE').length,
+        partial: capas.filter(c => c.effectiveness_status === 'PARTIALLY_EFFECTIVE').length,
+        ineffective: capas.filter(c => c.effectiveness_status === 'INEFFECTIVE').length,
+        unassessed: capas.filter(c => !['EFFECTIVE', 'PARTIALLY_EFFECTIVE', 'INEFFECTIVE'].includes(c.effectiveness_status)).length,
+        overdue: pendingCapa.filter(c => c.effectiveness_due_date && c.effectiveness_due_date < period.end && !['EFFECTIVE', 'PARTIALLY_EFFECTIVE', 'INEFFECTIVE'].includes(c.effectiveness_status)).length,
+      }, followup,
     };
   }
 

@@ -50,17 +50,19 @@ export class RiskAnalysisController {
   getStats(
     @Query('scope_level') scope_level?: string,
     @Query('department_id') department_id?: string,
+    @Query('due_soon') due_soon?: string,
     @Request() req?: any,
   ) {
     return this.riskAnalysisService.getStats({
       scope_level,
       department_id,
+      due_soon: due_soon === 'true',
     }, req?.user);
   }
 
   @Get('nine-standards')
-  getNineStandards() {
-    return this.riskAnalysisService.getNineStandards();
+  getNineStandards(@Query('department_id') department_id: string, @Request() req: any) {
+    return this.riskAnalysisService.getNineStandards({ department_id }, req.user);
   }
 
   @Get(':id')

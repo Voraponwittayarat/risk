@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { 
   Grid, Building,
   Printer, ShieldAlert, FileSpreadsheet,
-  AlertTriangle, CheckCircle2, Search, Eye, Activity,
+  AlertTriangle, Search, Eye, Activity,
   Target, RefreshCw, X, Clock, Edit3, Trash2,
   ShieldCheck, Flame, Layers, Sparkles,
   Info, Check, BookmarkCheck, FileText, Lock, UserCheck
@@ -13,6 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getRiskMatrixLevel } from '../utils/riskMatrix';
 import { OfficialPrintFooter, OfficialPrintHeader } from '../components/OfficialPrintLayout';
 import { printOfficialReport } from '../utils/officialPrint';
+import RiskDecisionSupport from '../components/RiskDecisionSupport';
 
 // =========================================================================
 // 15 HA-STANDARDIZED & DEPARTMENTAL PRESET RISK TEMPLATES (คลังเทมเพลตความเสี่ยง)
@@ -394,6 +395,10 @@ export default function Reports() {
   const [departments, setDepartments] = useState<any[]>([]);
   const [recentIncidents, setRecentIncidents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadErrors, setLoadErrors] = useState<string[]>([]);
+  const [standards, setStandards] = useState<any[]>([]);
+  const [dataRevision, setDataRevision] = useState(0);
+  const requestRef = useRef<AbortController | null>(null);
 
 
   // Filters
@@ -500,7 +505,15 @@ export default function Reports() {
   }, []);
 
   const fetchRiskAnalysisData = () => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
     setLoading(true);
+    setLoadErrors([]);
+    setRisks([]);
+    setStats(null);
+    setMatrixData(null);
+    setStandards([]);
     const token = localStorage.getItem('token');
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -509,31 +522,36 @@ export default function Reports() {
       params.scope_level = 'hospital';
     } else if (activeTab === 'department') {
       params.scope_level = 'department';
-      if (selectedDept !== 'all') params.department_id = selectedDept;
     } else if (activeTab === 'due') {
       params.due_soon = 'true';
     }
 
-    Promise.all([
-      axios.get('/risk-analysis', { params, headers }),
-      axios.get('/risk-analysis/stats', { headers }),
-      axios.get('/incidents/matrix/stats', { headers }),
+    if (selectedDept !== 'all') params.department_id = selectedDept;
+    const config = { headers, signal: controller.signal };
+    Promise.allSettled([
+      axios.get('/risk-analysis', { ...config, params }),
+      axios.get('/risk-analysis/stats', { ...config, params }),
+      axios.get('/incidents/matrix/stats', { ...config, params: { department_id: params.department_id } }),
+      ...(activeTab === 'standards' ? [axios.get('/risk-analysis/nine-standards', { ...config, params: { department_id: params.department_id } })] : []),
     ])
-      .then(([risksRes, statsRes, matrixRes]) => {
-        setRisks(risksRes.data || []);
-        setStats(statsRes.data || null);
-        setMatrixData(matrixRes.data || null);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Error fetching risk analysis data:', err);
+      .then(results => {
+        if (controller.signal.aborted) return;
+        const labels = ['ทะเบียนความเสี่ยง', 'สรุปทะเบียน', 'Incident Matrix', 'มาตรฐานความปลอดภัย'];
+        const setters = [setRisks, setStats, setMatrixData, setStandards];
+        const errors: string[] = [];
+        results.forEach((result, index) => {
+          if (result.status === 'fulfilled') setters[index](result.value.data);
+          else errors.push(labels[index]);
+        });
+        setLoadErrors(errors);
         setLoading(false);
       });
   };
 
   useEffect(() => {
     fetchRiskAnalysisData();
-  }, [activeTab, selectedDept]);
+    return () => requestRef.current?.abort();
+  }, [activeTab, selectedDept, dataRevision]);
 
 
   // Open Create Modal with default scope matching tab
@@ -679,9 +697,7 @@ export default function Reports() {
         setLoading(false);
       })
       .catch(err => {
-        console.error(err);
-        setSelectedRiskItem(item);
-        setIsDetailModalOpen(true);
+        alert('เปิดรายละเอียดไม่สำเร็จ: ' + (err.response?.data?.message || 'กรุณาลองใหม่'));
         setLoading(false);
       });
   };
@@ -692,7 +708,7 @@ export default function Reports() {
     try {
       await axios.post('/risk-analysis', formData);
       setIsCreateModalOpen(false);
-      fetchRiskAnalysisData();
+      setDataRevision(value => value + 1);
     } catch (err: any) {
       alert('บันทึกล้มเหลว: ' + (err.response?.data?.message || err.message));
     }
@@ -705,7 +721,7 @@ export default function Reports() {
     try {
       await axios.patch(`/risk-analysis/${selectedRiskItem.id}`, formData);
       setIsEditModalOpen(false);
-      fetchRiskAnalysisData();
+      setDataRevision(value => value + 1);
     } catch (err: any) {
       alert('แก้ไขล้มเหลว: ' + (err.response?.data?.message || err.message));
     }
@@ -718,7 +734,7 @@ export default function Reports() {
     try {
       await axios.post(`/risk-analysis/${selectedRiskItem.id}/reviews`, reviewFormData);
       setIsReviewModalOpen(false);
-      fetchRiskAnalysisData();
+      setDataRevision(value => value + 1);
     } catch (err: any) {
       alert('บันทึกการทบทวนล้มเหลว: ' + (err.response?.data?.message || err.message));
     }
@@ -729,7 +745,7 @@ export default function Reports() {
     if (!confirm(`คุณต้องการลบทะเบียนความเสี่ยง "${code}" ใช่หรือไม่?`)) return;
     try {
       await axios.delete(`/risk-analysis/${id}`);
-      fetchRiskAnalysisData();
+      setDataRevision(value => value + 1);
     } catch (err: any) {
       alert('ลบล้มเหลว: ' + (err.response?.data?.message || err.message));
     }
@@ -950,10 +966,10 @@ export default function Reports() {
             ภาพรวมความเสี่ยงวันนี้ (Daily Risk Overview)
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-2.5">
-            สวัสดี! พร้อมสำหรับวันนี้หรือยัง? 🌤️
+            วิเคราะห์ข้อมูลความเสี่ยง
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 max-w-lg leading-relaxed">
-            ทุกอย่างดูเรียบร้อยดี นี่คือสรุปข้อมูลสำคัญที่เราคัดมาให้คุณติดตามผลได้อย่างสบายใจ ไม่พลาดทุกเป้าหมายความปลอดภัย
+            เชื่อมสัญญาณจากอุบัติการณ์กับทะเบียนความเสี่ยง งานทบทวน และผลของมาตรการ เพื่อวางแผนความปลอดภัยร่วมกัน
           </p>
         </div>
 
@@ -987,6 +1003,13 @@ export default function Reports() {
         </div>
       </div>
 
+      <RiskDecisionSupport departments={departments} department={selectedDept} onDepartmentChange={setSelectedDept} refreshKey={dataRevision} onOpenRisk={id => handleOpenDetailModal({ id })} />
+      <h2 className="no-print text-xl font-bold text-slate-800 dark:text-white">ทะเบียนความเสี่ยงและเครื่องมือทบทวน</h2>
+      <div className="no-print flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600 dark:text-slate-300">
+        <span>ขอบเขต: {currentDeptName} · {printReportTitle[activeTab]}</span>
+        <button type="button" disabled={loading} onClick={() => setDataRevision(value => value + 1)} className="rounded-lg border px-3 py-2 disabled:opacity-50">โหลดข้อมูลใหม่</button>
+      </div>
+      {loadErrors.length > 0 && <div role="alert" className="no-print rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">โหลด {loadErrors.join(', ')} ไม่สำเร็จ กรุณากดโหลดข้อมูลใหม่ ข้อมูลส่วนที่โหลดไม่สำเร็จจะไม่แสดงเป็นยอดศูนย์</div>}
       {/* KPI Cards Overview */}
       {stats && (
         <div className="no-print grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
@@ -1001,7 +1024,7 @@ export default function Reports() {
               <span className="text-2xl font-bold text-slate-800 dark:text-white">{stats.total}</span>
               <span className="text-xs text-slate-400 font-medium">รายการ</span>
             </div>
-            <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">ภาพรวมระบบ</div>
+            <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">ทะเบียนตามขอบเขตที่เลือก</div>
           </div>
 
           <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-rose-100 dark:border-rose-900/30 shadow-sm transition hover:shadow-md hover:border-rose-200">
@@ -1162,7 +1185,7 @@ export default function Reports() {
                 )}
               </div>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                🌐 สิทธิ์: <strong>เลือกดูได้ทุกหน่วยงาน</strong> | 🔒 สิทธิ์แก้ไข/ทบทวน/ลบ เฉพาะ <strong>หน่วยงานตนเอง</strong> และ <strong>ระดับ รพ.</strong>
+                ข้อมูลแสดงตามหน่วยงานที่เลือกและสิทธิ์ของบัญชี · การลบทะเบียนสงวนสำหรับ Admin
               </p>
             </div>
           </div>
@@ -1173,6 +1196,8 @@ export default function Reports() {
                 onClick={() => {
                   setSelectedDept(String(user.department_id));
                   setActiveTab('department');
+                  setSearchQuery(''); setSelectedSource('all'); setSelectedCategory('all');
+                  setSelectedRiskLevel('all'); setSelectedStatus('all'); setOnlyNeverEvents(false);
                 }}
                 className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition shadow-sm flex items-center gap-1.5"
               >
@@ -1229,7 +1254,7 @@ export default function Reports() {
               >
                 <option value="all">ทุกแหล่งที่มา</option>
                 <option value="มาตรฐานสำคัญ 9 ด้าน">มาตรฐานสำคัญ 9 ด้าน</option>
-                <option value="รายงานอุบัติการณ์">รายงานอุบัติการณ์</option>
+                <option value="รายงานอุบัติการณ์">รายงานอุบัติการณ์</option><option value="FMEA">FMEA</option><option value="Safety Walkround">Safety Walkround</option><option value="Proactive Risk Assessment">Proactive Risk Assessment</option>
                 <option value="เรื่องที่หน่วยงานให้ความสำคัญ">เรื่องที่หน่วยงานให้ความสำคัญ</option>
                 <option value="ทบทวนเวชระเบียน">ทบทวนเวชระเบียน</option>
               </select>
@@ -1396,7 +1421,7 @@ export default function Reports() {
                   <tr>
                     <td colSpan={18} className="py-12 text-center text-slate-400">
                       <ShieldAlert className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-                      ไม่พบรายการความเสี่ยงในหน่วยงานหรือเงื่อนไขที่เลือก
+                      {loadErrors.includes('ทะเบียนความเสี่ยง') ? 'ยังแสดงทะเบียนไม่ได้ เนื่องจากโหลดข้อมูลไม่สำเร็จ' : 'ยังไม่มีทะเบียนความเสี่ยงที่บันทึกตรงกับหน่วยงานหรือเงื่อนไขที่เลือก'}
                     </td>
                   </tr>
                 ) : (() => {
@@ -1647,8 +1672,9 @@ export default function Reports() {
                                 </button>
                                 <button
                                   onClick={() => handleDeleteRisk(item.id, item.risk_code)}
-                                  title="ลบรายการ"
-                                  className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"
+                                  disabled={user?.role !== 'admin'}
+                                  title={user?.role === 'admin' ? 'ลบรายการ' : 'เฉพาะ Admin เท่านั้นที่ลบทะเบียนได้'}
+                                  className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition disabled:opacity-30 disabled:cursor-not-allowed"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -1787,47 +1813,26 @@ export default function Reports() {
       {/* TAB 5: 9 ESSENTIAL STANDARDS (HA 2P SAFETY GOALS) */}
       {/* ========================================================================= */}
       {activeTab === 'standards' && (
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <Target className="w-5 h-5 text-indigo-600" />
-              มาตรฐานสำคัญจำเป็น 9 ด้าน (HA 2P Safety Goals)
-            </h3>
-            <p className="text-sm text-slate-500">
-              สถานะการดำเนินงานความปลอดภัยตามมาตรฐาน 9 ข้อหลักของสถาบันรับรองคุณภาพสถานพยาบาล (สรพ.)
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              { id: 1, name: '1. การดูแลผู้ป่วยวิกฤตและป้องกันการบาดเจ็บ', code: 'STD-01', cat: 'Patient Safety', color: 'border-blue-300 bg-blue-50/40' },
-              { id: 2, name: '2. การวินิจฉัยโรคและการประเมินผู้ป่วย', code: 'STD-02', cat: 'Diagnostic Excellence', color: 'border-indigo-300 bg-indigo-50/40' },
-              { id: 3, name: '3. การบริหารยาที่มีความเสี่ยงสูง (High Alert Drugs)', code: 'STD-03', cat: 'Medication Safety', color: 'border-red-300 bg-red-50/40' },
-              { id: 4, name: '4. การป้องกันและควบคุมการติดเชื้อในโรงพยาบาล (IC)', code: 'STD-04', cat: 'Infection Prevention', color: 'border-amber-300 bg-amber-50/40' },
-              { id: 5, name: '5. ความปลอดภัยในการให้เลือดและส่วนประกอบเลือด', code: 'STD-02', cat: 'Blood Safety', color: 'border-rose-300 bg-rose-50/40' },
-              { id: 6, name: '6. ความปลอดภัยในการทำผ่าตัดและหัตถการ (Safe Surgery)', code: 'STD-05', cat: 'Safe Surgery', color: 'border-purple-300 bg-purple-50/40' },
-              { id: 7, name: '7. ความปลอดภัยของระบบสิ่งแวดล้อมและเครื่องมือแพทย์', code: 'STD-07', cat: 'Environment Safety', color: 'border-slate-300 bg-slate-50/40' },
-              { id: 8, name: '8. การบริการตรวจวินิจฉัยและห้องปฏิบัติการ (LAB)', code: 'STD-08', cat: 'Laboratory Safety', color: 'border-teal-300 bg-teal-50/40' },
-              { id: 9, name: '9. การคัดแยกผู้ป่วยที่ห้องฉุกเฉินและระบบสารสนเทศ', code: 'STD-09', cat: 'Emergency & Digital', color: 'border-cyan-300 bg-cyan-50/40' },
-            ].map(std => (
-              <div key={std.id} className={`p-4 rounded-xl border ${std.color} space-y-2 shadow-sm`}>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
-                    ข้อที่ {std.id}
-                  </span>
-                  <span className="text-[11px] font-semibold text-slate-500">{std.cat}</span>
-                </div>
-                <h4 className="font-bold text-slate-900 text-sm leading-snug">{std.name}</h4>
-                <div className="pt-2 flex items-center justify-between text-xs text-slate-500 border-t border-slate-200/60">
-                  <span>รหัสความเสี่ยง: <strong className="text-slate-700">{std.code}</strong></span>
-                  <span className="text-emerald-600 font-bold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> มีมาตรการแล้ว</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-white">มาตรฐานความปลอดภัยจากข้อมูลระบบ</h3>
+          <p className="mt-2 text-sm text-slate-500">เชื่อมรายการมาตรฐานกับ NRLS ผ่านรหัสความเสี่ยงในระบบ · {currentDeptName} · การบันทึกแผนไม่ใช่การรับรองว่ามาตรการได้ผล</p>
+          {loading ? <p role="status" className="py-6">กำลังโหลดมาตรฐานและทะเบียนที่เชื่อมโยง…</p> : loadErrors.includes('มาตรฐานความปลอดภัย') ? <p className="py-6 text-red-700">โหลดข้อมูลมาตรฐานไม่สำเร็จ กรุณาลองใหม่</p> : standards.length === 0 ? <p className="py-6 text-slate-500">ยังไม่มีข้อมูลมาตรฐานที่ตั้งค่าในระบบ</p> : (
+            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {standards.map(standard => (
+                <article key={standard.id} className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+                  <p className="text-xs text-indigo-700 dark:text-indigo-300">ข้อ {standard.number} · {standard.category || 'ไม่ระบุหมวด'}</p>
+                  <h4 className="mt-2 font-bold text-slate-800 dark:text-white">{standard.name}</h4>
+                  <p className="mt-3 text-sm">ทะเบียนที่เชื่อมโยง <strong>{standard.total}</strong> เรื่อง</p>
+                  <p className="mt-1 text-sm">บันทึกแผนมาตรการ <strong>{standard.withMeasures}</strong> / {standard.total} เรื่อง</p>
+                  {!standard.mappedCodes?.length && <p className="mt-2 text-xs text-amber-700">ยังไม่มีรหัส NRLS ที่เชื่อมโยง ต้องตรวจการตั้งค่ามาตรฐาน</p>}
+                  {standard.mappedCodes?.length > 0 && standard.total === 0 && <p className="mt-2 text-xs text-slate-500">ยังไม่มีทะเบียนที่ตรงกับรหัสและขอบเขตนี้</p>}
+                  {standard.profiles?.length > 0 && <details className="mt-3 text-sm"><summary className="cursor-pointer font-semibold text-indigo-700 dark:text-indigo-300">ดูทะเบียนที่ใช้คำนวณ</summary><ul className="mt-2 space-y-2">{standard.profiles.map((profile: any) => <li key={profile.id}><button type="button" onClick={() => handleOpenDetailModal({ id: profile.id })} className="text-left text-indigo-700 underline dark:text-indigo-300">{profile.title}</button><p className="text-xs text-slate-500">{profile.department}</p></li>)}</ul></details>}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
       )}
-
       <OfficialPrintFooter />
 
       {/* ========================================================================= */}
@@ -1995,7 +2000,7 @@ export default function Reports() {
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-indigo-500 font-medium"
                   >
                     <option value="มาตรฐานสำคัญ 9 ด้าน">มาตรฐานสำคัญ 9 ด้าน</option>
-                    <option value="รายงานอุบัติการณ์">รายงานอุบัติการณ์</option>
+                    <option value="รายงานอุบัติการณ์">รายงานอุบัติการณ์</option><option value="FMEA">FMEA</option><option value="Safety Walkround">Safety Walkround</option><option value="Proactive Risk Assessment">Proactive Risk Assessment</option>
                     <option value="เรื่องที่หน่วยงานให้ความสำคัญ">เรื่องที่หน่วยงานให้ความสำคัญ</option>
                     <option value="ทบทวนเวชระเบียน">ทบทวนเวชระเบียน</option>
                   </select>
@@ -2321,7 +2326,7 @@ export default function Reports() {
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 disabled:bg-slate-100 disabled:cursor-not-allowed"
                   >
                     <option value="มาตรฐานสำคัญ 9 ด้าน">มาตรฐานสำคัญ 9 ด้าน</option>
-                    <option value="รายงานอุบัติการณ์">รายงานอุบัติการณ์</option>
+                    <option value="รายงานอุบัติการณ์">รายงานอุบัติการณ์</option><option value="FMEA">FMEA</option><option value="Safety Walkround">Safety Walkround</option><option value="Proactive Risk Assessment">Proactive Risk Assessment</option>
                     <option value="เรื่องที่หน่วยงานให้ความสำคัญ">เรื่องที่หน่วยงานให้ความสำคัญ</option>
                     <option value="ทบทวนเวชระเบียน">ทบทวนเวชระเบียน</option>
                   </select>
