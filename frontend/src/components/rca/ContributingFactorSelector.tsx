@@ -14,6 +14,8 @@ interface ContributingFactorSelectorProps {
   onChange: (value: ContributingFactorSelection[]) => void;
   readOnly?: boolean;
   legacyItems?: LegacyCauseFactor[];
+  otherCause?: string;
+  onOtherCauseChange?: (value: string) => void;
 }
 
 export function ContributingFactorSelector({
@@ -21,6 +23,8 @@ export function ContributingFactorSelector({
   onChange,
   readOnly = false,
   legacyItems = [],
+  otherCause = '',
+  onOtherCauseChange,
 }: ContributingFactorSelectorProps) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
@@ -171,9 +175,28 @@ export function ContributingFactorSelector({
                 </button>
               );
             })}
+            {onOtherCauseChange && (
+              <button type="button" onClick={() => setCategory('other')} aria-pressed={category === 'other'}
+                className={`rounded-full border px-3 py-1.5 text-[11px] font-bold ${category === 'other' ? 'border-amber-600 bg-amber-600 text-white' : 'border-amber-300 bg-amber-50 text-amber-800'}`}>
+                ไม่พบปัจจัยที่ตรง / พิมพ์อื่น ๆ
+              </button>
+            )}
           </div>
 
-          <div className="max-h-72 space-y-4 overflow-y-auto pr-1">
+      {onOtherCauseChange && (category === 'other' || Boolean(otherCause)) && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-slate-900">
+          <label className="block text-sm font-semibold">
+            สาเหตุอื่น ๆ
+            <textarea value={otherCause} readOnly={readOnly} maxLength={255} rows={2}
+              onChange={(event) => onOtherCauseChange(event.target.value)}
+              placeholder="หากไม่พบปัจจัยที่ตรง กรุณาพิมพ์สาเหตุที่พบในการทบทวน"
+              className="mt-2 w-full rounded-lg border border-amber-200 bg-white p-2 text-sm dark:bg-slate-800" />
+          </label>
+          <p className="text-xs text-slate-500">พิมพ์สาเหตุอื่นแล้ว ไม่จำเป็นต้องเลือกรหัสปัจจัย • {otherCause.length}/255</p>
+        </div>
+      )}
+
+          <div hidden={category === 'other'} className="max-h-72 space-y-4 overflow-y-auto pr-1">
             {groupedFactors.map((group) => (
               <section key={group.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
                 <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-slate-100/95 px-3 py-2 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/95">

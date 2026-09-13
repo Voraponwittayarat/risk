@@ -2439,8 +2439,8 @@ export class IncidentsService {
       throw new BadRequestException('วัตถุประสงค์การส่งต่อไม่ถูกต้อง');
     }
     const serializedContributingFactors = serializeContributingFactors(reviewDto.contributing_factors);
-    if (reviewDto.learning_action && !serializedContributingFactors) {
-      throw new BadRequestException('กรุณาเลือก Contributing Factor ตามมาตรฐาน NRLS อย่างน้อย 1 รายการ');
+    if (reviewDto.learning_action && !serializedContributingFactors && !String(reviewDto.cause_problem || '').trim()) {
+      throw new BadRequestException('กรุณาเลือกปัจจัยที่เกี่ยวข้อง หรือพิมพ์สาเหตุอื่น ๆ');
     }
     const reviewAttachments = this.validateStoredReviewAttachments(reviewDto.files, user);
 
@@ -2481,7 +2481,7 @@ export class IncidentsService {
           riskvisit: `REV-${Date.now().toString().slice(-10)}`,
           review_date: new Date(reviewDto.review_date || new Date()),
           notereview: note,
-          cause_problem: reviewDto.cause_problem || null,
+          cause_problem: reviewDto.cause_problem?.trim() || null,
           contributing_factors: serializedContributingFactors,
           department_outcome: departmentOutcome,
           forwarding_purpose: forwardingPurpose,

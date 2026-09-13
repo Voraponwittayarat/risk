@@ -473,8 +473,8 @@ export default function IncidentDetail() {
       alert('กรุณาระบุรายละเอียดการทบทวน หรือมาตรการแก้ไข');
       return;
     }
-    if (reviewContributingFactors.length === 0) {
-      alert('กรุณาเลือก Contributing Factor ตามรหัส NRLS อย่างน้อย 1 รายการ');
+    if (reviewContributingFactors.length === 0 && !causeProblem.trim()) {
+      alert('กรุณาเลือกปัจจัยที่เกี่ยวข้อง หรือพิมพ์สาเหตุอื่น ๆ');
       return;
     }
     if (forwardingPurpose !== 'NONE' && !coReviewDepartmentId) {
@@ -1192,25 +1192,10 @@ export default function IncidentDetail() {
             <ContributingFactorSelector
               value={reviewContributingFactors}
               onChange={setReviewContributingFactors}
+              otherCause={causeProblem}
+              onOtherCauseChange={setCauseProblem}
             />
           </div>
-          <details className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/70">
-            <summary className="cursor-pointer text-sm font-semibold text-slate-800 dark:text-slate-100">
-              สาเหตุอื่น ๆ เพิ่มเติม
-            </summary>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              ใช้สำหรับสาเหตุหรือข้อสรุปที่ไม่ครอบคลุมใน Contributing Factor ที่เลือกด้านบน
-            </p>
-            <textarea
-              rows={2}
-              maxLength={255}
-              value={causeProblem}
-              onChange={(e) => setCauseProblem(e.target.value)}
-              placeholder="พิมพ์สาเหตุอื่น ๆ เพิ่มเติม (ถ้ามี)"
-              className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-            />
-            <div className="mt-1 text-right text-[11px] text-slate-400">{causeProblem.length}/255 ตัวอักษร</div>
-          </details>
         </section>
 
         {/* 4. ฟอร์มบันทึกข้อมูลหลัก (Main Review Inputs) */}

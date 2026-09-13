@@ -227,6 +227,27 @@ describe('IncidentsService incident permissions', () => {
     }));
   });
 
+  it('accepts a written other cause without a coded contributing factor', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({ ...pendingIncident, status_risk: 'ตรวจสอบ', level_id: 'C' });
+    await service.addReview(10, {
+      findings: 'ทบทวนและปรับปรุงขั้นตอนการทำงานเรียบร้อยแล้ว',
+      learning_action: 'NO_NEW_MEASURE', contributing_factors: [],
+      cause_problem: '  ขั้นตอนประสานงานไม่ชัดเจน  ',
+    }, { id: 30, role: 'head', departmentId: 1 });
+    expect(prisma.riskreview.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ cause_problem: 'ขั้นตอนประสานงานไม่ชัดเจน', contributing_factors: null }),
+    }));
+  });
+
+  it.each(['', '   '])('rejects an empty other cause when no factors are selected', async (cause) => {
+    prisma.riskregister.findFirst.mockResolvedValue({ ...pendingIncident, status_risk: 'ตรวจสอบ' });
+    await expect(service.addReview(10, {
+      findings: 'ทบทวนและปรับปรุงขั้นตอนการทำงานเรียบร้อยแล้ว',
+      learning_action: 'NO_NEW_MEASURE', contributing_factors: [], cause_problem: cause,
+    }, { id: 30, role: 'head', departmentId: 1 })).rejects.toThrow('หรือพิมพ์สาเหตุอื่น');
+    expect(prisma.riskreview.create).not.toHaveBeenCalled();
+  });
+
   it('closes a low-severity incident when the owner resolves it without actionable forwarding', async () => {
     prisma.riskregister.findFirst.mockResolvedValue({
       ...pendingIncident,
