@@ -262,7 +262,7 @@ model risk {
   detail        String?   @db.Text
   detail_hosxp  String?   @db.Text
   affected      String?   @db.VarChar(50)
-  edit          String?   @db.VarChar(10)
+  edit          String?   @db.Text
   problem_basic String?   @db.Text
   image         String?   @db.Text
   inform_id     Int
@@ -328,7 +328,7 @@ model riskregister {
   detail                   String?                         @db.Text
   detail_hosxp             String?                         @db.Text
   affected                 String?                         @db.VarChar(50)
-  edit                     String?                         @db.VarChar(10)
+  edit                     String?                         @db.Text
   problem_basic            String?                         @db.Text
   image                    String?                         @db.Text
   inform_id                Int
