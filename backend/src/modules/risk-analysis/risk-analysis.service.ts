@@ -506,7 +506,8 @@ export class RiskAnalysisService {
         incidents: codes.map(code => ({ code, name: nameMap.get(code) || code })),
         total: matched.length,
         withMeasures: matched.filter(p => p.risk_prevention?.trim() || p.risk_mitigation?.trim()).length,
-        profiles: matched.map(p => ({ id: p.id, title: p.risk_title, department: p.department_name })),
+        proactive: matched.filter(p => ['FMEA', 'Safety Walkround', 'Proactive Risk Assessment'].includes(p.source || '')).length,
+        profiles: matched.map(p => ({ id: p.id, title: p.risk_title, department: p.department_name, source: p.source })),
       };
     });
   }

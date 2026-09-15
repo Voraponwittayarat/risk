@@ -45,12 +45,12 @@ describe('Risk reports use stored records and selected scope', () => {
   it('counts only mapped profiles and actual non-empty measures', async () => {
     const base = { department_id: '1', reviews: [], nrls_code: 'TEST' };
     prisma.riskanalysis.findMany.mockResolvedValue([
-      { ...base, id: 1, risk_title: 'Saved one', risk_prevention: 'A saved plan' },
+      { ...base, id: 1, risk_title: 'Saved one', risk_prevention: 'A saved plan', source: 'FMEA' },
       { ...base, id: 2, risk_title: 'Saved two', risk_prevention: '  ', risk_mitigation: null },
       { ...base, id: 3, nrls_code: 'OTHER', risk_prevention: 'Unrelated' },
     ]);
     const result = await service.getNineStandards({}, { role: 'admin' });
-    expect(result[0]).toMatchObject({ total: 2, withMeasures: 1 });
+    expect(result[0]).toMatchObject({ total: 2, withMeasures: 1, proactive: 1 });
     expect(result[0].profiles.map(p => p.id)).toEqual([1, 2]);
   });
 

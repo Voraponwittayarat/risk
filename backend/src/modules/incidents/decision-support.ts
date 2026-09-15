@@ -73,7 +73,22 @@ export function summarizeSignals(
           ? Math.round(((items.length - before) / before) * 100)
           : null,
         severe: items.filter(severe).length,
+        nearMiss: items.filter(
+          (r) => r.level_id.trim().toUpperCase() === 'B',
+        ).length,
+        unsafeConditions: items.filter(
+          (r) => r.level_id.trim().toUpperCase() === 'A',
+        ).length,
         repeatDepartments: [...groups.values()].filter((n) => n >= 2).length,
+        departments: [...groups.entries()]
+          .map(([id, count]) => ({
+            id,
+            count,
+            severe: items.filter(
+              (r) => r.department_id === id && severe(r),
+            ).length,
+          }))
+          .sort((a, b) => b.severe - a.severe || b.count - a.count),
       };
     })
     .sort(

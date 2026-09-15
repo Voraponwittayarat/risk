@@ -52,7 +52,10 @@ describe('decision support', () => {
       count: 2,
       previous: 0,
       percent: null,
+      nearMiss: 1,
+      unsafeConditions: 1,
       repeatDepartments: 1,
+      departments: [{ id: '1', count: 2, severe: 0 }],
     });
   });
   it('does not call cross-department reports recurrence and includes both boundaries', () => {
@@ -168,11 +171,16 @@ describe('decision support', () => {
         capa: 2,
         overdueCapa: 1,
       });
+      expect(result.backlog.rcaItems[0].overdue).toBe(true);
+      expect(result.backlog.capaItems[0]).toMatchObject({ overdue: true, effectivenessStatus: 'NOT_DUE' });
       expect(result.effectiveness).toMatchObject({
         effective: 1,
         unassessed: 2,
         overdue: 1,
       });
+      expect(result.effectiveness.items).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 4, status: 'EFFECTIVE' }),
+      ]));
       expect(result.followup[0]).toMatchObject({ count: 0, assessed: false });
       expect(result.proactive.count).toBe(1);
       expect(result.departments[0].rca).toBe(1);

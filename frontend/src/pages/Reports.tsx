@@ -14,6 +14,7 @@ import { getRiskMatrixLevel } from '../utils/riskMatrix';
 import { OfficialPrintFooter, OfficialPrintHeader } from '../components/OfficialPrintLayout';
 import { printOfficialReport } from '../utils/officialPrint';
 import RiskDecisionSupport from '../components/RiskDecisionSupport';
+import NineStandardsDashboard from '../components/NineStandardsDashboard';
 
 // =========================================================================
 // Department presets remain local; the nine essential standards come from the backend catalogue.
@@ -1546,38 +1547,17 @@ export default function Reports() {
       {/* TAB 5: 9 ESSENTIAL STANDARDS (HA 2P SAFETY GOALS) */}
       {/* ========================================================================= */}
       {activeTab === 'standards' && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800">
-          <h3 className="text-lg font-bold text-slate-800 dark:text-white">มาตรฐานความปลอดภัยจากข้อมูลระบบ</h3>
-          <p className="mt-2 text-sm text-slate-500">เชื่อมรายการมาตรฐานกับ NRLS ผ่านรหัสความเสี่ยงในระบบ · {currentDeptName} · การบันทึกแผนไม่ใช่การรับรองว่ามาตรการได้ผล</p>
-          {loading ? <p role="status" className="py-6">กำลังโหลดมาตรฐานและทะเบียนที่เชื่อมโยง…</p> : loadErrors.includes('มาตรฐานความปลอดภัย') ? <p className="py-6 text-red-700">โหลดข้อมูลมาตรฐานไม่สำเร็จ กรุณาลองใหม่</p> : standards.length === 0 ? <p className="py-6 text-slate-500">ยังไม่มีข้อมูลมาตรฐานที่ตั้งค่าในระบบ</p> : (
-            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {standards.map(standard => (
-                <article key={standard.id} className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
-                  <p className="text-xs text-indigo-700 dark:text-indigo-300">ข้อ {standard.number} · {standard.category || 'ไม่ระบุหมวด'}</p>
-                  <h4 className="mt-2 font-bold text-slate-800 dark:text-white">{standard.name}</h4>
-                  <p className="mt-3 text-sm">ทะเบียนที่เชื่อมโยง <strong>{standard.total}</strong> เรื่อง</p>
-                  <p className="mt-1 text-sm">บันทึกแผนมาตรการ <strong>{standard.withMeasures}</strong> / {standard.total} เรื่อง</p>
-                  {!standard.mappedCodes?.length && <p className="mt-2 text-xs text-amber-700">ยังไม่มีรหัส NRLS ที่เชื่อมโยง ต้องตรวจการตั้งค่ามาตรฐาน</p>}
-                  {standard.incidents?.length > 0 && (
-                    <details className="mt-3 text-sm" open>
-                      <summary className="cursor-pointer font-semibold text-slate-700 dark:text-slate-200">รหัส NRLS ที่ใช้คำนวณ ({standard.incidents.length})</summary>
-                      <ul className="mt-2 space-y-2">
-                        {standard.incidents.map((incident: any) => (
-                          <li key={incident.code} className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
-                            <span className="font-mono text-xs font-bold text-indigo-700 dark:text-indigo-300">{incident.code}</span>
-                            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{incident.name}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
-                  {standard.mappedCodes?.length > 0 && standard.total === 0 && <p className="mt-2 text-xs text-slate-500">ยังไม่มีทะเบียนที่ตรงกับรหัสและขอบเขตนี้</p>}
-                  {standard.profiles?.length > 0 && <details className="mt-3 text-sm"><summary className="cursor-pointer font-semibold text-indigo-700 dark:text-indigo-300">ดูทะเบียนที่ใช้คำนวณ</summary><ul className="mt-2 space-y-2">{standard.profiles.map((profile: any) => <li key={profile.id}><button type="button" onClick={() => handleOpenDetailModal({ id: profile.id })} className="text-left text-indigo-700 underline dark:text-indigo-300">{profile.title}</button><p className="text-xs text-slate-500">{profile.department}</p></li>)}</ul></details>}
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+        loading ? <p role="status" className="rounded-2xl border border-slate-200 bg-white p-8">กำลังโหลดมาตรฐานและทะเบียนที่เชื่อมโยง…</p>
+          : loadErrors.includes('มาตรฐานความปลอดภัย') ? <p className="rounded-2xl border border-red-200 bg-red-50 p-8 text-red-700">โหลดข้อมูลมาตรฐานไม่สำเร็จ กรุณาลองใหม่</p>
+            : standards.length === 0 ? <p className="rounded-2xl border border-slate-200 bg-white p-8 text-slate-500">ยังไม่มีข้อมูลมาตรฐานที่ตั้งค่าในระบบ</p>
+              : <NineStandardsDashboard
+                standards={standards}
+                departments={departments}
+                department={selectedDept}
+                onDepartmentChange={setSelectedDept}
+                onOpenRisk={id => handleOpenDetailModal({ id })}
+                refreshKey={dataRevision}
+              />
       )}
       <OfficialPrintFooter />
 
