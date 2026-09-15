@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   FileText, Bot, Send, Calendar, Clock, MapPin, AlertTriangle, 
   User, PenTool, Stethoscope, FileSearch, Upload,
-  X, Sparkles, BookOpen, Check, Info, ArrowRight
+  X, Sparkles, BookOpen, Check, Info, ArrowRight, Search, ChevronDown
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -209,6 +209,9 @@ export default function IncidentForm() {
   });
 
   const [saving, setSaving] = useState(false);
+  const [locationQuery, setLocationQuery] = useState('');
+  const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false);
+  const locationPickerRef = useRef<HTMLDivElement>(null);
 
   // States and helper functions for image uploads
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
@@ -360,6 +363,17 @@ export default function IncidentForm() {
       .finally(() => setLoadingOptions(false));
   }, []);
 
+  useEffect(() => {
+    const closeLocationMenu = (event: PointerEvent) => {
+      if (!locationPickerRef.current?.contains(event.target as Node)) {
+        setIsLocationMenuOpen(false);
+        setLocationQuery('');
+      }
+    };
+    document.addEventListener('pointerdown', closeLocationMenu);
+    return () => document.removeEventListener('pointerdown', closeLocationMenu);
+  }, []);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
 
@@ -373,6 +387,8 @@ export default function IncidentForm() {
     }
 
     if (name === 'location_group') {
+      setIsLocationMenuOpen(false);
+      setLocationQuery('');
       setFormData(prev => ({
         ...prev,
         location_group: value as 'LG001' | 'LG002',
@@ -527,6 +543,18 @@ export default function IncidentForm() {
   const effectiveTypeId = getNrlsTypeId(formData.nrls_code) || formData.type_id;
   const isClinical = effectiveTypeId === '2';
   const isGeneral = effectiveTypeId === '1';
+  const selectedLocation = locations.find(loc => String(loc.id) === String(formData.location_id));
+  const normalizedLocationQuery = locationQuery.trim().toLocaleLowerCase('th-TH');
+  const filteredLocations = locations.filter(loc => (
+    !normalizedLocationQuery
+    || String(loc.name || '').toLocaleLowerCase('th-TH').includes(normalizedLocationQuery)
+  ));
+
+  const selectLocation = (location: any) => {
+    setFormData(prev => ({ ...prev, location_id: String(location.id) }));
+    setLocationQuery('');
+    setIsLocationMenuOpen(false);
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
@@ -781,21 +809,109 @@ export default function IncidentForm() {
               {/* Sub-block: ในพื้นที่ของโรงพยาบาล */}
               {formData.location_group === 'LG001' && (
                 <div className="space-y-2 pt-2 border-t border-border-light dark:border-border-dark animate-in fade-in slide-in-from-top-1 duration-200">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    สถานที่เกิดเหตุภายในโรงพยาบาล (Specific Location)* <span className="text-danger">*</span>
+                  <label htmlFor="incident-location-search" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    สถานที่เกิดเหตุภายในโรงพยาบาล (Specific Location) <span className="text-danger">*</span>
                   </label>
-                  <select 
-                    name="location_id" 
-                    required={formData.location_group === 'LG001'}
-                    value={formData.location_id} 
-                    onChange={handleChange} 
-                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-primary/40 rounded-[8px] text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-shadow font-medium"
-                  >
-                    <option value="">-- เลือกสถานที่เฉพาะจุดภายในโรงพยาบาล (เช่น แผนกผู้ป่วยนอก, ER, วอร์ด ฯลฯ) --</option>
-                    {locations.map(loc => (
-                      <option key={loc.id} value={loc.id}>📍 {loc.name}</option>
-                    ))}
-                  </select>
+                  <div ref={locationPickerRef} className="relative">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        id="incident-location-search"
+                        type="text"
+                        role="combobox"
+                        aria-label="ค้นหาสถานที่เกิดเหตุภายในโรงพยาบาล"
+                        aria-expanded={isLocationMenuOpen}
+                        aria-controls="incident-location-options"
+                        aria-autocomplete="list"
+                        autoComplete="off"
+                        disabled={loadingOptions}
+                        value={isLocationMenuOpen ? locationQuery : (selectedLocation?.name || '')}
+                        onFocus={() => {
+                          setLocationQuery('');
+                          setIsLocationMenuOpen(true);
+                        }}
+                        onChange={(event) => {
+                          setLocationQuery(event.target.value);
+                          setIsLocationMenuOpen(true);
+                          if (formData.location_id) {
+                            setFormData(prev => ({ ...prev, location_id: '' }));
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape') {
+                            setIsLocationMenuOpen(false);
+                            setLocationQuery('');
+                          } else if (event.key === 'Enter' && isLocationMenuOpen && filteredLocations.length > 0) {
+                            event.preventDefault();
+                            selectLocation(filteredLocations[0]);
+                          }
+                        }}
+                        placeholder={loadingOptions ? 'กำลังโหลดสถานที่...' : 'พิมพ์ชื่อสถานที่ เช่น ER, OPD, ห้องยา'}
+                        className="w-full rounded-[8px] border border-primary/40 bg-white py-2.5 pl-10 pr-20 text-sm font-medium text-slate-800 transition-shadow placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-wait disabled:opacity-60 dark:bg-slate-900 dark:text-slate-100"
+                      />
+                      {formData.location_id ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({ ...prev, location_id: '' }));
+                            setLocationQuery('');
+                            setIsLocationMenuOpen(true);
+                          }}
+                          aria-label="ล้างสถานที่ที่เลือก"
+                          className="absolute right-9 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={loadingOptions}
+                        onClick={() => setIsLocationMenuOpen(open => !open)}
+                        aria-label="เปิดรายการสถานที่"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-wait dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                      >
+                        <ChevronDown className={`h-4 w-4 transition-transform ${isLocationMenuOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                    </div>
+
+                    {isLocationMenuOpen && (
+                      <div
+                        id="incident-location-options"
+                        role="listbox"
+                        className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+                      >
+                        {filteredLocations.length > 0 ? filteredLocations.map(loc => {
+                          const selected = String(loc.id) === String(formData.location_id);
+                          return (
+                            <button
+                              key={loc.id}
+                              type="button"
+                              role="option"
+                              aria-selected={selected}
+                              onClick={() => selectLocation(loc)}
+                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${selected
+                                ? 'bg-primary/10 font-semibold text-primary'
+                                : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              <span className="flex min-w-0 items-center gap-2">
+                                <MapPin className="h-4 w-4 shrink-0 text-slate-400" />
+                                <span className="truncate">{loc.name}</span>
+                              </span>
+                              {selected && <Check className="h-4 w-4 shrink-0" />}
+                            </button>
+                          );
+                        }) : (
+                          <div className="px-3 py-5 text-center text-sm text-slate-500">
+                            ไม่พบสถานที่ที่ตรงกับ “{locationQuery}”
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    พิมพ์บางส่วนของชื่อ แล้วเลือกสถานที่จากรายการ
+                  </p>
                 </div>
               )}
 
