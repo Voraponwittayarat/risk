@@ -1,0 +1,12 @@
+[Unit]
+Description=Check GitHub origin/main for RiskHRMS updates every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30s
+Persistent=true
+Unit=riskhrms-auto-deploy.service
+
+[Install]
+WantedBy=timers.target

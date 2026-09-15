@@ -19,6 +19,8 @@ ENV_FILE="${BACKEND_DIR}/.env"
 PREVIOUS_COMMIT='unknown'
 BACKUP_PATH='not-created'
 
+source "${SCRIPT_DIR}/git-transport.sh"
+
 on_failure() {
   local exit_code=$?
   echo "[FAILED] Update stopped with exit code ${exit_code}." >&2
@@ -42,7 +44,11 @@ fi
 node "${SCRIPT_DIR}/validate-production-env.cjs" "${ENV_FILE}"
 
 run_as_service() {
-  runuser -u "${SERVICE_USER}" -- env HOME="${SERVICE_HOME}" "$@"
+  local runtime_env=("HOME=${SERVICE_HOME}")
+  if [[ -n "${GIT_SSH_COMMAND:-}" ]]; then
+    runtime_env+=("GIT_SSH_COMMAND=${GIT_SSH_COMMAND}")
+  fi
+  runuser -u "${SERVICE_USER}" -- env "${runtime_env[@]}" "$@"
 }
 
 run_in_directory() {
@@ -50,6 +56,9 @@ run_in_directory() {
   shift
   run_as_service /bin/bash -c 'cd -- "$1"; shift; exec "$@"' _ "${directory}" "$@"
 }
+
+REMOTE_URL="$(run_as_service git -C "${PROJECT_ROOT}" remote get-url origin)"
+riskhrms_configure_git_transport "${REMOTE_URL}"
 
 if [[ -n "$(run_as_service git -C "${PROJECT_ROOT}" status --porcelain)" ]]; then
   echo 'Update cancelled: production worktree contains uncommitted changes.' >&2
@@ -64,7 +73,7 @@ fi
 PREVIOUS_COMMIT="$(run_as_service git -C "${PROJECT_ROOT}" rev-parse HEAD)"
 echo "Current production commit: ${PREVIOUS_COMMIT}"
 echo '[1/9] Fetching approved release metadata...'
-run_as_service git -C "${PROJECT_ROOT}" fetch --prune origin
+riskhrms_git_retry run_as_service git -C "${PROJECT_ROOT}" fetch --prune origin
 run_as_service git -C "${PROJECT_ROOT}" rev-parse --verify "origin/${BRANCH}" >/dev/null
 read -r AHEAD BEHIND < <(run_as_service git -C "${PROJECT_ROOT}" rev-list --left-right --count "HEAD...origin/${BRANCH}")
 if (( AHEAD > 0 )); then
@@ -81,7 +90,7 @@ BACKUP_PATH="$(bash "${SCRIPT_DIR}/backup-hrms.sh" --backup-dir "${BACKUP_DIRECT
 [[ -s "${BACKUP_PATH}" && -s "${BACKUP_PATH}.json" ]] || { echo 'Backup verification failed.' >&2; exit 1; }
 
 echo "[3/9] Fast-forwarding to origin/${BRANCH}..."
-run_as_service git -C "${PROJECT_ROOT}" pull --ff-only origin "${BRANCH}"
+riskhrms_git_retry run_as_service git -C "${PROJECT_ROOT}" pull --ff-only origin "${BRANCH}"
 TARGET_COMMIT="$(run_as_service git -C "${PROJECT_ROOT}" rev-parse HEAD)"
 
 echo '[4/9] Installing locked dependencies...'

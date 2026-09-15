@@ -63,21 +63,21 @@ if [[ -n "$(run_as_service git -C "${PROJECT_ROOT}" status --porcelain)" ]]; the
   exit 1
 fi
 
-echo '[1/8] Installing locked backend dependencies...'
+echo '[1/9] Installing locked backend dependencies...'
 run_in_directory "${BACKEND_DIR}" npm ci --no-audit
-echo '[2/8] Generating Prisma client...'
+echo '[2/9] Generating Prisma client...'
 run_in_directory "${BACKEND_DIR}" npm exec -- prisma generate
-echo '[3/8] Installing locked frontend dependencies...'
+echo '[3/9] Installing locked frontend dependencies...'
 run_in_directory "${FRONTEND_DIR}" npm ci --no-audit
-echo '[4/8] Building frontend and backend...'
+echo '[4/9] Building frontend and backend...'
 run_in_directory "${FRONTEND_DIR}" npm run build
 run_in_directory "${BACKEND_DIR}" npm run build
-echo '[5/8] Backing up database before migrations...'
+echo '[5/9] Backing up database before migrations...'
 bash "${SCRIPT_DIR}/backup-hrms.sh" >/dev/null
-echo '[6/8] Applying reviewed Prisma migrations...'
+echo '[6/9] Applying reviewed Prisma migrations...'
 run_in_directory "${BACKEND_DIR}" npm exec -- prisma migrate deploy
 
-echo '[7/8] Installing and enabling systemd service...'
+echo '[7/9] Installing and enabling systemd service...'
 NODE_BIN="$(command -v node)"
 sed \
   -e "s|@@PROJECT_ROOT@@|${PROJECT_ROOT}|g" \
@@ -87,7 +87,10 @@ chmod 0644 /etc/systemd/system/riskhrms.service
 systemctl daemon-reload
 systemctl enable --now riskhrms.service
 
-echo '[8/8] Waiting for health check...'
+echo '[8/9] Installing automatic deployment timer...'
+bash "${SCRIPT_DIR}/install-auto-deploy.sh"
+
+echo '[9/9] Waiting for health check...'
 for _ in {1..30}; do
   if curl --fail --silent --show-error -H 'Accept: application/json' http://127.0.0.1:3000/health >/dev/null; then
     echo '[OK] RiskHRMS and MariaDB are healthy on 127.0.0.1:3000.'

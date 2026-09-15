@@ -127,9 +127,15 @@ Updater จะทำงานเฉพาะเมื่อ production อยู
 sudo -n bash /opt/riskhrms/deploy/ubuntu/update-hrms.sh
 ```
 
+ติดตั้งหรืออัปเดตตัวตรวจจากไฟล์ที่ version control ใน repository:
+
+```bash
+sudo bash /opt/riskhrms/deploy/ubuntu/install-auto-deploy.sh
+```
+
 Updater ล็อกไม่ให้ deploy ซ้อนกัน ตรวจว่า production checkout สะอาดและอยู่ branch `main` จากนั้นสำรองฐานข้อมูลพร้อม checksum, pull แบบ fast-forward, build, ใช้ `prisma migrate deploy`, restart และตรวจ `/health`
 
-Server ต้องใช้ GitHub deploy key แบบ read-only สำหรับ fetch repository ไม่ต้องเปิด SSH ให้ GitHub Actions และไม่ต้องตั้ง `PROD_HOST`, `PROD_PORT`, `PROD_USER`, `PROD_SSH_KEY` หรือ `PROD_KNOWN_HOSTS`
+Server ต้องใช้ GitHub deploy key แบบ read-only สำหรับ fetch repository ตัวตรวจใช้ GitHub SSH ผ่าน port 443 พร้อม keepalive และ retry 3 ครั้ง เพื่อรองรับเครือข่ายที่ตัดการเชื่อมต่อ port 22 หากเป็น network failure จะลองใหม่ใน timer รอบถัดไปและไม่สร้าง block ถาวร ส่วน unsafe state, updater failure หรือ health failure ยังคงสร้าง block เพื่อรอการตรวจสอบ ไม่ต้องเปิด SSH ให้ GitHub Actions และไม่ต้องตั้ง `PROD_HOST`, `PROD_PORT`, `PROD_USER`, `PROD_SSH_KEY` หรือ `PROD_KNOWN_HOSTS`
 
 ตัวตรวจต้องบันทึก commit, เวลาเริ่ม/จบ, ผล updater, backup path และ health result โดยต้องไม่บันทึก secrets หรือข้อมูลผู้ป่วย หาก updater ล้มเหลวให้คง service เดิมเท่าที่ทำได้และแจ้งผู้ดูแล ห้าม reset Git, restore ฐานข้อมูล หรือรัน migration/restart ซ้ำแบบเดาสุ่ม
 
