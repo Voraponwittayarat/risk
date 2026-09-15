@@ -39,8 +39,11 @@ export class IncidentRcaPolicyService {
     // as the decision key. Unconverted rows are explicitly queued for RM mapping.
     if (incident.nrls_code) {
       const standards = await this.prisma.nine_standards.findMany({ select: { std_number: true, std_name: true, risk_codes: true } });
-      const localIds = standards.flatMap((s) => String(s.risk_codes || '').split(',').map((v) => Number(v.trim())).filter(Number.isFinite));
-      if (localIds.length) {
+      const tokens = standards.flatMap((s) => String(s.risk_codes || '').split(',').map((v) => v.trim()).filter(Boolean));
+      const directCodes = tokens.filter((value) => !/^\d+$/.test(value)).map((value) => value.toUpperCase());
+      const localIds = tokens.filter((value) => /^\d+$/.test(value)).map((value) => Number(value));
+      standardMapping = directCodes.includes(incident.nrls_code.toUpperCase());
+      if (!standardMapping && localIds.length) {
         const mapped = await this.prisma.riskstore.findMany({
           where: { riskstore_id: { in: localIds }, nrls_code: incident.nrls_code },
           select: { riskstore_id: true },

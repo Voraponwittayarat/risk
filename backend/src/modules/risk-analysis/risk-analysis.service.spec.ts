@@ -9,6 +9,7 @@ describe('Risk reports use stored records and selected scope', () => {
       riskanalysis: { findMany: jest.fn().mockResolvedValue([]) },
       department: { findMany: jest.fn().mockResolvedValue([{ id: 1, depart_name: 'Unit one' }, { id: 2, depart_name: 'Unit two' }]) },
       riskstore: { findMany: jest.fn().mockResolvedValue([{ riskstore_id: 7, nrls_code: 'TEST' }]) },
+      nRLS_riskstore: { findMany: jest.fn().mockResolvedValue([{ nrls_code: 'TEST', name: 'Test incident' }]) },
       nine_standards: { findMany: jest.fn().mockResolvedValue([{ id: 1, std_number: 1, std_name: 'Stored standard', risk_codes: '7', safety_category: null }]) },
     };
     service = new RiskAnalysisService(prisma);
@@ -37,7 +38,7 @@ describe('Risk reports use stored records and selected scope', () => {
 
   it('never claims measures exist when there are no stored profiles', async () => {
     const result = await service.getNineStandards({ department_id: '1' }, { role: 'staff', departmentId: 1 });
-    expect(result[0]).toMatchObject({ name: 'Stored standard', mappedCodes: ['TEST'], total: 0, withMeasures: 0, profiles: [] });
+    expect(result[0]).toMatchObject({ name: 'Stored standard', mappedCodes: ['TEST'], incidents: [{ code: 'TEST', name: 'Test incident' }], total: 0, withMeasures: 0, profiles: [] });
     expect(prisma.riskanalysis.findMany.mock.calls[0][0].where.department_id).toBe('1');
   });
 

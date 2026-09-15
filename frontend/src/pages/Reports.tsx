@@ -16,295 +16,9 @@ import { printOfficialReport } from '../utils/officialPrint';
 import RiskDecisionSupport from '../components/RiskDecisionSupport';
 
 // =========================================================================
-// 15 HA-STANDARDIZED & DEPARTMENTAL PRESET RISK TEMPLATES (คลังเทมเพลตความเสี่ยง)
+// Department presets remain local; the nine essential standards come from the backend catalogue.
 // =========================================================================
 const RISK_PRESET_TEMPLATES = [
-  {
-    id: 'STD-01',
-    name: '1. ผู้ป่วยวิกฤตทรุดตัวลงโดยไม่ได้รับการประเมินทันท่วงที (MEWS / Early Warning Sign)',
-    badge: 'HA ข้อ 1',
-    category: 'มาตรฐานสำคัญ 9 ด้าน (HA)',
-    data: {
-      risk_code: 'STD-01',
-      risk_title: 'ผู้ป่วยในมีภาวะวิกฤตทรุดตัวลงโดยไม่ได้รับการประเมินด้วย Early Warning Signs อย่างทันท่วงที',
-      risk_description: 'ผู้ป่วยในหอผู้ป่วยสามัญมีสัญญาณชีพเปลี่ยนแปลงแย่ลง แต่ไม่ได้รับการใช้ Modified Early Warning Score (MEWS) หรือประเมินซ้ำ ทำให้เกิดภาวะ Cardiac Arrest นอก ICU หรือส่งต่อ ICU ล่าช้า',
-      source: 'มาตรฐานสำคัญ 9 ด้าน',
-      scope_level: 'hospital',
-      category_name: 'Clinical Risk (ทางคลินิก)',
-      safety_goal: 'Patient Safety (P: Patient Deterioration / MEWS)',
-      essential_std: 'มาตรฐานสำคัญจำเป็นข้อที่ 1: การดูแลผู้ป่วยวิกฤตและป้องกันการบาดเจ็บ',
-      risk_owner_name: 'ทีมนำทางคลินิก (PCT) & ทีม RRT',
-      is_never_event: 1,
-      initial_likelihood: 3,
-      initial_consequence: 5,
-      risk_prevention: '1. ใช้แบบประเมิน MEWS ในผู้ป่วยทุกราย และกำหนด Trigger Point ชัดเจน\n2. จัดตั้งทีม Rapid Response Team (RRT) ตอบสนองภายใน 10 นาที\n3. จัดอบรมการประเมินภาวะวิกฤตและ ACLS ประจำปี',
-      risk_transfer: 'ส่งต่อเข้าห้อง ICU ทันทีเมื่อ MEWS >= 5 หรือมี Red Flag Sign',
-      risk_monitor: 'อัตราการเกิด Unplanned ICU Admission และ Cardiac Arrest ในหอผู้ป่วยทั่วไป (เป้าหมาย < 1 ครั้ง/1,000 วันนอน)',
-      risk_mitigation: 'เปิดระบบ Code Blue ทันที, มี Emergency Drug Box และ Defibrillator พร้อมใช้ทุกจุด',
-      qi_plan: 'โครงการพัฒนาระบบเตือนภัยภาวะวิกฤตล่วงหน้า (Smart MEWS & Electronic Alert System)',
-      review_frequency_months: 1,
-    }
-  },
-  {
-    id: 'STD-02',
-    name: '2. ความคลาดเคลื่อนในการระบุตัวผู้ป่วย / ให้เลือดผิดคน (Patient ID & Blood Transfusion)',
-    badge: 'HA ข้อ 2',
-    category: 'มาตรฐานสำคัญ 9 ด้าน (HA)',
-    data: {
-      risk_code: 'STD-02',
-      risk_title: 'ความคลาดเคลื่อนในการระบุตัวผู้ป่วย และการให้เลือดหรือส่วนประกอบของเลือดผิดคน',
-      risk_description: 'ผู้ป่วยได้รับเลือด ส่วนประกอบของเลือด หรือการทำหัตถการผิดคน เนื่องจากการระบุตัวตนไม่สมบูรณ์หรือไม่ปฏิบัติตามหลัก 2 Patient Identifiers ก่อนทำหัตถการ',
-      source: 'มาตรฐานสำคัญ 9 ด้าน',
-      scope_level: 'hospital',
-      category_name: 'Clinical Risk (ทางคลินิก)',
-      safety_goal: 'Patient Safety (P: Patient Identification & Blood Safety)',
-      essential_std: 'มาตรฐานสำคัญจำเป็นข้อที่ 2: การระบุตัวผู้ป่วย และการให้เลือด',
-      risk_owner_name: 'คณะกรรมการความปลอดภัยทางห้องปฏิบัติการและงานธนาคารเลือด',
-      is_never_event: 1,
-      initial_likelihood: 2,
-      initial_consequence: 5,
-      risk_prevention: '1. ตรวจสอบชื่อ-สกุล และ HN สองตัวระบุตัวตน (2 Identifiers) ก่อนเจาะเลือดและให้เลือด\n2. Double Check โดยพยาบาล 2 ท่านที่ข้างเตียงผู้ป่วย (Bedside Checking)\n3. ใช้ระบบ Barcode Wristband สแกนก่อนให้เลือด',
-      risk_transfer: 'ประสานศูนย์บริการโลหิตแห่งชาติ สภากาชาดไทย กรณีมี Antibody ซับซ้อน',
-      risk_monitor: 'อัตราการปฏิบัติตามแนวทางการระบุตัวตนผู้ป่วย 100%, อัตราการเกิด Transfusion Mismatch (0 เคส)',
-      risk_mitigation: 'หยุดให้เลือดทันที, ให้สารน้ำและยาต้านอาการแพ้/ช็อก, รายงานแพทย์และธนาคารเลือดทันที',
-      qi_plan: 'โครงการพัฒนาระบบสแกน Barcode ระบุตัวตนผู้ป่วยข้างเตียง (Bedside Barcode Blood Safety)',
-      review_frequency_months: 1,
-    }
-  },
-  {
-    id: 'STD-03',
-    name: '3. ความคลาดเคลื่อนทางยาที่มีความเสี่ยงสูง (High Alert Drugs - HAD Error)',
-    badge: 'HA ข้อ 3',
-    category: 'มาตรฐานสำคัญ 9 ด้าน (HA)',
-    data: {
-      risk_code: 'STD-03',
-      risk_title: 'ความคลาดเคลื่อนในการบริหารยาที่มีความเสี่ยงสูง (High Alert Drugs: Potassium, Insulin, Morphine)',
-      risk_description: 'การสั่งใช้, การคัดลอกคำสั่ง, การจัดจ่าย หรือการบริหารยากลุ่ม HAD ผิดขนาด ผิดความเข้มข้น หรือผิดอัตราการให้ นำไปสู่อาการไม่พึงประสงค์รุนแรงหรือเสียชีวิต',
-      source: 'มาตรฐานสำคัญ 9 ด้าน',
-      scope_level: 'hospital',
-      category_name: 'Clinical Risk (ทางคลินิก)',
-      safety_goal: 'Medication Safety (M: Safe High Alert Drugs)',
-      essential_std: 'มาตรฐานสำคัญจำเป็นข้อที่ 3: การบริหารยาที่มีความเสี่ยงสูง (HAD)',
-      risk_owner_name: 'คณะกรรมการเภสัชกรรมและการบำบัด (PTC)',
-      is_never_event: 1,
-      initial_likelihood: 3,
-      initial_consequence: 5,
-      risk_prevention: '1. แยกเก็บยากลุ่ม HAD ในตู้เฉพาะพร้อมติดสัญลักษณ์เตือนสีแดง\n2. บังคับใช้ระบบ Double Independent Check 2 คนก่อนฉีดยา\n3. ใช้ Infusion Pump ที่มีระบบ Smart Dose Lock ทุกครั้ง',
-      risk_transfer: 'ส่งต่อแพทย์ผู้เชี่ยวชาญด้านพิษวิทยาหรือศูนย์พิษวิทยา รพ.รามาธิบดี กรณี Overdose รุนแรง',
-      risk_monitor: 'อัตราความคลาดเคลื่อนทางยากลุ่ม HAD ระดับ E ขึ้นไป (เป้าหมาย 0 ครั้ง)',
-      risk_mitigation: 'เตรียม Antidote เฉพาะ (เช่น Naloxone, Dextrose 50%, Calcium Gluconate) ประจำทุกวอร์ด',
-      qi_plan: 'โครงการพัฒนาระบบ Smart Infusion Pump และ HAD Electronic Double Check',
-      review_frequency_months: 1,
-    }
-  },
-  {
-    id: 'STD-04',
-    name: '4. การติดเชื้อในโรงพยาบาลและการติดเชื้อดื้อยา (HAI: CAUTI, VAP, SSI, CLABSI)',
-    badge: 'HA ข้อ 4',
-    category: 'มาตรฐานสำคัญ 9 ด้าน (HA)',
-    data: {
-      risk_code: 'STD-04',
-      risk_title: 'การติดเชื้อดื้อยาและการติดเชื้อในโรงพยาบาล (CAUTI, VAP, SSI, CLABSI)',
-      risk_description: 'ผู้ป่วยเกิดการติดเชื้อในกระแสเลือดหรืออวัยวะสำคัญหลังการใส่อุปกรณ์การแพทย์หรือทำหัตถการในโรงพยาบาล และการแพร่กระจายของเชื้อดื้อยาควบคุมพิเศษ',
-      source: 'มาตรฐานสำคัญ 9 ด้าน',
-      scope_level: 'hospital',
-      category_name: 'Clinical Risk (ทางคลินิก)',
-      safety_goal: 'Infection Prevention (I: Device-Associated Infection & AMR)',
-      essential_std: 'มาตรฐานสำคัญจำเป็นข้อที่ 4: การป้องกันและควบคุมการติดเชื้อ (IC)',
-      risk_owner_name: 'คณะกรรมการควบคุมการติดเชื้อในโรงพยาบาล (ICC)',
-      is_never_event: 0,
-      initial_likelihood: 4,
-      initial_consequence: 4,
-      risk_prevention: '1. ปฏิบัติตาม Care Bundle ในการใส่สายสวนปัสสาวะ (CAUTI) และเครื่องช่วยหายใจ (VAP)\n2. ส่งเสริม Hand Hygiene 5 Moments ในทุกแผนก\n3. จัดระบบห้องแยกและการใช้อุปกรณ์ PPE สำหรับเชื้อดื้อยา (Contact Precautions)',
-      risk_transfer: 'ส่งตรวจเพาะเชื้อและปรึกษาอายุรแพทย์โรคติดเชื้อกรณีเชื้อดื้อยาหลายขนาน (MDR-XDR)',
-      risk_monitor: 'อัตราการติดเชื้อ CAUTI (< 1.5/1000 วันคาสาย), VAP (< 2.0/1000 วันใส่ท่อ), Hand Hygiene Compliance > 85%',
-      risk_mitigation: 'เริ่มยาปฏิชีวนะตาม CPG ภายใน 1 ชั่วโมงหลังพบสัญญาณ Sepsis (Sepsis Fast Track)',
-      qi_plan: 'โครงการ Clean Hands Safe Lives และ Care Bundle Audit Application',
-      review_frequency_months: 3,
-    }
-  },
-  {
-    id: 'STD-05',
-    name: '5. ความปลอดภัยในการทำผ่าตัดและหัตถการ (Safe Surgery & Wrong Site Prevention)',
-    badge: 'HA ข้อ 5',
-    category: 'มาตรฐานสำคัญ 9 ด้าน (HA)',
-    data: {
-      risk_code: 'STD-05',
-      risk_title: 'การทำผ่าตัดผิดคน ผิดตำแหน่ง ผิดหัตถการ หรือมีสิ่งแปลกปลอมตกค้างในร่างกายผู้ป่วย',
-      risk_description: 'ข้อผิดพลาดในขั้นตอนผ่าตัดหรือหัตถการรุกล้ำร่างกาย เช่น การทำเครื่องหมายตำแหน่งผ่าตัดไม่ถูกต้อง หรือการนับเครื่องมือ/ผ้าก๊อซไม่ครบถ้วน',
-      source: 'มาตรฐานสำคัญ 9 ด้าน',
-      scope_level: 'hospital',
-      category_name: 'Clinical Risk (ทางคลินิก)',
-      safety_goal: 'Safe Surgery (S: Surgical Safety Checklist & Wrong Site Prevention)',
-      essential_std: 'มาตรฐานสำคัญจำเป็นข้อที่ 5: ความปลอดภัยในการผ่าตัดและหัตถการ',
-      risk_owner_name: 'คณะกรรมการห้องผ่าตัดและงานวิสัญญี (OR Committee)',
-      is_never_event: 1,
-      initial_likelihood: 1,
-      initial_consequence: 5,
-      risk_prevention: '1. ปฏิบัติตาม WHO Surgical Safety Checklist ครบ 3 ช่วง (Sign In, Time Out, Sign Out)\n2. ทำ Site Marking โดยแพทย์ผู้ผ่าตัดร่วมกับผู้ป่วยก่อนเข้าห้องผ่าตัด\n3. มีระบบนับผ้าก๊อซและเครื่องมือผ่าตัด 4 รอบ พร้อมบันทึกหลักฐาน',
-      risk_transfer: 'เอกซเรย์ยืนยันในห้องผ่าตัดทันทีหากนับเครื่องมือไม่ครบ ก่อนเย็บปิดแผล',
-      risk_monitor: 'อัตราการปฏิบัติตาม Surgical Safety Checklist 100%, อัตรา Retained Foreign Body = 0 เคส',
-      risk_mitigation: 'ทีมสหสาขาวิชาชีพเข้าดูแลทันที, แจ้งความจริงแก่ผู้ป่วยและญาติ (Open Disclosure)',
-      qi_plan: 'โครงการ Electronic WHO Surgical Safety Checklist and Sponge Counter',
-      review_frequency_months: 1,
-    }
-  },
-  {
-    id: 'STD-06',
-    name: '6. ความคลาดเคลื่อนในการวินิจฉัยโรคฉุกเฉิน (Missed Diagnosis in STEMI / Stroke / Sepsis)',
-    badge: 'HA ข้อ 6',
-    category: 'มาตรฐานสำคัญ 9 ด้าน (HA)',
-    data: {
-      risk_code: 'STD-06',
-      risk_title: 'ความคลาดเคลื่อนหรือความล่าช้าในการวินิจฉัยโรคฉุกเฉินวิกฤต (Missed / Delayed Diagnosis in Fast Track)',
-      risk_description: 'ผู้ป่วยโรคหลอดเลือดสมอง (Stroke), กล้ามเนื้อหัวใจขาดเลือด (STEMI) หรือภาวะติดเชื้อในกระแสเลือด (Sepsis) ได้รับการวินิจฉัยล่าช้าเกินเวลา Golden Period',
-      source: 'มาตรฐานสำคัญ 9 ด้าน',
-      scope_level: 'hospital',
-      category_name: 'Clinical Risk (ทางคลินิก)',
-      safety_goal: 'Diagnostic Excellence & Emergency Fast Track',
-      essential_std: 'มาตรฐานสำคัญจำเป็นข้อที่ 6: การวินิจฉัยโรคและการดูแลผู้ป่วยฉุกเฉิน',
-      risk_owner_name: 'ทีมนำทางคลินิก Fast Track (STEMI, Stroke, Sepsis)',
-      is_never_event: 1,
-      initial_likelihood: 3,
-      initial_consequence: 5,
-      risk_prevention: '1. คัดกรองอาการสำคัญที่จุด Triage ด้วยระบบ ESI และ Alert ทันที\n2. ส่งตรวจ EKG 12 Lead ภายใน 10 นาทีสำหรับผู้ป่วยเจ็บแน่นหน้าอก (Door to EKG < 10 mins)\n3. ทำ CT Brain ด่วนภายใน 25 นาทีในผู้ป่วย Stroke Fast Track',
-      risk_transfer: 'ส่งต่อรับการทำ PCI หรือฉีดสีสวนหัวใจ ณ โรงพยาบาลศูนย์แม่ข่าย ภายใน 90 นาที',
-      risk_monitor: 'ระยะเวลา Door to Needle < 45 นาที (Stroke), Door to EKG < 10 นาที (STEMI), Sepsis Bundle < 1 hr',
-      risk_mitigation: 'ทีมกู้ชีพระดับสูง (ALS) ดูแลประกบระหว่างรอการส่งต่อ พร้อมอุปกรณ์กู้ชีพครบครัน',
-      qi_plan: 'โครงการพัฒนาระบบ Stroke & STEMI Fast Track Alert via Telemedicine Line Bot',
-      review_frequency_months: 1,
-    }
-  },
-  {
-    id: 'STD-07',
-    name: '7. อัคคีภัย / ไฟฟ้าดับกระทบเครื่องมือช่วยชีวิต (Hospital Fire & Critical Infrastructure Failure)',
-    badge: 'HA ข้อ 7',
-    category: 'มาตรฐานสำคัญ 9 ด้าน (HA)',
-    data: {
-      risk_code: 'STD-07',
-      risk_title: 'เหตุอัคคีภัย หรือระบบไฟฟ้าและก๊าซทางการแพทย์ขัดข้อง กระทบต่อผู้ป่วยวิกฤต',
-      risk_description: 'เกิดไฟฟ้าดับยาวนาน เครื่องกำเนิดไฟฟ้าสำรองไม่ทำงาน หรือระบบจ่ายออกซิเจนขัดข้อง ส่งผลให้เครื่องช่วยหายใจหยุดทำงาน หรือเกิดเพลิงไหม้ในอาคารบริการ',
-      source: 'มาตรฐานสำคัญ 9 ด้าน',
-      scope_level: 'hospital',
-      category_name: 'Non-Clinical Risk (สิ่งแวดล้อม/อาคาร)',
-      safety_goal: 'Environment Safety (E: Facility & Medical Gas Safety)',
-      essential_std: 'มาตรฐานสำคัญจำเป็นข้อที่ 7: ความปลอดภัยของระบบสิ่งแวดล้อมและเครื่องมือแพทย์',
-      risk_owner_name: 'คณะกรรมการสิ่งแวดล้อมและความปลอดภัย (ENV)',
-      is_never_event: 1,
-      initial_likelihood: 2,
-      initial_consequence: 5,
-      risk_prevention: '1. ทดสอบเครื่องกำเนิดไฟฟ้าสำรอง (Generator) ทุกสัปดาห์ พร้อมระบบ UPS จ่ายไฟทันทีใน 5 วินาที\n2. ตรวจสอบระบบสัญญาณเตือนก๊าซการแพทย์ (Medical Gas Alarm) ทุกวัน\n3. จัดซ้อมแผนอพยพหนีไฟและดับเพลิงขั้นรุนแรงประจำปี',
-      risk_transfer: 'ทำประกันภัยความเสี่ยงภัยทรัพย์สินและบุคคลภายนอก',
-      risk_monitor: 'อัตราความพร้อมใช้งานของระบบไฟสำรอง 100%, การตรวจสอบเครื่องดับเพลิง 100% ทุกเดือน',
-      risk_mitigation: 'ใช้ Ambu Bag บีบช่วยหายใจด้วยมือทันที, มีถังออกซิเจนสำรองประจำทุกเตียงวิกฤต',
-      qi_plan: 'โครงการพัฒนาระบบ Smart IoT Monitoring สำหรับก๊าซทางการแพทย์และระบบไฟฟ้าสำรอง',
-      review_frequency_months: 3,
-    }
-  },
-  {
-    id: 'STD-08',
-    name: '8. บุคลากรถูกเข็มตำ / ของมีคมบาด / ติดเชื้อจากการทำงาน (Needle Stick & Sharp Injuries)',
-    badge: 'HA ข้อ 8',
-    category: 'มาตรฐานสำคัญ 9 ด้าน (HA)',
-    data: {
-      risk_code: 'STD-08',
-      risk_title: 'บุคลากรทางการแพทย์ถูกเข็มตำ ของมีคมบาด หรือสัมผัสเลือดและสารคัดหลั่งที่มีเชื้อไวรัส',
-      risk_description: 'บุคลากรพยาบาลหรือแพทย์ถูกเข็มฉีดยาหรือใบมีดผ่าตัดบาดขณะปฏิบัติงาน เสี่ยงต่อการติดเชื้อ HIV, ไวรัสตับอักเสบบี (HBV) และซี (HCV)',
-      source: 'มาตรฐานสำคัญ 9 ด้าน',
-      scope_level: 'hospital',
-      category_name: 'Personnel Safety (ความปลอดภัยบุคลากร)',
-      safety_goal: 'Personnel Safety (P: Occupational Health & Sharp Safety)',
-      essential_std: 'มาตรฐานสำคัญจำเป็นข้อที่ 8: การบริการตรวจวินิจฉัยและห้องปฏิบัติการ',
-      risk_owner_name: 'กลุ่มงานอาชีวอนามัยและควบคุมการติดเชื้อ',
-      is_never_event: 0,
-      initial_likelihood: 4,
-      initial_consequence: 3,
-      risk_prevention: '1. ห้ามสวมปลอกเข็มกลับด้วยสองมือ (No Two-handed Recapping)\n2. ใช้อุปกรณ์ Safety Needle และกล่องทิ้งของมีคมมาตรฐาน (Sharp Box) ที่เข้าถึงได้ง่าย\n3. ฉีดวัคซีนป้องกันไวรัสตับอักเสบบีแก่บุคลากรทุกคน 100%',
-      risk_transfer: 'สิทธิประโยชน์ประกันสังคมและกองทุนเงินทดแทนสำหรับการเจ็บป่วยจากการทำงาน',
-      risk_monitor: 'อัตราการเกิด Needle Stick Injury (< 2 ครั้ง/1,000 FTE), บุคลากรได้รับยา PEP ภายใน 2 ชม. 100%',
-      risk_mitigation: 'ล้างแผลด้วยน้ำสะอาดและสบู่ทันที, ตรวจเลือดผู้ป่วยต้นเหตุและบุคลากร, จ่ายยา Post-Exposure Prophylaxis (PEP) ทันที',
-      qi_plan: 'โครงการ Zero Needle Stick with Safety Devices and Hands-Free Passing Technique',
-      review_frequency_months: 3,
-    }
-  },
-  {
-    id: 'STD-09',
-    name: '9. ภัยคุกคามไซเบอร์และข้อมูลผู้ป่วยรั่วไหล (Cybersecurity & Patient Data Breach)',
-    badge: 'HA ข้อ 9',
-    category: 'มาตรฐานสำคัญ 9 ด้าน (HA)',
-    data: {
-      risk_code: 'STD-09',
-      risk_title: 'การถูกโจมตีด้วยมัลแวร์เรียกค่าไถ่ (Ransomware) หรือข้อมูลเวชระเบียนผู้ป่วยรั่วไหล',
-      risk_description: 'ระบบสารสนเทศโรงพยาบาล (HIS/HRMS) ถูกโจมตีหรือล็อคไฟล์ข้อมูล ทำให้ไม่สามารถให้บริการรักษาพยาบาลได้ หรือข้อมูลส่วนบุคคลตาม พ.ร.บ. PDPA ถูกเผยแพร่สู่ภายนอก',
-      source: 'มาตรฐานสำคัญ 9 ด้าน',
-      scope_level: 'hospital',
-      category_name: 'Non-Clinical Risk (สิ่งแวดล้อม/อาคาร)',
-      safety_goal: 'Digital & Cybersecurity Safety (PDPA & Critical IT Infrastructure)',
-      essential_std: 'มาตรฐานสำคัญจำเป็นข้อที่ 9: การคัดแยกผู้ป่วยและระบบเทคโนโลยีสารสนเทศ',
-      risk_owner_name: 'ศูนย์เทคโนโลยีสารสนเทศและคณะกรรมการคุ้มครองข้อมูลส่วนบุคคล (DPO)',
-      is_never_event: 1,
-      initial_likelihood: 3,
-      initial_consequence: 5,
-      risk_prevention: '1. สำรองข้อมูลแบบ 3-2-1 Backup (มีสำเนา Offline / Air-Gapped ทุกวัน)\n2. ติดตั้ง Next-Generation Firewall และ Endpoint Protection (EDR)\n3. บังคับใช้การยืนยันตัวตนแบบ Two-Factor Authentication (2FA) สำหรับผู้ดูแลระบบ',
-      risk_transfer: 'ปรึกษาและแจ้งประสานสำนักงานคณะกรรมการการรักษาความมั่นคงปลอดภัยไซเบอร์แห่งชาติ (สกมช.)',
-      risk_monitor: 'ความถี่ในการทดสอบ Disaster Recovery Plan (ทุก 6 เดือน), อัตราการ Patch ช่องโหว่ความปลอดภัย 100%',
-      risk_mitigation: 'ตัดการเชื่อมต่อเครือข่ายทันที (Isolate Network), สลับใช้ระบบสำรองกระดาษ (Manual Backup Plan)',
-      qi_plan: 'โครงการพัฒนาระบบ Cloud Immutable Backup และ Security Awareness Training',
-      review_frequency_months: 3,
-    }
-  },
-  {
-    id: 'IPD-01',
-    name: '10. ผู้ป่วยพลัดตกหกล้มขณะพักรักษาตัวในโรงพยาบาล (Inpatient Fall Prevention)',
-    badge: 'IPD',
-    category: 'ความเสี่ยงเฉพาะหน่วยงาน (Department)',
-    data: {
-      risk_code: 'IPD-01',
-      risk_title: 'ผู้ป่วยในพลัดตกหกล้มหรือตกเตียงขณะพักรักษาตัวในโรงพยาบาล (Inpatient Fall)',
-      risk_description: 'ผู้ป่วยสูงอายุ ผู้ป่วยได้รับยาระงับประสาท หรือผู้ป่วยหลังผ่าตัด พลัดตกเตียงหรือลื่นล้มในห้องน้ำ ส่งผลให้กระดูกหัก บาดเจ็บที่ศีรษะ หรือนอน รพ. นานขึ้น',
-      source: 'เรื่องที่หน่วยงานให้ความสำคัญ',
-      scope_level: 'department',
-      category_name: 'Clinical Risk (ทางคลินิก)',
-      safety_goal: 'Patient Safety (P: Fall Prevention)',
-      essential_std: 'มาตรฐานสำคัญจำเป็นข้อที่ 1: การดูแลผู้ป่วยวิกฤตและป้องกันการบาดเจ็บ',
-      risk_owner_name: 'หัวหน้าหอผู้ป่วยใน (IPD In-charge Nurse)',
-      is_never_event: 0,
-      initial_likelihood: 4,
-      initial_consequence: 3,
-      risk_prevention: '1. ประเมินความเสี่ยง Fall Risk ด้วย Morse Fall Scale ทุกเวร\n2. ติดป้ายสัญลักษณ์รูปใบไม้สีเหลืองเตือนที่หน้าห้องและเตียงผู้ป่วย\n3. ยกไม้กั้นเตียงขึ้นทั้งสองข้าง และเปิดไฟส่องสว่างในห้องน้ำตลอดคืน',
-      risk_transfer: 'ให้ญาติหรือผู้ดูแลร่วมเฝ้าดูแลข้างเตียงตลอด 24 ชั่วโมง',
-      risk_monitor: 'อัตราการเกิดการพลัดตกหกล้มในหอผู้ป่วย (< 1.0 ครั้ง/1,000 วันนอน), การบาดเจ็บรุนแรง = 0',
-      risk_mitigation: 'ตรวจประเมินทางกายภาพและระบบประสาททันที, ส่งทำ X-ray หรือ CT Brain หากศีรษะกระแทก',
-      qi_plan: 'โครงการ Smart Bed Sensor Alarm แจ้งเตือนผู้ป่วยลุกจากเตียงแบบอัตโนมัติ',
-      review_frequency_months: 3,
-    }
-  },
-  {
-    id: 'PHARM-01',
-    name: '11. สับสนยาชื่อพ้องมองคล้าย (Look-Alike Sound-Alike - LASA Drugs)',
-    badge: 'ห้องยา',
-    category: 'ความเสี่ยงเฉพาะหน่วยงาน (Department)',
-    data: {
-      risk_code: 'PHARM-01',
-      risk_title: 'ความคลาดเคลื่อนในการจัดและจ่ายยาที่มีชื่อพ้องมองคล้าย (Look-Alike Sound-Alike: LASA Drugs)',
-      risk_description: 'การหยิบยาผิดชนิดเนื่องจากบรรจุภัณฑ์หรือชื่อยาคล้ายคลึงกัน เช่น ยาลดความดัน, ยาเบาหวาน, หรือยาปฏิชีวนะ',
-      source: 'เรื่องที่หน่วยงานให้ความสำคัญ',
-      scope_level: 'department',
-      category_name: 'Clinical Risk (ทางคลินิก)',
-      safety_goal: 'Medication Safety (M: LASA Drug Safety)',
-      essential_std: 'มาตรฐานสำคัญจำเป็นข้อที่ 3: การบริหารยาที่มีความเสี่ยงสูง',
-      risk_owner_name: 'หัวหน้ากลุ่มงานเภสัชกรรมและคุ้มครองผู้บริโภค',
-      is_never_event: 0,
-      initial_likelihood: 3,
-      initial_consequence: 3,
-      risk_prevention: '1. ใช้ตัวอักษร Tall Man Lettering เน้นตัวอักษรที่ต่างกัน\n2. แยกตำแหน่งจัดวางยา LASA ในชั้นยาคนละจุด พร้อมติดป้ายแจ้งเตือน\n3. ตรวจสอบซ้ำด้วยระบบสแกนบาร์โค้ดก่อนจ่ายยา',
-      risk_transfer: 'เภสัชกรประสานแพทย์ผู้สั่งใช้ทันทีเพื่อทวนสอบข้อบ่งชี้ทางคลินิก',
-      risk_monitor: 'อัตราความคลาดเคลื่อนในการจัดจ่ายยา LASA (< 0.1 ครั้ง/1,000 ใบสั่งยา)',
-      risk_mitigation: 'แจ้งผู้ป่วยและญาติทันทีเพื่อเรียกคืนยา พร้อมให้ยาที่ถูกต้องและติดตามผลการรักษา',
-      qi_plan: 'โครงการ Barcode Verification & Automated Dispensing System',
-      review_frequency_months: 3,
-    }
-  },
   {
     id: 'ER-01',
     name: '12. การคัดแยกความเร่งด่วนผู้ป่วยผิดพลาด (Under-Triage in Emergency Department)',
@@ -532,7 +246,7 @@ export default function Reports() {
       axios.get('/risk-analysis', { ...config, params }),
       axios.get('/risk-analysis/stats', { ...config, params }),
       axios.get('/incidents/matrix/stats', { ...config, params: { department_id: params.department_id } }),
-      ...(activeTab === 'standards' ? [axios.get('/risk-analysis/nine-standards', { ...config, params: { department_id: params.department_id } })] : []),
+      axios.get('/risk-analysis/nine-standards', { ...config, params: { department_id: params.department_id } }),
     ])
       .then(results => {
         if (controller.signal.aborted) return;
@@ -593,6 +307,25 @@ export default function Reports() {
   // Smart Fill from Template
   const handleSelectTemplate = (templateId: string) => {
     setSelectedTemplateId(templateId);
+    if (templateId.startsWith('NRLS:')) {
+      const [, standardNumber, nrlsCode] = templateId.split(':');
+      const standard = standards.find(item => String(item.number) === standardNumber);
+      const incident = standard?.incidents?.find((item: any) => item.code === nrlsCode);
+      if (standard && incident) {
+        setFormData((prev: any) => ({
+          ...prev,
+          nrls_code: incident.code,
+          risk_code: incident.code,
+          risk_title: incident.name,
+          risk_description: '',
+          source: 'มาตรฐานสำคัญ 9 ด้าน',
+          essential_std: `มาตรฐานสำคัญจำเป็นข้อที่ ${standard.number}: ${standard.name}`,
+          safety_goal: standard.category || '',
+          department_id: prev.department_id || '1',
+        }));
+      }
+      return;
+    }
     const t = RISK_PRESET_TEMPLATES.find(tpl => tpl.id === templateId);
     if (t) {
       setFormData((prev: any) => ({
@@ -1825,6 +1558,19 @@ export default function Reports() {
                   <p className="mt-3 text-sm">ทะเบียนที่เชื่อมโยง <strong>{standard.total}</strong> เรื่อง</p>
                   <p className="mt-1 text-sm">บันทึกแผนมาตรการ <strong>{standard.withMeasures}</strong> / {standard.total} เรื่อง</p>
                   {!standard.mappedCodes?.length && <p className="mt-2 text-xs text-amber-700">ยังไม่มีรหัส NRLS ที่เชื่อมโยง ต้องตรวจการตั้งค่ามาตรฐาน</p>}
+                  {standard.incidents?.length > 0 && (
+                    <details className="mt-3 text-sm" open>
+                      <summary className="cursor-pointer font-semibold text-slate-700 dark:text-slate-200">รหัส NRLS ที่ใช้คำนวณ ({standard.incidents.length})</summary>
+                      <ul className="mt-2 space-y-2">
+                        {standard.incidents.map((incident: any) => (
+                          <li key={incident.code} className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
+                            <span className="font-mono text-xs font-bold text-indigo-700 dark:text-indigo-300">{incident.code}</span>
+                            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{incident.name}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                   {standard.mappedCodes?.length > 0 && standard.total === 0 && <p className="mt-2 text-xs text-slate-500">ยังไม่มีทะเบียนที่ตรงกับรหัสและขอบเขตนี้</p>}
                   {standard.profiles?.length > 0 && <details className="mt-3 text-sm"><summary className="cursor-pointer font-semibold text-indigo-700 dark:text-indigo-300">ดูทะเบียนที่ใช้คำนวณ</summary><ul className="mt-2 space-y-2">{standard.profiles.map((profile: any) => <li key={profile.id}><button type="button" onClick={() => handleOpenDetailModal({ id: profile.id })} className="text-left text-indigo-700 underline dark:text-indigo-300">{profile.title}</button><p className="text-xs text-slate-500">{profile.department}</p></li>)}</ul></details>}
                 </article>
@@ -1875,7 +1621,7 @@ export default function Reports() {
                   }`}
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  1. เลือกจากคลังแม่แบบมาตรฐาน (15 Presets)
+                  1. เลือกจากข้อมูลมาตรฐานในระบบ
                 </button>
 
                 <button
@@ -1907,7 +1653,7 @@ export default function Reports() {
 
               <span className="text-[11px] text-indigo-900 font-semibold flex items-center gap-1">
                 <Info className="w-3.5 h-3.5 text-indigo-600" />
-                เลือกแล้วระบบจะกรอกข้อมูลและคะแนน L × C ให้อัตโนมัติ!
+                เลือกรหัสมาตรฐานแล้วระบบจะกรอกข้อมูลที่ยืนยันได้จากบัญชี NRLS
               </span>
             </div>
 
@@ -1925,11 +1671,13 @@ export default function Reports() {
                 >
                   <option value="">-- แตะเพื่อเลือกแม่แบบมาตรฐาน (Auto-Fill Form) --</option>
                   <optgroup label="🏥 มาตรฐานสำคัญจำเป็น 9 ด้าน (HA Thailand)">
-                    {RISK_PRESET_TEMPLATES.filter(t => t.category.includes('มาตรฐาน')).map(tpl => (
-                      <option key={tpl.id} value={tpl.id}>
-                        [{tpl.data.risk_code}] {tpl.name}
-                      </option>
-                    ))}
+                    {standards.flatMap(standard =>
+                      (standard.incidents || []).map((incident: any) => (
+                        <option key={`${standard.number}-${incident.code}`} value={`NRLS:${standard.number}:${incident.code}`}>
+                          [{incident.code}] ข้อ {standard.number}: {incident.name}
+                        </option>
+                      ))
+                    )}
                   </optgroup>
                   <optgroup label="🏢 ความเสี่ยงเฉพาะหน่วยงาน (Department Specific)">
                     {RISK_PRESET_TEMPLATES.filter(t => !t.category.includes('มาตรฐาน')).map(tpl => (

@@ -24,4 +24,14 @@ describe('IncidentRcaPolicyService', () => {
     expect(result.rca_required).toBe(false);
     expect(result.mapping_review_required).toBe(true);
   });
+
+  it('recognizes an NRLS code stored directly in the nine-standard catalogue', async () => {
+    prisma.nine_standards.findMany.mockResolvedValueOnce([
+      { std_number: 1, std_name: 'การผ่าตัดผิดคน', risk_codes: 'CPS101,CPS102,CPS103' },
+    ]);
+    const result = await service.evaluate({ nrls_code: 'CPS102', level_id: 'C' });
+    expect(result.rca_required).toBe(true);
+    expect(result.criteria_matches[0]).toContain('CPS102');
+    expect(prisma.riskstore.findMany).not.toHaveBeenCalled();
+  });
 });

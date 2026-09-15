@@ -484,13 +484,26 @@ export class RiskAnalysisService {
       this.findAll({ department_id: query.department_id }, user),
     ]);
     const codeMap = new Map(localRisks.map(r => [String(r.riskstore_id), r.nrls_code]));
-    return standards.map(standard => {
-      // Existing standards store comma-separated local risk IDs; resolve their actual NRLS mapping.
+    const resolvedStandards = standards.map(standard => {
+      // Accept legacy local risk IDs and canonical direct NRLS codes during the migration period.
       const codes = String(standard.risk_codes || '').split(',').map(v => v.trim()).filter(Boolean)
         .map(v => /^\d+$/.test(v) ? codeMap.get(v) : v).filter((v): v is string => !!v);
+      return { standard, codes: [...new Set(codes)] };
+    });
+    const allCodes = [...new Set(resolvedStandards.flatMap(item => item.codes))];
+    const catalogue = allCodes.length
+      ? await this.prisma.nRLS_riskstore.findMany({
+        where: { nrls_code: { in: allCodes } },
+        select: { nrls_code: true, name: true },
+      })
+      : [];
+    const nameMap = new Map(catalogue.map(item => [item.nrls_code, item.name]));
+
+    return resolvedStandards.map(({ standard, codes }) => {
       const matched = profiles.filter(p => p.nrls_code && codes.includes(p.nrls_code));
       return { id: standard.id, number: standard.std_number, name: standard.std_name,
-        category: standard.safety_category, mappedCodes: [...new Set(codes)],
+        category: standard.safety_category, mappedCodes: codes,
+        incidents: codes.map(code => ({ code, name: nameMap.get(code) || code })),
         total: matched.length,
         withMeasures: matched.filter(p => p.risk_prevention?.trim() || p.risk_mitigation?.trim()).length,
         profiles: matched.map(p => ({ id: p.id, title: p.risk_title, department: p.department_name })),
