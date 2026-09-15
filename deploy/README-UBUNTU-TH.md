@@ -1,9 +1,9 @@
 # คู่มือติดตั้งและอัปเดต RiskHRMS บน Ubuntu Server
 
-แนวทางนี้ใช้ Ubuntu + MariaDB + Node.js + systemd + Nginx โดยแยก checkout สองชุดบนเครื่องเดียวกัน:
+แนวทางนี้ใช้ Ubuntu + MariaDB + Node.js + systemd + Nginx โดยพัฒนาและทดสอบบนเครื่อง development ส่วน Server มี checkout production เพียงชุดเดียว:
 
-- `/opt/riskhrms-work` — AI Agent แก้ไข ทดสอบ commit และ push feature branch
-- `/opt/riskhrms` — Production checkout รับเฉพาะ release จาก `origin/main`
+- เครื่อง development — แก้ไข ทดสอบ commit และ push เข้า GitHub
+- `/opt/riskhrms` — Production checkout รับเฉพาะ release จาก `origin/main` และห้ามแก้ source code โดยตรง
 
 ระบบ production ฟังเฉพาะ `127.0.0.1:3000`; Nginx รับ HTTP/HTTPS จากผู้ใช้แล้ว reverse proxy เข้ามา จึงไม่ต้องเปิดพอร์ต Node `3000` หรือ MariaDB `3306` สู่เครือข่าย
 
@@ -37,12 +37,7 @@ sudo -u riskhrms -H git -C /opt/riskhrms switch main
 
 กรณี repository เป็น private ให้ตั้ง read-only SSH deploy key ให้บัญชี `riskhrms` และใช้ SSH remote ห้ามเก็บ GitHub password/token ไว้ใน script
 
-สร้าง AI workspace ด้วยบัญชีผู้ดูแล Agent ซึ่งต้องไม่ใช่บัญชี `riskhrms`:
-
-```bash
-sudo install -d -o <agent-user> -g <agent-user> -m 0750 /opt/riskhrms-work
-sudo -u <agent-user> -H git clone https://github.com/riskwangchao/HRMS2026.git /opt/riskhrms-work
-```
+การพัฒนาต้องทำจากเครื่อง development ที่ผู้ดูแลกำหนด ไม่ต้องสร้าง AI workspace สำหรับแก้โค้ดบน production Server
 
 ## 3. เตรียม MariaDB และ production environment
 
@@ -104,13 +99,13 @@ sudo systemctl reload nginx
 
 ## 6. ขั้นตอนแก้ไขและอัปเดตต่อเนื่อง
 
-AI Agent ทำงานใน `/opt/riskhrms-work`:
+ผู้พัฒนาทำงานบนเครื่อง development:
 
-1. อ่าน `AGENTS.md` และ Master Prompt ฉบับ Ubuntu
-2. สร้าง branch `ai/YYYYMMDD-topic`
+1. อ่าน `AGENTS.md` และคู่มือที่เกี่ยวข้อง
+2. สร้าง feature branch สำหรับงานนั้น
 3. แก้และรัน build/test ทั้ง frontend/backend
-4. commit/push แล้ว review/merge เข้า `origin/main`
-5. หยุดรอคำสั่ง deploy
+4. commit แล้ว review/merge เข้า `main`
+5. push `main` ไป GitHub เพื่อให้ Server ตรวจพบและ auto deploy
 
 เมื่ออนุมัติ production:
 
@@ -124,29 +119,19 @@ Updater จะทำงานเฉพาะเมื่อ production อยู
 
 ### Deploy อัตโนมัติเมื่อ push เข้า main
 
-Workflow `.github/workflows/deploy-production.yml` จะเชื่อมต่อ production ผ่าน SSH เมื่อมี commit ใหม่ใน `main` แล้วเรียก updater เดิมเพียงคำสั่งเดียว Updater ล็อกไม่ให้ deploy ซ้อนกัน และยังคงตรวจ worktree, สำรองฐานข้อมูลพร้อม checksum, pull แบบ fast-forward, build, migrate, restart และตรวจ `/health`
+การพัฒนาและแก้ไขทั้งหมดทำบนเครื่อง development เมื่อ build/test ผ่านแล้วจึง merge และ push เข้า `origin/main` การ push เข้า `main` ถือเป็นการอนุมัติ release สำหรับ production
 
-สร้าง GitHub Environment ชื่อ `production` และเพิ่ม Environment secrets ต่อไปนี้ (ห้ามใส่ค่าจริงใน repository):
-
-- `PROD_HOST` — DNS หรือ IP ของ Ubuntu production
-- `PROD_PORT` — พอร์ต SSH; ไม่กำหนดจะใช้ `22`
-- `PROD_USER` — บัญชี deploy สำหรับ SSH ซึ่งไม่ใช่ root
-- `PROD_SSH_KEY` — private key สำหรับบัญชี deploy โดยใช้ key แยกเฉพาะงานนี้
-- `PROD_KNOWN_HOSTS` — public host key ที่ผู้ดูแลตรวจ fingerprint กับเครื่อง production แล้ว
-
-บน production ให้จำกัด public key นี้ใน `~/.ssh/authorized_keys` ไม่ให้ใช้ port/agent forwarding และอนุญาต sudo แบบไม่ถามรหัสผ่านเฉพาะ updater คำสั่งเดียว ตัวอย่าง sudoers (แก้ `<deploy-user>` ให้ตรงกับ `PROD_USER`):
-
-```text
-<deploy-user> ALL=(root) NOPASSWD: /usr/bin/bash /opt/riskhrms/deploy/ubuntu/update-hrms.sh
-```
-
-ตรวจตำแหน่ง Bash ด้วย `command -v bash` และปรับ sudoers ให้ตรงกับคำสั่งจริง ใช้ `visudo -f /etc/sudoers.d/riskhrms-deploy` และตั้ง permission `0440` จากนั้นทดสอบจากบัญชี deploy ด้วย:
+บน production มีตัวตรวจทุก 5 นาที ทำหน้าที่ fetch `origin/main` หากพบ commit ใหม่จึงเรียก updater เดิมเพียงคำสั่งเดียว:
 
 ```bash
 sudo -n bash /opt/riskhrms/deploy/ubuntu/update-hrms.sh
 ```
 
-หลังตั้งค่าครบ ทุก push/merge เข้า `main` จะ deploy อัตโนมัติ หาก backup, build, migration หรือ health check ล้มเหลว workflow จะแสดง failed และ updater จะไม่ reset Git หรือ restore ฐานข้อมูลเอง สามารถกด Run workflow เพื่อรันซ้ำหลังแก้สาเหตุได้
+Updater ล็อกไม่ให้ deploy ซ้อนกัน ตรวจว่า production checkout สะอาดและอยู่ branch `main` จากนั้นสำรองฐานข้อมูลพร้อม checksum, pull แบบ fast-forward, build, ใช้ `prisma migrate deploy`, restart และตรวจ `/health`
+
+Server ต้องใช้ GitHub deploy key แบบ read-only สำหรับ fetch repository ไม่ต้องเปิด SSH ให้ GitHub Actions และไม่ต้องตั้ง `PROD_HOST`, `PROD_PORT`, `PROD_USER`, `PROD_SSH_KEY` หรือ `PROD_KNOWN_HOSTS`
+
+ตัวตรวจต้องบันทึก commit, เวลาเริ่ม/จบ, ผล updater, backup path และ health result โดยต้องไม่บันทึก secrets หรือข้อมูลผู้ป่วย หาก updater ล้มเหลวให้คง service เดิมเท่าที่ทำได้และแจ้งผู้ดูแล ห้าม reset Git, restore ฐานข้อมูล หรือรัน migration/restart ซ้ำแบบเดาสุ่ม
 
 ## 7. สำรองข้อมูล
 
