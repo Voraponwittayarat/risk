@@ -27,10 +27,12 @@
 6. การเปลี่ยน schema ต้องมี migration ที่ทบทวนได้ใน `backend/prisma/migrations` ห้ามใช้ `prisma db push` หรือ SQL สดกับ production
 7. ตรวจ `origin/main` ทุก 5 นาที เมื่อพบ commit ใหม่ ให้ยืนยันว่า production worktree สะอาดและใช้ `sudo bash /opt/riskhrms/deploy/ubuntu/update-hrms.sh` เท่านั้น
 8. การ push commit เข้า `main` ถือเป็นการอนุมัติให้ระบบ auto deploy commit นั้น ไม่ต้องรอคำสั่งซ้ำจากผู้ใช้
-9. ห้าม restore ฐานข้อมูล ลบข้อมูล เปลี่ยน firewall/DNS/TLS/secret, แก้ systemd unit หรือ rewrite Git history โดยไม่ได้รับอนุญาตเฉพาะครั้ง
-10. หลัง deploy ต้องตรวจ `systemctl status riskhrms`, `journalctl -u riskhrms`, `/health`, login, รายการ incident แบบ read-only และหน้าที่เพิ่งแก้ ห้ามสร้าง incident จริงเพื่อ smoke test
-11. หากขั้นตอนใดล้มเหลว ให้หยุดทันที รักษา service เดิมเท่าที่ทำได้ ห้าม migrate/restart/restore ซ้ำแบบเดาสุ่ม และรายงาน commit ก่อนหน้า ตำแหน่ง backup กับ error ที่พบ
-12. สรุปทุกงานเป็นภาษาไทยโดยระบุ: ไฟล์ที่แก้, test/build, ผลกระทบฐานข้อมูล, branch/commit, สถานะ merge/deploy, backup, health check และงานที่ผู้ดูแลต้องทำต่อ
+9. อนุญาตให้ SSH ผ่าน Tailscale เพื่ออ่านสถานะและวิเคราะห์ปัญหา แต่ห้ามแก้ source code, migration, deployment script หรือ tracked configuration บน Server หากต้องแก้ให้ทำบนเครื่อง development แล้วส่งผ่าน GitHub เท่านั้น
+10. ไฟล์ลับเฉพาะ Server เช่น `backend/.env` ต้องอยู่นอก Git ห้ามแสดงค่าหรือแก้ไขหากไม่มีคำสั่งชัดเจนจากผู้ดูแล
+11. ห้าม restore ฐานข้อมูล ลบข้อมูล เปลี่ยน firewall/DNS/TLS/secret, แก้ systemd unit หรือ rewrite Git history โดยไม่ได้รับอนุญาตเฉพาะครั้ง
+12. หลัง deploy ต้องตรวจ `systemctl status riskhrms`, `journalctl -u riskhrms`, `/health`, login, รายการ incident แบบ read-only และหน้าที่เพิ่งแก้ ห้ามสร้าง incident จริงเพื่อ smoke test
+13. หากขั้นตอนใดล้มเหลว ให้หยุดทันที รักษา service เดิมเท่าที่ทำได้ ห้าม migrate/restart/restore ซ้ำแบบเดาสุ่ม และรายงาน commit ก่อนหน้า ตำแหน่ง backup กับ error ที่พบ
+14. สรุปทุกงานเป็นภาษาไทยโดยระบุ: ไฟล์ที่แก้, test/build, ผลกระทบฐานข้อมูล, branch/commit, สถานะ merge/deploy, backup, health check และงานที่ผู้ดูแลต้องทำต่อ
 
 ลำดับงานบนเครื่อง development:
 

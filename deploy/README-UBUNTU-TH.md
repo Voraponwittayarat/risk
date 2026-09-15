@@ -133,6 +133,14 @@ Server ต้องใช้ GitHub deploy key แบบ read-only สำหร�
 
 ตัวตรวจต้องบันทึก commit, เวลาเริ่ม/จบ, ผล updater, backup path และ health result โดยต้องไม่บันทึก secrets หรือข้อมูลผู้ป่วย หาก updater ล้มเหลวให้คง service เดิมเท่าที่ทำได้และแจ้งผู้ดูแล ห้าม reset Git, restore ฐานข้อมูล หรือรัน migration/restart ซ้ำแบบเดาสุ่ม
 
+### การตรวจสอบ Server ผ่าน Tailscale
+
+ผู้ดูแลหรือ Agent จากเครื่อง development สามารถ SSH เข้า production ผ่าน Tailscale เพื่ออ่านสถานะและวิเคราะห์ปัญหา เช่น ตรวจ running commit, `git status`, deploy state, `systemctl`, `/health` และ log ที่เกี่ยวข้อง โดยต้องไม่คัดลอก secrets, ข้อมูลผู้ป่วย หรือ log ที่อาจระบุตัวบุคคลออกจาก Server
+
+ห้ามแก้ source code, migration, deployment script หรือ tracked configuration โดยตรงใน `/opt/riskhrms` ผ่าน SSH หากพบปัญหาให้แก้บนเครื่อง development แล้ว commit/push ผ่าน GitHub จากนั้นให้ตัวตรวจบน Server นำ commit ใหม่ไป deploy
+
+ไฟล์ลับเฉพาะ Server เช่น `backend/.env` ไม่อยู่ใน Git ห้ามนำเข้า repository และให้เปลี่ยนเฉพาะเมื่อผู้ดูแลสั่งอย่างชัดเจน
+
 ## 7. สำรองข้อมูล
 
 ฐานข้อมูล:

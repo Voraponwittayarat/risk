@@ -15,6 +15,9 @@ This repository contains a hospital risk-management system. Treat production dat
 - The operator has established this release flow: make and verify changes on this development machine, merge the approved result into `main`, and push `main` to GitHub. The production server polls `origin/main` every 5 minutes and deploys new commits automatically.
 - Do not edit application source in the production checkout. The server-side poller must deploy only through `deploy/ubuntu/update-hrms.sh`; do not improvise a manual pull/migrate/restart sequence.
 - GitHub Actions is not the production deployment path and must not require inbound SSH access to the server.
+- SSH access to production through Tailscale is allowed for read-only inspection and verification, including the running commit, deploy state, service status, health endpoint, and relevant diagnostics. Keep sensitive output out of chat and external services.
+- Never edit repository-managed files directly over SSH. Make every source, migration, deployment-script, and tracked configuration change on this development machine, commit it, and push it through GitHub for the server poller to deploy.
+- Server-local secrets such as `backend/.env` remain outside Git. Inspect them only when necessary without printing their values; changing them requires an explicit operator instruction.
 - Do not restore a database, delete data, rewrite Git history, rotate credentials, open firewall ports, or change DNS/TLS without explicit operator approval.
 - Keep `backend/.env` local and ignored. Add new configuration keys to `deploy/templates/backend.env.production.example` with safe placeholders.
 - After deployment, verify `GET /health`, login, one read-only incident list, and the specific feature changed. Do not create or modify real clinical records merely as a smoke test.
