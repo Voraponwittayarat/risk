@@ -34,6 +34,8 @@ const os = require('node:os');
     let matrixFailed = false;
     let patchFailed = true;
     let patchCount = 0;
+    let reportedIncidents = [];
+    let decisionReady = false;
     const errors = [];
     const risk = { id: 1, nrls_code: 'TEST001', risk_code: 'TEST001', risk_title: 'Synthetic risk', scope_level: 'hospital', department_id: '1', department_name: 'Test Unit', source: 'FMEA', category_name: 'Clinical', initial_likelihood: 2, initial_consequence: 3, initial_risk_score: 6, initial_risk_level: 'Medium', status: 'open', risk_owner_name: 'Test "Owner", Unit', reviews: [], review_frequency_months: 3 };
     const matrix = { totalConfirmed: 18, matrix: Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => ({ count: 0, items: [] }))) };
@@ -49,18 +51,37 @@ const os = require('node:os');
       let status = 200;
       if (url.pathname === '/incidents/stats') { status = statsFailed ? 503 : 200; data = { total: 18, pending: 2, confirmed: 3, reviewing: 1, closed: 12, byLevel: { E: 2 }, activeSeverityByGoal: { clinical: { E: 2 } } }; }
       else if (url.pathname === '/incidents/tab-counts') data = { pending: 2, verified: 3, returnedForEdit: 1 };
-      else if (url.pathname === '/incidents/my-reported') { status = myReportedFailed ? 503 : 200; data = { reportedThisMonth: 1, incidents: [], fiscalYearsList: [2026], selectedFiscalYear: 2026 }; }
+      else if (url.pathname === '/incidents/my-reported') { status = myReportedFailed ? 503 : 200; data = { reportedThisMonth: 1, incidents: reportedIncidents, fiscalYearsList: [2026], selectedFiscalYear: 2026 }; }
       else if (url.pathname === '/incidents/form-data') data = { departments: [], locations: [], riskGroups: [], programs: [], risks: [] };
       else if (url.pathname === '/departments') data = [{ id: 1, depart_name: 'Test Unit', depart_group_id: 1 }];
       else if (url.pathname === '/risk-analysis') data = [risk];
       else if (url.pathname === '/risk-analysis/stats') data = { totalCount: 1, extremeCount: 0, highCount: 0, mediumCount: 1, neverEventCount: 0, dueSoonCount: 0 };
-      else if (url.pathname === '/risk-analysis/nine-standards') data = [{ id: 1, number: 1, name: 'Synthetic standard', total: 1, withMeasures: 0, proactive: 1, profiles: [], incidents: [], mappedCodes: [] }];
+      else if (url.pathname === '/risk-analysis/nine-standards') data = [{ id: 1, number: 1, name: 'Synthetic standard', total: 1, withMeasures: 0, proactive: 1, profiles: [], incidents: [], mappedCodes: ['TEST001', 'TEST002'] }];
       else if (url.pathname === '/incidents/matrix/stats') { data = matrix; status = matrixFailed ? 503 : 200; }
       else if (url.pathname === '/risk-analysis/1') {
         data = risk;
         if (request.method() === 'PATCH') { patchCount++; status = patchFailed ? 503 : 200; await new Promise(resolve => setTimeout(resolve, 500)); }
       }
-      else if (url.pathname.includes('decision-support')) status = 503;
+      else if (url.pathname === '/incidents/101') data = {
+        ...reportedIncidents[0], id: 101, id_risk: 0, reviews: [], structured_reviews: [],
+        capa_actions: [{ id: 1, action: 'Synthetic workflow improvement', status: 'AWAITING_EFFECTIVENESS', responsible_display_name: 'Test owner', effectiveness_criteria: 'Synthetic criteria', baseline_value: '10', target_value: '2', effectiveness_reviews: [
+          { id: 1, review_date: '2026-09-01', result: 'INEFFECTIVE', observation: 'Earlier synthetic review' },
+          { id: 2, review_date: '2026-09-10', result: 'PARTIALLY_EFFECTIVE', measured_value: '4', observation: 'Synthetic follow-up observation' },
+        ] }],
+      };
+      else if (url.pathname.startsWith('/rca/by-incident/')) data = null;
+      else if (url.pathname.includes('decision-support')) {
+        status = decisionReady ? 200 : 503;
+        data = {
+          scope: 'Test Unit', generatedAt: '2026-09-16T00:00:00Z',
+          period: { days: 30, start: '2026-08-18', end: '2026-09-16', previousStart: '2026-07-19', previousEnd: '2026-08-17' },
+          summary: { total: 2, severe: 0, nearMiss: 2, unsafeConditions: 0, unclassified: 0, rising: 1, repeated: 0 },
+          proactive: { count: 1, total: 1 }, departments: [], followup: [],
+          priorities: [3, 0].map((previous, index) => ({ code: `TEST00${index + 1}`, name: 'Synthetic signal', count: 1, previous, delta: 1 - previous, percent: null, severe: 0, nearMiss: 1, unsafeConditions: 0, repeatDepartments: 0, departments: [{ id: '1', name: 'Test Unit', count: 1, severe: 0 }] })),
+          backlog: { rca: 0, overdueRca: 0, capa: 0, overdueCapa: 0, rcaItems: [], capaItems: [] },
+          effectiveness: { total: 0, effective: 0, partial: 0, ineffective: 0, unassessed: 0, overdue: 0, items: [] },
+        };
+      }
       return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
     });
     const page = await context.newPage();
@@ -126,11 +147,50 @@ const os = require('node:os');
     assert.ok(standardsCsv.includes('Synthetic standard'));
     assert.ok(standardsCsv.includes('จำนวนทะเบียนที่เชื่อมโยง'));
     assert.ok(!standardsCsv.includes('Synthetic risk'));
+    decisionReady = true;
+    await page.goto(origin + '/reports');
+    await page.getByRole('button', { name: 'มาตรฐานสำคัญ 9 ด้าน (HA Goals)', exact: true }).click();
+    const standardTable = page.getByRole('table').filter({ has: page.getByRole('columnheader', { name: 'หน่วยงานเกิดซ้ำ', exact: true }) });
+    await standardTable.waitFor();
+    assert.match(await standardTable.locator('tbody tr').first().locator('td').nth(5).innerText(), /^0/);
+    const trend = page.getByLabel('จำนวนรายงานเปลี่ยนแปลง -1');
+    assert.ok((await trend.locator('span').getAttribute('class')).includes('text-blue-700'));
+    await standardTable.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(output, 'standards-learning.png') });
     matrixFailed = true;
     await page.goto(origin + '/reports');
     await page.getByRole('button', { name: 'เมทริกซ์ 5x5 (Risk Matrix Heatmap)', exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'Incident Matrix' }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'ส่งออก CSV', exact: true }).isDisabled(), true);
+    reportedIncidents = [
+      { id: 101, riskstore_name: 'Synthetic monitored report', nrls_code: 'TEST001', level_id: 'B', date_report: '2026-09-01', status_risk: 'จำหน่าย', improvement_status: 'MONITORING', rca_required: true },
+      { id: 102, riskstore_name: 'Synthetic pending report', nrls_code: 'TEST002', level_id: 'A', status_risk: 'รายงาน', improvement_status: 'NOT_STARTED' },
+    ];
+    await page.goto(origin + '/my-reported');
+    await page.getByRole('combobox', { name: 'กรองความคืบหน้ารายงานของฉัน' }).selectOption('monitoring');
+    await page.getByRole('cell', { name: '#101', exact: true }).waitFor();
+    assert.equal(await page.getByRole('cell', { name: '#102', exact: true }).count(), 0);
+    await page.getByText('เข้าเกณฑ์ทบทวน RCA', { exact: true }).waitFor();
+    myReportedFailed = true;
+    await page.getByRole('button', { name: 'โหลดรายงานใหม่', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'โหลดรายงานของคุณไม่สำเร็จ' }).waitFor();
+    assert.equal(await page.getByRole('cell', { name: '#101', exact: true }).count(), 0);
+    myReportedFailed = false;
+    await page.getByRole('button', { name: 'โหลดรายงานใหม่', exact: true }).click();
+    await page.getByRole('link', { name: 'ดูความคืบหน้า', exact: true }).click();
+    const feedback = page.getByRole('region', { name: 'สิ่งที่ดำเนินการจากรายงานนี้' });
+    await feedback.waitFor();
+    await feedback.getByText(/ผลประเมินที่บันทึกล่าสุด: ได้ผลบางส่วน/).waitFor();
+    await feedback.getByText('อ่านมาตรการและหลักฐานการติดตาม', { exact: true }).click();
+    await feedback.getByText('Synthetic follow-up observation', { exact: true }).waitFor();
+    assert.equal(await feedback.getByRole('button').count(), 0, 'Reporter feedback must remain read-only');
+    await feedback.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(output, 'incident-feedback.png') });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await feedback.scrollIntoViewIfNeeded();
+    assert.equal(await feedback.evaluate(el => el.scrollWidth <= el.clientWidth), true);
+    await page.screenshot({ path: path.join(output, 'incident-feedback-mobile.png') });
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(origin + '/incidents/new');
     await page.locator('textarea[name="detail"]').fill('Synthetic draft only');
     const dialog = page.waitForEvent('dialog');
@@ -140,7 +200,7 @@ const os = require('node:os');
     assert.ok(page.url().includes('/incidents/new'));
     assert.equal(await page.locator('textarea[name="detail"]').inputValue(), 'Synthetic draft only');
     assert.deepEqual(errors, []);
-    console.log('PASS: dashboard and personal reports error/retry, mobile width, NRLS read-only, failed-save draft retention, duplicate submission, matrix counts/details/export/error, standards export, unsaved incident guard');
+    console.log('PASS: dashboard and personal reports error/retry, mobile width, NRLS read-only, failed-save draft retention, duplicate submission, matrix counts/details/export/error, standards export and repeat signals, incident follow-up feedback, unsaved incident guard');
     console.log('Synthetic screenshots: ' + output);
   } finally {
     if (browser) await browser.close();

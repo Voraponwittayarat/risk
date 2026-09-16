@@ -4,7 +4,7 @@ From the repository root, run the CSV and matrix contract tests with a Node.js
 runtime that supports TypeScript type stripping (verified with Node.js 24.18):
 
 ```powershell
-node --test frontend/tests/reportCsv.test.mjs
+node --test frontend/tests/reportCsv.test.mjs frontend/tests/learningSignals.test.mjs
 ```
 
 Build `frontend` with `npm run build`, then run:
@@ -24,6 +24,8 @@ overflow, read-only NRLS identity, preserving drafts after failed saves,
 duplicate submit protection, the API's 5x5 matrix array and totals, five-item
 drill-down limits, matrix and standards CSV exports, failed export loading,
 and declining to leave an unsaved incident through a navigation link.
+Learning checks cover same-code repeat signals, neutral report-count trends,
+personal-report follow-up filtering, and read-only action/effectiveness feedback.
 
 Backend scope regression tests (from `backend`):
 

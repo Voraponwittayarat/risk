@@ -15,6 +15,7 @@ import { StandardRiskSelector } from '../components/StandardRiskSelector';
 import { ContributingFactorSelector } from '../components/rca/ContributingFactorSelector';
 import { OfficialPrintFooter, OfficialPrintHeader } from '../components/OfficialPrintLayout';
 import { printOfficialReport } from '../utils/officialPrint';
+import IncidentImprovementFeedback from '../components/IncidentImprovementFeedback';
 import {
   getContributingFactor,
   normalizeContributingFactorSelections,
@@ -1514,6 +1515,8 @@ export default function IncidentDetail() {
           </div>
         </div>
       </div>
+
+      <IncidentImprovementFeedback actions={incident.capa_actions} />
 
       {/* Review & Audit History Timeline */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700 shadow-sm space-y-5">

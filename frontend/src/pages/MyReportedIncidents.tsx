@@ -8,6 +8,7 @@ import {
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getStatusInfo, getSeverityBadge } from '../utils/statusAdapter';
+import { getImprovementProgress } from '../utils/incidentProgress';
 
 export default function MyReportedIncidents() {
   const { user } = useAuth();
@@ -20,37 +21,52 @@ export default function MyReportedIncidents() {
   const [selectedFiscalYear, setSelectedFiscalYear] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [followupFilter, setFollowupFilter] = useState('all');
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchData = async () => {
       setLoading(true);
+      setFailed(false);
       try {
         const token = localStorage.getItem('token');
         const params: any = {};
         if (selectedFiscalYear) params.fiscalYear = selectedFiscalYear;
         const response = await axios.get('/incidents/my-reported', {
+          signal: controller.signal,
           params,
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
+        if (controller.signal.aborted) return;
         setData(response.data);
         if (!selectedFiscalYear && response.data.selectedFiscalYear) {
           setSelectedFiscalYear(response.data.selectedFiscalYear.toString());
         }
       } catch (error) {
-        console.error('Failed to fetch my reported incidents', error);
+        if (!controller.signal.aborted) setFailed(true);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
     fetchData();
-  }, [selectedFiscalYear]);
+    return () => controller.abort();
+  }, [selectedFiscalYear, user?.id, attempt]);
+
+  const ready = !loading && !failed;
+  const countLabel = (value: number) => ready ? value.toLocaleString() : '—';
 
   // Local filter for search term
   const filteredIncidents = data.incidents?.filter((inc: any) => {
+    if (followupFilter === 'returned' && inc.status_risk !== 'แก้ไข') return false;
+    if (followupFilter === 'monitoring' && inc.improvement_status !== 'MONITORING') return false;
+    if (followupFilter === 'closed' && inc.improvement_status !== 'CLOSED') return false;
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     return (
       inc.id.toString().includes(term) ||
+      (inc.nrls_code && inc.nrls_code.toLowerCase().includes(term)) ||
       (inc.riskstore_name && inc.riskstore_name.toLowerCase().includes(term)) ||
       (inc.detail && inc.detail.toLowerCase().includes(term))
     );
@@ -72,7 +88,7 @@ export default function MyReportedIncidents() {
             ประวัติการส่งรายงานความเสี่ยงของคุณ
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
-            รายการความเสี่ยงทั้งหมดที่ล็อกอินด้วยบัญชี: <span className="font-semibold text-slate-700 dark:text-slate-200">{user?.name}</span> (พบ {filteredIncidents.length} รายการ)
+            รายการความเสี่ยงทั้งหมดที่ล็อกอินด้วยบัญชี: <span className="font-semibold text-slate-700 dark:text-slate-200">{user?.name}</span> (พบ {countLabel(filteredIncidents.length)} รายการ)
           </p>
         </div>
 
@@ -92,7 +108,7 @@ export default function MyReportedIncidents() {
       </div>
 
       {/* Returned for edit alert banner */}
-      {data.incidents?.some((inc: any) => inc.status_risk === 'แก้ไข') && (
+      {ready && data.incidents?.some((inc: any) => inc.status_risk === 'แก้ไข') && (
         <div className="bg-gradient-to-r from-orange-500/15 via-amber-500/10 to-transparent border-l-4 border-orange-500 p-4 rounded-2xl flex items-center justify-between gap-4 bg-white dark:bg-slate-800 border border-orange-200 dark:border-orange-900/50 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-orange-500 text-white rounded-xl shadow-sm shrink-0">
@@ -118,7 +134,7 @@ export default function MyReportedIncidents() {
           </div>
           <div>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">รายงานทั้งหมดของปีงบนี้</p>
-            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mt-0.5">{(data.incidents?.length || 0).toLocaleString()} เรื่อง</h3>
+            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mt-0.5">{countLabel(data.incidents?.length || 0)} เรื่อง</h3>
           </div>
         </div>
 
@@ -128,7 +144,7 @@ export default function MyReportedIncidents() {
           </div>
           <div>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">รายงานในเดือนนี้</p>
-            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mt-0.5">{(data.reportedThisMonth || 0).toLocaleString()} เรื่อง</h3>
+            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mt-0.5">{countLabel(data.reportedThisMonth || 0)} เรื่อง</h3>
           </div>
         </div>
 
@@ -139,7 +155,7 @@ export default function MyReportedIncidents() {
           <div>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">ส่งกลับมาให้แก้ไข</p>
             <h3 className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-0.5">
-              {(data.incidents?.filter((inc: any) => inc.status_risk === 'แก้ไข').length || 0).toLocaleString()} เรื่อง
+              {countLabel(data.incidents?.filter((inc: any) => inc.status_risk === 'แก้ไข').length || 0)} เรื่อง
             </h3>
           </div>
         </div>
@@ -149,28 +165,40 @@ export default function MyReportedIncidents() {
             <ShieldAlert className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Sentinel Event ที่ตรวจพบ</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">เข้าเกณฑ์ทบทวน RCA</p>
             <h3 className="text-2xl font-bold text-slate-900 dark:text-white mt-0.5">
-              {(data.incidents?.filter((inc: any) => Boolean(inc.rca_required)).length || 0).toLocaleString()} เรื่อง
+              {countLabel(data.incidents?.filter((inc: any) => Boolean(inc.rca_required)).length || 0)} เรื่อง
             </h3>
           </div>
         </div>
       </div>
 
       {/* Main Table Card */}
+      <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
+        <h2 className="font-semibold">เรื่องที่รายงานไปถึงไหนแล้ว</h2>
+        <p className="mt-1">ดูสถานะเหตุการณ์ควบคู่กับการติดตามมาตรการ แม้ปิดเหตุการณ์แล้ว งานปรับปรุงอาจยังดำเนินต่อ เปิดรายละเอียดเพื่ออ่านการทบทวนและผลประเมินที่ทีมบันทึกไว้</p>
+      </section>
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
         {/* Search Bar header */}
-        <div className="p-4 border-b border-slate-200 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-900/20">
+        <div className="flex flex-wrap items-center gap-3 p-4 border-b border-slate-200 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-900/20">
           <div className="relative max-w-md">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
+              aria-label="ค้นหารายงานของฉัน"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="ค้นหาตามรหัสเสี่ยง หรือคำอธิบาย..."
               className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
             />
           </div>
+          <select aria-label="กรองความคืบหน้ารายงานของฉัน" value={followupFilter} onChange={event => setFollowupFilter(event.target.value)} className="max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+            <option value="all">ทุกความคืบหน้า</option>
+            <option value="returned">ส่งกลับให้ฉันแก้ไข</option>
+            <option value="monitoring">กำลังติดตามมาตรการ</option>
+            <option value="closed">ปิดการติดตามมาตรการแล้ว</option>
+          </select>
+          <button type="button" disabled={loading} onClick={() => setAttempt(value => value + 1)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-blue-700 disabled:opacity-50 dark:text-blue-300">โหลดรายงานใหม่</button>
         </div>
 
         {/* Table Content */}
@@ -182,6 +210,8 @@ export default function MyReportedIncidents() {
                 <span>กำลังดึงข้อมูลประวัติรายงานของคุณ...</span>
               </div>
             </div>
+          ) : failed ? (
+            <p role="alert" className="m-4 rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">โหลดรายงานของคุณไม่สำเร็จ กรุณากดโหลดรายงานใหม่</p>
           ) : filteredIncidents.length === 0 ? (
             <div className="py-20 text-center text-slate-450 dark:text-slate-500">
               <FileText className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
@@ -198,7 +228,7 @@ export default function MyReportedIncidents() {
                   <th className="px-6 py-4">หน่วยงานที่รายงาน</th>
                   <th className="px-6 py-4">หน่วยงานที่รายงานถึง</th>
                   <th className="px-6 py-4">วันที่เกิดเหตุ</th>
-                  <th className="px-6 py-4">สถานะวงจร</th>
+                  <th className="px-6 py-4">สถานะเหตุการณ์ / การติดตาม</th>
                   <th className="px-6 py-4 text-center">รายละเอียด</th>
                 </tr>
               </thead>
@@ -206,7 +236,8 @@ export default function MyReportedIncidents() {
                 {filteredIncidents.map((inc: any) => {
                   const statusInfo = getStatusInfo(inc.status_risk);
                   const severity = getSeverityBadge(inc.level_id, inc.riskstore_id);
-                  const isSentinel = Boolean(inc.rca_required);
+                  const needsRca = Boolean(inc.rca_required);
+                  const improvement = getImprovementProgress(inc.improvement_status);
                   const isReturnedForEdit = inc.status_risk === 'แก้ไข';
                   return (
                     <tr 
@@ -214,7 +245,7 @@ export default function MyReportedIncidents() {
                       className={`hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors align-top ${
                         isReturnedForEdit
                           ? 'bg-orange-50/40 dark:bg-orange-950/20'
-                          : isSentinel
+                          : needsRca
                             ? 'bg-red-50/20 dark:bg-red-950/5'
                             : ''
                       }`}
@@ -249,6 +280,10 @@ export default function MyReportedIncidents() {
                           <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotClass}`}></span>
                           {statusInfo.label}
                         </span>
+                        <div className={`mt-2 min-w-[200px] text-xs ${improvement.className}`}>
+                          <p className="font-semibold">{improvement.label}</p>
+                          <p className="mt-1">{improvement.detail}</p>
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-center whitespace-nowrap">
                         <Link 
@@ -260,7 +295,7 @@ export default function MyReportedIncidents() {
                           }`}
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
-                          <span>{isReturnedForEdit ? 'ดู/แก้ไขเคส' : 'ดูเคส'}</span>
+                          <span>{isReturnedForEdit ? 'ดู/แก้ไขเคส' : 'ดูความคืบหน้า'}</span>
                         </Link>
                       </td>
                     </tr>

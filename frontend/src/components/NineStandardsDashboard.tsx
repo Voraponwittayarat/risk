@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { summarizeStandardDepartments } from '../utils/standardSignals';
 import {
   Activity,
   AlertTriangle,
@@ -115,13 +116,7 @@ export default function NineStandardsDashboard({
       const priorities = data.priorities.filter(item => codes.has(item.code));
       const current = count(priorities.map(item => item.count));
       const previous = count(priorities.map(item => item.previous));
-      const departmentCounts = new Map<string, { name: string; count: number; severe: number }>();
-      priorities.forEach(priority => priority.departments.forEach(item => {
-        const existing = departmentCounts.get(item.id) || { name: item.name, count: 0, severe: 0 };
-        existing.count += item.count;
-        existing.severe += item.severe;
-        departmentCounts.set(item.id, existing);
-      }));
+      const departmentSignals = summarizeStandardDepartments(priorities);
       const rcaItems = data.backlog.rcaItems.filter(item => item.code && codes.has(item.code));
       const capaItems = data.backlog.capaItems.filter(item => codes.has(item.code));
       const effectivenessItems = data.effectiveness.items.filter(item => codes.has(item.code));
@@ -133,9 +128,8 @@ export default function NineStandardsDashboard({
         severe: count(priorities.map(item => item.severe)),
         nearMiss: count(priorities.map(item => item.nearMiss)),
         unsafeConditions: count(priorities.map(item => item.unsafeConditions)),
-        repeatedDepartments: [...departmentCounts.values()].filter(item => item.count >= 2).length,
-        departments: [...departmentCounts.entries()].map(([id, item]) => ({ id, ...item }))
-          .sort((a, b) => b.severe - a.severe || b.count - a.count),
+        repeatedDepartments: departmentSignals.repeatedDepartments,
+        departments: departmentSignals.departments,
         rcaPending: rcaItems.length,
         rcaOverdue: rcaItems.filter(item => item.overdue).length,
         capaPending: capaItems.length,
@@ -207,6 +201,11 @@ export default function NineStandardsDashboard({
         </div>
       </div>
 
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
+        จำนวนรายงานที่เพิ่มหรือลดเป็นสัญญาณให้ทบทวน ยังสรุปไม่ได้ว่าปลอดภัยขึ้นหรือลดลง ควรดูความรุนแรง Near Miss การเกิดซ้ำ ปริมาณบริการ และผลประเมินมาตรการร่วมกัน
+        <p className="mt-1 text-xs">สัญญาณซ้ำ: มีรายงานรหัส NRLS เดียวกันอย่างน้อย 2 รายการในหน่วยงานเดียวกันภายในช่วงที่เลือก ยังไม่ยืนยันว่าเกิดจากสาเหตุเดียวกัน</p>
+      </div>
+
       {attention.length > 0 ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-950 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100">
           <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-bold">ควรทบทวนก่อนการประชุม RM: {attention.slice(0, 3).map(row => `ข้อ ${row.number}`).join(', ')}</p><p className="mt-1 text-xs opacity-80">จัดลำดับจากเหตุรุนแรง งานเกินกำหนด แนวโน้มเพิ่ม และการเกิดซ้ำในหน่วยงาน</p></div></div>
@@ -226,7 +225,10 @@ export default function NineStandardsDashboard({
               {rows.map(row => <tr key={row.id} className="align-top hover:bg-slate-50/70 dark:hover:bg-slate-900/30">
                 <td className="p-3"><details><summary className="cursor-pointer font-semibold text-slate-900 dark:text-white">ข้อ {row.number} · {row.name}</summary><div className="mt-2 space-y-2 text-xs text-slate-500"><p>{row.incidents.map(item => item.code).join(', ')}</p>{row.profiles.map(profile => <button type="button" key={profile.id} onClick={() => onOpenRisk(profile.id)} className="block text-left text-indigo-700 underline dark:text-indigo-300">{profile.title} · {profile.department}</button>)}</div></details></td>
                 <td className="p-3 text-center"><strong className="text-lg">{row.current}</strong><div className="mx-auto mt-2 h-1.5 w-20 rounded bg-slate-100"><div className="h-1.5 rounded bg-indigo-500" style={{ width: `${(row.current / maxVolume) * 100}%` }} /></div><p className="mt-1 text-[10px] text-slate-400">ก่อนหน้า {row.previous}</p></td>
-                <td className="p-3 text-center">{row.delta > 0 ? <span className="inline-flex items-center gap-1 font-bold text-red-700"><TrendingUp className="h-4 w-4" />+{row.delta}</span> : row.delta < 0 ? <span className="inline-flex items-center gap-1 font-bold text-emerald-700"><TrendingDown className="h-4 w-4" />{row.delta}</span> : <span className="text-slate-500">คงที่</span>}</td>
+                <td className="p-3 text-center" aria-label={`จำนวนรายงานเปลี่ยนแปลง ${row.delta > 0 ? '+' : ''}${row.delta}`}>
+                  {row.delta > 0 ? <span className="inline-flex items-center gap-1 font-bold text-blue-700 dark:text-blue-300"><TrendingUp className="h-4 w-4" />+{row.delta}</span> : row.delta < 0 ? <span className="inline-flex items-center gap-1 font-bold text-blue-700 dark:text-blue-300"><TrendingDown className="h-4 w-4" />{row.delta}</span> : <span className="text-slate-500">คงที่</span>}
+                  <p className="mt-1 text-[10px] text-slate-500">จำนวนรายงาน</p>
+                </td>
                 <td className="p-3 text-center"><span className={row.severe ? 'font-bold text-red-700' : 'text-slate-500'}>{row.severe}</span></td>
                 <td className="p-3 text-center">{row.nearMiss} / {row.unsafeConditions}</td>
                 <td className="p-3 text-center">{row.repeatedDepartments}<p className="mt-1 text-[10px] text-slate-400">{row.departments.slice(0, 2).map(item => item.name).join(', ') || '—'}</p></td>
@@ -245,6 +247,7 @@ export default function NineStandardsDashboard({
           return <article key={row.id} className={`${panel} p-4`}>
             <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">ข้อ {row.number} · {row.category || 'ยังไม่ระบุหมวด'}</p><h4 className="mt-1 font-bold text-slate-900 dark:text-white">{row.name}</h4></div><Building2 className="h-5 w-5 shrink-0 text-slate-400" /></div>
             <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs"><div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-900/50"><strong className="block text-lg">{row.current}</strong>Incident</div><div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-900/50"><strong className="block text-lg">{row.total}</strong>ทะเบียน</div><div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-900/50"><strong className="block text-lg">{measures === null ? '—' : `${measures}%`}</strong>มีมาตรการ</div></div>
+            <p className="mt-2 text-xs text-slate-500">“มีมาตรการ” หมายถึงมีข้อมูลบันทึกไว้ ผลว่าได้ผลหรือไม่ดูจากการประเมินประสิทธิผล</p>
             {row.current === 0 && row.total > 0 && <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">ยังไม่มี Incident ใหม่ แต่มีทะเบียนที่ต้องติดตามต่อ {row.total} เรื่อง</p>}
             <details className="mt-3 text-xs"><summary className="cursor-pointer font-semibold text-slate-700 dark:text-slate-200">รหัส NRLS {row.incidents.length} รายการ</summary><ul className="mt-2 space-y-1 text-slate-500">{row.incidents.map(item => <li key={item.code}><span className="font-mono font-bold text-indigo-700">{item.code}</span> · {item.name}</li>)}</ul></details>
           </article>;
