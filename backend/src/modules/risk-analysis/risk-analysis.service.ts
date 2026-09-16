@@ -349,6 +349,20 @@ export class RiskAnalysisService {
     }
     await this.assertProfileScope(existing, user);
 
+    // Authorize the destination as well as the record being edited.
+    const destination = {
+      scope_level: dto.scope_level ?? existing.scope_level,
+      department_id: String(dto.department_id ?? existing.department_id),
+    };
+    if (destination.scope_level === 'hospital' && existing.scope_level !== 'hospital'
+      && !['admin', 'rm_committee'].includes(user?.role)) {
+      throw new ForbiddenException('Risk Profile ระดับโรงพยาบาลสร้างได้เฉพาะ RM/Admin');
+    }
+    await this.assertProfileScope(destination, user);
+    if (destination.department_id !== String(existing.department_id)) {
+      await this.assertProfileScope({ ...destination, scope_level: 'department' }, user);
+    }
+
     const l = clampMatrixValue(dto.initial_likelihood !== undefined ? dto.initial_likelihood : existing.initial_likelihood);
     const c = clampMatrixValue(dto.initial_consequence !== undefined ? dto.initial_consequence : existing.initial_consequence);
     const score = l * c;

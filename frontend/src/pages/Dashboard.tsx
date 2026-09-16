@@ -81,7 +81,7 @@ const SeverityDonut = ({ title, subtitle, segments }: { title: string; subtitle:
           {segments.map((segment) => (
             <div key={segment.label} className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
               <span className="h-2.5 w-5 rounded-sm" style={{ backgroundColor: segment.color }} />
-              <span>{segment.label}</span>
+              <span>{segment.label}: {segment.value.toLocaleString()} ({total ? Math.round(segment.value / total * 100) : 0}%)</span>
             </div>
           ))}
         </div>
@@ -130,51 +130,68 @@ export default function Dashboard() {
   });
   const [selectedFiscalYear, setSelectedFiscalYear] = useState<string>('');
   const [loadingMyReported, setLoadingMyReported] = useState<boolean>(true);
+  const [statsState, setStatsState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [statsUpdatedAt, setStatsUpdatedAt] = useState<Date | null>(null);
+  const [statsAttempt, setStatsAttempt] = useState(0);
+  const [myReportedError, setMyReportedError] = useState(false);
+  const [myReportedAttempt, setMyReportedAttempt] = useState(0);
 
   useEffect(() => {
+    const controller = new AbortController();
+    setStatsState('loading');
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem('token');
         const response = await axios.get('/incidents/stats', {
+          signal: controller.signal,
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
+        if (controller.signal.aborted) return;
         setStats((current) => ({
           ...current,
           ...response.data,
           byLevel: response.data?.byLevel || {},
           activeSeverityByGoal: response.data?.activeSeverityByGoal || current.activeSeverityByGoal,
         }));
+        setStatsState('ready');
+        setStatsUpdatedAt(new Date());
       } catch (error) {
-        console.error('Failed to fetch stats', error);
+        if (!controller.signal.aborted) setStatsState('error');
       }
     };
     
     fetchStats();
-  }, []);
+    return () => controller.abort();
+  }, [user?.id, statsAttempt]);
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchMyReported = async () => {
       setLoadingMyReported(true);
+      setMyReportedError(false);
       try {
         const token = localStorage.getItem('token');
         const params: any = {};
         if (selectedFiscalYear) params.fiscalYear = selectedFiscalYear;
         const response = await axios.get('/incidents/my-reported', {
+          signal: controller.signal,
           params,
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
+        if (controller.signal.aborted) return;
         setMyReportedData(response.data);
         if (!selectedFiscalYear && response.data.selectedFiscalYear) {
           setSelectedFiscalYear(response.data.selectedFiscalYear.toString());
         }
       } catch (error) {
-        console.error('Failed to fetch my reported incidents', error);
+        if (!controller.signal.aborted) setMyReportedError(true);
       } finally {
-        setLoadingMyReported(false);
+        if (!controller.signal.aborted) setLoadingMyReported(false);
       }
     };
     fetchMyReported();
-  }, [selectedFiscalYear]);
+    return () => controller.abort();
+  }, [selectedFiscalYear, user?.id, myReportedAttempt]);
 
   const statCards = [
     { title: 'เรื่องทั้งหมดที่ดูแลอยู่', value: stats.total, icon: Activity, colorClass: 'bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400', to: '/incidents/dept?tab=all' },
@@ -216,7 +233,7 @@ export default function Dashboard() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-blue-500 animate-ping"></span>
+            <span className="w-3 h-3 rounded-full bg-blue-500"></span>
             ร่วมดูแลความปลอดภัยในทุกวัน
           </h1>
           <div className="mt-2.5 mb-1.5 inline-block">
@@ -256,6 +273,7 @@ export default function Dashboard() {
             <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
             <input
               value={reportSearch}
+              aria-label="ค้นหารายงานความเสี่ยง"
               onChange={(event) => setReportSearch(event.target.value)}
               placeholder="ค้นหารหัสรายงาน รหัสอุบัติการณ์ หรือคำสำคัญในรายงาน"
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
@@ -268,6 +286,13 @@ export default function Dashboard() {
       </form>
 
       <h2 className="text-lg font-bold text-slate-900 dark:text-white">ภาพรวมในขอบเขตที่คุณรับผิดชอบ</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500 dark:text-slate-300">
+        <p>ข้อมูลสะสมตามสิทธิ์การเข้าถึง · {user?.department_name || user?.departmentName || 'หน่วยงานตามสิทธิ์'}{statsState === 'ready' && statsUpdatedAt ? ` · โหลดล่าสุด ${statsUpdatedAt.toLocaleString('th-TH')}` : ''}</p>
+        <button type="button" disabled={statsState === 'loading'} onClick={() => setStatsAttempt(value => value + 1)} className="rounded-lg border px-3 py-2 text-blue-600 disabled:opacity-50 dark:text-blue-300">โหลดภาพรวมใหม่</button>
+      </div>
+      {statsState === 'loading' ? <p role="status" className="rounded-2xl border border-slate-200 p-6 dark:border-slate-700">กำลังโหลดภาพรวมความเสี่ยง…</p>
+        : statsState === 'error' ? <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800">โหลดภาพรวมไม่สำเร็จ กรุณากดโหลดภาพรวมใหม่ คุณยังเปิดรายการงานด้านบนได้</p>
+        : <>
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((stat, index) => (
@@ -319,6 +344,7 @@ export default function Dashboard() {
         </div>
       </div>
 
+      </>}
       {/* Quick Navigation Shortcuts Grid */}
       <details className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-xs border border-slate-100 dark:border-slate-700/80">
         <summary className="flex cursor-pointer items-center justify-between mb-5">
@@ -383,7 +409,7 @@ export default function Dashboard() {
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                   รายการรอยืนยัน
                 </h3>
-                {stats.pending > 0 && (
+                {statsState === 'ready' && stats.pending > 0 && (
                   <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-white">
                     {stats.pending}
                   </span>
@@ -608,7 +634,7 @@ export default function Dashboard() {
 
             <div className="mt-4 flex items-baseline gap-2">
               <span className="text-5xl font-extrabold tracking-tight">
-                {myReportedData.reportedThisMonth}
+                {loadingMyReported || myReportedError ? '—' : myReportedData.reportedThisMonth}
               </span>
               <span className="text-sm font-semibold text-blue-100/90">เรื่อง</span>
             </div>
@@ -624,6 +650,11 @@ export default function Dashboard() {
               <div className="flex-1 flex flex-col items-center justify-center text-slate-400 text-sm gap-2">
                 <div className="w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                 <span>กำลังโหลดข้อมูลรายงานของคุณ...</span>
+              </div>
+            ) : myReportedError ? (
+              <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">
+                <p>โหลดรายงานของคุณไม่สำเร็จ กรุณาลองใหม่</p>
+                <button type="button" onClick={() => setMyReportedAttempt(value => value + 1)} className="mt-3 rounded-lg border border-red-300 px-4 py-2">โหลดรายงานอีกครั้ง</button>
               </div>
             ) : myReportedData.incidents?.length === 0 ? (
               <Link 

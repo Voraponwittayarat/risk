@@ -59,3 +59,54 @@ describe('Risk reports use stored records and selected scope', () => {
     expect(await service.getNineStandards({}, { role: 'admin' })).toEqual([]);
   });
 });
+
+describe('Risk profile destination scope authorization', () => {
+  const existing = { id: 1, scope_level: 'department', department_id: '1', initial_likelihood: 2, initial_consequence: 3 };
+  let prisma: any;
+  let service: RiskAnalysisService;
+  beforeEach(() => {
+    prisma = {
+      riskanalysis: {
+        findUnique: jest.fn().mockResolvedValue(existing),
+        update: jest.fn().mockImplementation(({ data }) => Promise.resolve({ ...existing, ...data })),
+      },
+      department: { findMany: jest.fn().mockResolvedValue([{ id: 1 }, { id: 2 }]) },
+    };
+    service = new RiskAnalysisService(prisma);
+  });
+
+  it.each([
+    { department_id: '9' },
+    { scope_level: 'hospital' as const },
+    { scope_level: 'group' as const, department_id: '9' },
+  ])('rejects an unauthorized destination %j before writing', async (dto) => {
+    await expect(service.update(1, dto, { role: 'staff', departmentId: 1 })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.riskanalysis.update).not.toHaveBeenCalled();
+  });
+
+  it('keeps ordinary in-scope edits working', async () => {
+    const result = await service.update(1, { risk_prevention: 'Updated plan' }, { role: 'staff', departmentId: 1 });
+    expect(result.risk_prevention).toBe('Updated plan');
+  });
+
+  it('allows a move to the second authorized department', async () => {
+    const result = await service.update(1, { department_id: '2' }, { role: 'head', departmentId: 1, departmentId2: 2 });
+    expect(result.department_id).toBe('2');
+  });
+
+  it('allows an admin to change scope and department', async () => {
+    const result = await service.update(1, { scope_level: 'hospital', department_id: '9' }, { role: 'admin' });
+    expect(result).toMatchObject({ scope_level: 'hospital', department_id: '9' });
+  });
+
+  it('does not bypass destination department checks for a hospital profile', async () => {
+    prisma.riskanalysis.findUnique.mockResolvedValue({ ...existing, scope_level: 'hospital' });
+    await expect(service.update(1, { department_id: '9' }, { role: 'rm_committee', rmScope: 'group', departmentGroup: 1 })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.riskanalysis.update).not.toHaveBeenCalled();
+  });
+
+  it('still rejects editing a source outside the user scope', async () => {
+    await expect(service.update(1, { department_id: '9' }, { role: 'staff', departmentId: 9 })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.riskanalysis.update).not.toHaveBeenCalled();
+  });
+});

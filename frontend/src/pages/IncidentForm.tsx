@@ -209,6 +209,9 @@ export default function IncidentForm() {
   });
 
   const [saving, setSaving] = useState(false);
+  const submissionRef = useRef(false);
+  const savedRef = useRef(false);
+  const initialFormRef = useRef(JSON.stringify(formData));
   const [locationQuery, setLocationQuery] = useState('');
   const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false);
   const locationPickerRef = useRef<HTMLDivElement>(null);
@@ -217,6 +220,33 @@ export default function IncidentForm() {
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [imageError, setImageError] = useState<string | null>(null);
+
+  const hasUnsavedChanges = JSON.stringify(formData) !== initialFormRef.current || selectedImages.length > 0;
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (savedRef.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    const beforeLinkNavigation = (event: MouseEvent) => {
+      if (savedRef.current || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const anchor = (event.target as Element).closest?.('a[href]');
+      if (!(anchor instanceof HTMLAnchorElement) || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
+      const destination = new URL(anchor.href);
+      if (destination.pathname === window.location.pathname && destination.search === window.location.search) return;
+      if (submissionRef.current || !window.confirm('รายงานนี้ยังไม่ได้บันทึก ต้องการออกจากหน้านี้และยกเลิกข้อมูลที่กรอกหรือไม่?')) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    document.addEventListener('click', beforeLinkNavigation, true);
+    return () => {
+      window.removeEventListener('beforeunload', beforeUnload);
+      document.removeEventListener('click', beforeLinkNavigation, true);
+    };
+  }, [hasUnsavedChanges]);
 
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
@@ -423,6 +453,7 @@ export default function IncidentForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submissionRef.current) return;
     if (!formData.nrls_code) {
       alert('รายงานใหม่ทุกวันที่เกิดเหตุต้องเลือกความเสี่ยงตามมาตรฐาน NRLS');
       return;
@@ -455,6 +486,7 @@ export default function IncidentForm() {
       }
     }
 
+    submissionRef.current = true;
     setSaving(true);
     try {
       // 1. Upload images first if any
@@ -529,12 +561,14 @@ export default function IncidentForm() {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
 
-      alert('✅ บันทึกรายงานความเสี่ยงเข้าสู่ระบบ NRLS เรียบร้อยแล้ว! (สถานะ: รอยืนยัน)');
+      savedRef.current = true;
+      alert('✅ บันทึกรายงานความเสี่ยงเรียบร้อยแล้ว (สถานะ: รอยืนยัน) ติดตามความคืบหน้าได้ที่รายงานของฉัน');
       navigate('/my-reported');
     } catch (err: any) {
       console.error(err);
       alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + (err.response?.data?.message || err.message));
     } finally {
+      submissionRef.current = false;
       setSaving(false);
     }
   };
@@ -612,6 +646,12 @@ export default function IncidentForm() {
         </div>
       )}
 
+      <nav aria-label="ส่วนของแบบรายงาน" className="flex flex-wrap gap-2 text-sm">
+        <a href="#incident-location" className="rounded-lg border px-3 py-2 text-primary">1. วันเวลาและสถานที่</a>
+        <a href="#incident-classification" className="rounded-lg border px-3 py-2 text-primary">2. เหตุการณ์และความรุนแรง</a>
+        <a href="#incident-impact" className="rounded-lg border px-3 py-2 text-primary">3. ผลกระทบและการแก้ไข</a>
+        <a href="#incident-summary" className="rounded-lg border px-3 py-2 text-primary">4. ตรวจทานก่อนส่ง</a>
+      </nav>
       <form onSubmit={handleSubmit} className="flex flex-col bg-card-light dark:bg-card-dark rounded-[12px] shadow-sm border border-border-light dark:border-border-dark overflow-hidden relative">
         {/* Loading Overlay for Options */}
         {loadingOptions && (
@@ -649,7 +689,7 @@ export default function IncidentForm() {
 
         <div className="p-6 sm:p-8 space-y-10">
           {/* Section 1 */}
-          <div className="space-y-6">
+          <div id="incident-location" className="scroll-mt-24 space-y-6">
             <div className="flex items-center justify-between border-b border-border-light dark:border-border-dark pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">1</div>
@@ -973,7 +1013,7 @@ export default function IncidentForm() {
           </div>
 
           {/* Section 2 */}
-          <div className="space-y-6">
+          <div id="incident-classification" className="scroll-mt-24 space-y-6">
             <div className="flex items-center justify-between border-b border-border-light dark:border-border-dark pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">2</div>
@@ -1134,7 +1174,7 @@ export default function IncidentForm() {
           </div>
 
           {/* Section 3 */}
-          <div className="space-y-6">
+          <div id="incident-impact" className="scroll-mt-24 space-y-6">
             <div className="flex items-center justify-between border-b border-border-light dark:border-border-dark pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">3</div>
@@ -1366,6 +1406,16 @@ export default function IncidentForm() {
         </div>
 
         {/* Footer Actions */}
+        <section id="incident-summary" aria-labelledby="incident-summary-title" className="scroll-mt-24 border-t border-border-light bg-blue-50 p-6 text-sm text-slate-800 dark:border-border-dark dark:bg-slate-800 dark:text-slate-100 sm:px-8">
+          <h3 id="incident-summary-title" className="font-bold">ตรวจทานก่อนส่งรายงาน</h3>
+          <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div><dt className="text-xs text-slate-500 dark:text-slate-400">วันและเวลาเกิดเหตุ</dt><dd>{formData.date_report} เวลา {formData.time_report} น.</dd></div>
+            <div><dt className="text-xs text-slate-500 dark:text-slate-400">มาตรฐานและระดับความรุนแรง</dt><dd>{formData.nrls_code || 'ยังไม่ได้เลือก NRLS'} · ระดับ {formData.level_id || 'ยังไม่ได้เลือก'}</dd></div>
+            <div><dt className="text-xs text-slate-500 dark:text-slate-400">สถานที่</dt><dd>{formData.location_group === 'LG001' ? selectedLocation?.name || 'ยังไม่ได้เลือกสถานที่' : 'นอกพื้นที่โรงพยาบาล'}</dd></div>
+            <div><dt className="text-xs text-slate-500 dark:text-slate-400">รูปภาพแนบ</dt><dd>{selectedImages.length} รูป</dd></div>
+          </dl>
+          <p className="mt-3 text-xs">หลังส่ง รายงานจะอยู่ในสถานะรอยืนยัน และติดตามได้ที่ “รายงานของฉัน”</p>
+        </section>
         <div className="px-6 sm:px-8 py-5 border-t border-border-light dark:border-border-dark bg-bg-light dark:bg-bg-dark flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4">
           <Link to="/incidents" className="w-full sm:w-auto px-6 py-2.5 text-center text-sm font-semibold text-slate-600 hover:text-slate-900 bg-card-light dark:bg-card-dark border border-border-light dark:border-border-dark rounded-[8px] transition-all shadow-sm">
             ยกเลิก

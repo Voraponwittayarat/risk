@@ -15,6 +15,8 @@ import { OfficialPrintFooter, OfficialPrintHeader } from '../components/Official
 import { printOfficialReport } from '../utils/officialPrint';
 import RiskDecisionSupport from '../components/RiskDecisionSupport';
 import NineStandardsDashboard from '../components/NineStandardsDashboard';
+import { buildCsv, getMatrixCell, matrixCsvRows, standardsCsvRows } from '../utils/reportCsv';
+import type { CsvValue, IncidentMatrix } from '../utils/reportCsv';
 
 // =========================================================================
 // Department presets remain local; the nine essential standards come from the backend catalogue.
@@ -102,11 +104,11 @@ const RISK_PRESET_TEMPLATES = [
 
 export default function Reports() {
   const [activeTab, setActiveTab] = useState<'hospital' | 'department' | 'matrix' | 'due' | 'standards'>('hospital');
-  
+
   // Data States
   const [risks, setRisks] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
-  const [matrixData, setMatrixData] = useState<any>(null);
+  const [matrixData, setMatrixData] = useState<IncidentMatrix | null>(null);
   const [departments, setDepartments] = useState<any[]>([]);
   const [recentIncidents, setRecentIncidents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,6 +116,9 @@ export default function Reports() {
   const [standards, setStandards] = useState<any[]>([]);
   const [dataRevision, setDataRevision] = useState(0);
   const requestRef = useRef<AbortController | null>(null);
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [loadedAt, setLoadedAt] = useState<Date | null>(null);
 
 
   // Filters
@@ -130,7 +135,7 @@ export default function Reports() {
   const [createModeTab, setCreateModeTab] = useState<'template' | 'incident' | 'custom'>('template');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [selectedIncidentId, setSelectedIncidentId] = useState('');
-  
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -139,7 +144,7 @@ export default function Reports() {
 
   const { user } = useAuth();
   const userRole = (user?.role || '').toLowerCase();
-  const isAdminOrRm = ['admin', 'superadmin', 'rm', 'director', 'manager_rm', 'chair', 'rm_committee'].some(r => userRole.includes(r));
+  const isAdminOrRm = ['admin', 'rm_committee'].includes(userRole);
 
   // ตรวจสอบสิทธิ์การแก้ไข:
   // 1. Admin / RM Board / Superuser -> แก้ไขได้ทุกรายการ
@@ -147,18 +152,21 @@ export default function Reports() {
   // 3. ความเสี่ยงระดับหน่วยงาน -> แก้ไขได้เฉพาะรายการของหน่วยงานตนเอง (department_id ตรงกับ user.department_id)
   // 4. รายการของหน่วยงานอื่น -> ดูรายละเอียดได้ทั้งหมด แต่ปุ่มแก้ไข/ทบทวน/ลบ จะถูกปิด (Read-Only)
   const canEditRisk = (item: any) => {
-    if (!user) return true; // Fallback หากยังไม่ได้ล็อกอินหรือเป็นโหมดสาธิต
-    
-    const adminRoles = ['admin', 'superadmin', 'rm', 'director', 'manager_rm', 'chair'];
-    const userRole = (user.role || '').toLowerCase();
-    if (adminRoles.some(r => userRole.includes(r))) return true;
+    if (!user) return false;
+
+    if (user.role === 'admin' || (user.role === 'rm_committee' && user.rmScope === 'hospital')) return true;
 
     // ความเสี่ยงระดับโรงพยาบาล สามารถร่วมทบทวน/แก้ไขได้
     if (item.scope_level === 'hospital') return true;
 
     // ความเสี่ยงระดับหน่วยงาน: ต้องตรงกับหน่วยงานของผู้ใช้งาน
-    if (user.department_id && String(item.department_id) === String(user.department_id)) {
+    if ([user.department_id, user.department_id2].filter(Boolean).some(id => String(item.department_id) === String(id))) {
       return true;
+    }
+
+    if (['head', 'rm_committee'].includes(user.role) && user.rmScope === 'group' && user.departmentGroup) {
+      const department = departments.find(d => String(d.id) === String(item.department_id));
+      return String(department?.depart_group_id) === String(user.departmentGroup);
     }
 
     return false;
@@ -225,6 +233,7 @@ export default function Reports() {
     requestRef.current = controller;
     setLoading(true);
     setLoadErrors([]);
+    setLoadedAt(null);
     setRisks([]);
     setStats(null);
     setMatrixData(null);
@@ -259,6 +268,7 @@ export default function Reports() {
           else errors.push(labels[index]);
         });
         setLoadErrors(errors);
+        setLoadedAt(new Date());
         setLoading(false);
       });
   };
@@ -274,7 +284,7 @@ export default function Reports() {
     setSelectedTemplateId('');
     setSelectedIncidentId('');
     setCreateModeTab('template');
-    
+
     // กำหนดหน่วยงานเริ่มต้นตามสิทธิ์ของผู้ใช้งาน
     const defaultDept = user?.department_id ? String(user.department_id) : (selectedDept !== 'all' ? selectedDept : '1');
 
@@ -284,7 +294,7 @@ export default function Reports() {
       risk_title: '',
       risk_description: '',
       source: 'มาตรฐานสำคัญ 9 ด้าน',
-      scope_level: activeTab === 'department' ? 'department' : 'hospital',
+      scope_level: activeTab === 'department' || !isAdminOrRm ? 'department' : 'hospital',
       department_id: defaultDept,
       program_id: 2,
       category_name: 'Clinical Risk (ทางคลินิก)',
@@ -439,38 +449,54 @@ export default function Reports() {
   // Submit Create Risk
   const handleSubmitCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     try {
       await axios.post('/risk-analysis', formData);
       setIsCreateModalOpen(false);
       setDataRevision(value => value + 1);
     } catch (err: any) {
       alert('บันทึกล้มเหลว: ' + (err.response?.data?.message || err.message));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
   // Submit Edit Risk
   const handleSubmitEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRiskItem) return;
+    if (!selectedRiskItem || savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     try {
       await axios.patch(`/risk-analysis/${selectedRiskItem.id}`, formData);
       setIsEditModalOpen(false);
       setDataRevision(value => value + 1);
     } catch (err: any) {
       alert('แก้ไขล้มเหลว: ' + (err.response?.data?.message || err.message));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
   // Submit Periodic Review
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRiskItem) return;
+    if (!selectedRiskItem || savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     try {
       await axios.post(`/risk-analysis/${selectedRiskItem.id}/reviews`, reviewFormData);
       setIsReviewModalOpen(false);
       setDataRevision(value => value + 1);
     } catch (err: any) {
       alert('บันทึกการทบทวนล้มเหลว: ' + (err.response?.data?.message || err.message));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
@@ -487,6 +513,7 @@ export default function Reports() {
 
   // Print function
   const handlePrintTable = () => {
+    if (!reportReady) return;
     printOfficialReport();
   };
 
@@ -527,8 +554,8 @@ export default function Reports() {
   // Filtered Risks
   const filteredRisks = risks.filter((item) => {
     const matchesSearch = searchQuery === '' ||
-      item.risk_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.risk_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.risk_code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.risk_title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (item.risk_owner_name && item.risk_owner_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (item.safety_goal && item.safety_goal.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (item.source && item.source.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -561,9 +588,22 @@ export default function Reports() {
     standards: 'รายงานความเสี่ยงตามมาตรฐานสำคัญ 9 ด้าน',
   };
 
+  const isRegisterTab = ['hospital', 'department', 'due'].includes(activeTab);
+  const reportError = activeTab === 'matrix' ? 'Incident Matrix' : activeTab === 'standards' ? 'มาตรฐานความปลอดภัย' : 'ทะเบียนความเสี่ยง';
+  const reportReady = !loading && !loadErrors.includes(reportError);
+  const reportCount = activeTab === 'matrix' ? matrixData?.totalConfirmed ?? 0 : activeTab === 'standards' ? standards.length : filteredRisks.length;
+  const filterDescription = isRegisterTab ? [
+    searchQuery && `ค้นหา: ${searchQuery}`,
+    selectedSource !== 'all' && `แหล่งที่มา: ${selectedSource}`,
+    selectedCategory !== 'all' && `ประเภท: ${selectedCategory}`,
+    selectedRiskLevel !== 'all' && `ระดับเริ่มต้น: ${selectedRiskLevel}`,
+    selectedStatus !== 'all' && `สถานะ: ${selectedStatus}`,
+    onlyNeverEvents && 'เฉพาะ Never Events',
+  ].filter(Boolean).join(' · ') || 'ไม่มีตัวกรองเพิ่มเติม' : 'ตามหน่วยงานและสิทธิ์การเข้าถึง';
+
   // Export CSV
   const exportToCSV = () => {
-    if (!filteredRisks.length) return;
+    if (!reportReady) return;
     const headers = [
       'ลำดับ',
       'วันที่นำเข้า',
@@ -588,39 +628,43 @@ export default function Reports() {
       'สถานะ',
     ];
 
-    const rows = filteredRisks.map((r, idx) => [
+    const thaiDate = (value: string) => value ? new Date(value).toLocaleDateString('th-TH') : '-';
+    const rows: CsvValue[][] = filteredRisks.map((r, idx) => [
       idx + 1,
-      `"${r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH') : '-'}"`,
-      `"${r.source || 'มาตรฐานสำคัญ 9 ด้าน'}"`,
-      `"${r.risk_code}"`,
-      `"${r.risk_title.replace(/"/g, '""')}"`,
-      `"${(r.risk_description || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
-      `"${r.risk_owner_name || ''}"`,
-      r.review_frequency_months || 3,
-      `"${r.last_reviewed_date ? new Date(r.last_reviewed_date).toLocaleDateString('th-TH') : '-'}"`,
-      `"${r.next_review_date ? new Date(r.next_review_date).toLocaleDateString('th-TH') : '-'}"`,
-      `"${(r.latest_review?.result_of_review || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
+      thaiDate(r.created_at), r.source, r.risk_code, r.risk_title, r.risk_description,
+      r.risk_owner_name, r.review_frequency_months ?? 3,
+      thaiDate(r.last_reviewed_date), thaiDate(r.next_review_date),
+      r.latest_review?.result_of_review,
       r.initial_likelihood,
       r.initial_consequence,
       r.initial_risk_score,
-      `"${r.initial_risk_level}"`,
-      `"${r.latest_review ? r.latest_review.current_risk_level : r.initial_risk_level}"`,
-      `"${((r.risk_prevention || '') + ' ' + (r.risk_transfer || '')).replace(/"/g, '""').replace(/\n/g, ' ')}"`,
-      `"${(r.risk_monitor || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
-      `"${(r.risk_mitigation || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
-      `"${(r.qi_plan || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
-      `"${r.status}"`,
+      r.initial_risk_level,
+      r.latest_review?.current_risk_level ?? r.initial_risk_level,
+      `${r.risk_prevention || ''} ${r.risk_transfer || ''}`,
+      r.risk_monitor, r.risk_mitigation, r.qi_plan, r.status,
     ]);
 
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const reportRows = activeTab === 'matrix' && matrixData ? matrixCsvRows(matrixData)
+      : activeTab === 'standards' ? standardsCsvRows(standards) : [headers, ...rows];
+    const csvContent = buildCsv([
+      ['รายงาน', printReportTitle[activeTab]],
+      ['หน่วยงาน', currentDeptName],
+      ['ช่วงข้อมูล', 'ข้อมูลสะสมตามสิทธิ์การเข้าถึง'],
+      ['เงื่อนไข', filterDescription],
+      ['จำนวน', reportCount, activeTab === 'matrix' ? 'อุบัติการณ์ยืนยันแล้ว' : activeTab === 'standards' ? 'มาตรฐาน' : 'ทะเบียน'],
+      ['โหลดข้อมูลเมื่อ', loadedAt?.toLocaleString('th-TH')],
+      ['จัดทำเมื่อ', new Date().toLocaleString('th-TH')],
+      [], ...reportRows,
+    ]);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `Risk_Register_${currentDeptName.replace(/[\/\s]/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `Risk_${activeTab}_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
@@ -685,7 +729,10 @@ export default function Reports() {
         metadata={[
           { label: 'หน่วยงาน', value: currentDeptName },
           { label: 'ขอบเขต', value: activeTab === 'hospital' ? 'ระดับโรงพยาบาล' : activeTab === 'department' ? 'ระดับหน่วยงาน' : 'ตามเงื่อนไขรายงาน' },
-          { label: 'จำนวนรายการ', value: activeTab === 'matrix' ? matrixData?.total || '-' : filteredRisks.length },
+          { label: 'จำนวนรายการ', value: reportReady ? reportCount : 'ข้อมูลไม่พร้อม' },
+          { label: 'เงื่อนไข', value: filterDescription },
+          { label: 'ช่วงข้อมูล', value: 'ข้อมูลสะสมตามสิทธิ์การเข้าถึง' },
+          { label: 'โหลดข้อมูลเมื่อ', value: loadedAt?.toLocaleString('th-TH') || '-' },
           { label: 'ผู้จัดทำ', value: user?.name || 'ผู้ใช้งานระบบ' },
         ]}
       />
@@ -697,7 +744,7 @@ export default function Reports() {
         <div className="space-y-2.5 relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/70 dark:bg-slate-700/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-600/50 text-indigo-600 dark:text-indigo-300 text-xs font-semibold tracking-wide shadow-sm">
             <Sparkles className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
-            ภาพรวมความเสี่ยงวันนี้ (Daily Risk Overview)
+            ทะเบียน • เมทริกซ์ • มาตรฐานความปลอดภัย
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-2.5">
             วิเคราะห์ข้อมูลความเสี่ยง
@@ -719,6 +766,7 @@ export default function Reports() {
 
           <button
             onClick={exportToCSV}
+            disabled={!reportReady}
             className="flex items-center gap-2 px-4 py-2.5 bg-white/60 dark:bg-slate-700/60 backdrop-blur hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs sm:text-sm rounded-full border border-slate-200 dark:border-slate-600 shadow-sm transition-all cursor-pointer"
             title="ส่งออกเป็นไฟล์ Excel / CSV"
           >
@@ -728,6 +776,7 @@ export default function Reports() {
 
           <button
             onClick={handlePrintTable}
+            disabled={!reportReady}
             className="flex items-center gap-2 px-4 py-2.5 bg-white/60 dark:bg-slate-700/60 backdrop-blur hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs sm:text-sm rounded-full border border-slate-200 dark:border-slate-600 shadow-sm transition-all cursor-pointer"
             title="พิมพ์ตารางรายงานออกทางเครื่องพิมพ์"
           >
@@ -737,10 +786,23 @@ export default function Reports() {
         </div>
       </div>
 
-      <RiskDecisionSupport departments={departments} department={selectedDept} onDepartmentChange={setSelectedDept} refreshKey={dataRevision} onOpenRisk={id => handleOpenDetailModal({ id })} />
+      <details className="no-print rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+        <summary className="cursor-pointer text-sm font-semibold text-indigo-700 dark:text-indigo-300">ดูแนวโน้มและงานติดตามเพื่อวางแผนความปลอดภัย</summary>
+        <div className="mt-4"><RiskDecisionSupport departments={departments} department={selectedDept} onDepartmentChange={setSelectedDept} refreshKey={dataRevision} onOpenRisk={id => handleOpenDetailModal({ id })} /></div>
+      </details>
       <h2 className="no-print text-xl font-bold text-slate-800 dark:text-white">ทะเบียนความเสี่ยงและเครื่องมือทบทวน</h2>
       <div className="no-print flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600 dark:text-slate-300">
-        <span>ขอบเขต: {currentDeptName} · {printReportTitle[activeTab]}</span>
+        <span>ขอบเขต: {currentDeptName} · {printReportTitle[activeTab]} · ข้อมูลสะสมตามสิทธิ์{loadedAt && ` · โหลดล่าสุด ${loadedAt.toLocaleString('th-TH')}`}</span>
+        <select
+          aria-label="หน่วยงานของรายงาน" value={selectedDept}
+          onChange={e => setSelectedDept(e.target.value)}
+          className="px-3 py-2 text-xs font-semibold rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/70 dark:bg-indigo-950/50 text-indigo-900 dark:text-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+        >
+          <option value="all">ทุกหน่วยงานตามสิทธิ์</option>
+          {departments.map(d => (
+            <option key={d.id} value={d.id}>{d.depart_name}</option>
+          ))}
+        </select>
         <button type="button" disabled={loading} onClick={() => setDataRevision(value => value + 1)} className="rounded-lg border px-3 py-2 disabled:opacity-50">โหลดข้อมูลใหม่</button>
       </div>
       {loadErrors.length > 0 && <div role="alert" className="no-print rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">โหลด {loadErrors.join(', ')} ไม่สำเร็จ กรุณากดโหลดข้อมูลใหม่ ข้อมูลส่วนที่โหลดไม่สำเร็จจะไม่แสดงเป็นยอดศูนย์</div>}
@@ -791,7 +853,7 @@ export default function Reports() {
 
           <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-emerald-100 dark:border-emerald-900/30 shadow-sm transition hover:shadow-md hover:border-emerald-200">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">ปกติดี (Medium)</span>
+              <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">ความเสี่ยงปานกลาง (Medium)</span>
               <div className="p-1.5 rounded-full bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-500 dark:text-emerald-400">
                 <Activity className="w-3.5 h-3.5" />
               </div>
@@ -800,21 +862,21 @@ export default function Reports() {
               <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.mediumCount}</span>
               <span className="text-xs text-emerald-400 font-medium">4-8 คะแนน</span>
             </div>
-            <div className="mt-1 text-[11px] text-emerald-500/80 dark:text-emerald-400/80 font-medium">จัดการได้สบายๆ</div>
+            <div className="mt-1 text-[11px] text-emerald-500/80 dark:text-emerald-400/80 font-medium">ติดตามตามแผนควบคุม</div>
           </div>
 
           <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-purple-100 dark:border-purple-900/30 shadow-sm transition hover:shadow-md hover:border-purple-200">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-purple-600 dark:text-purple-400">เป้าหมาย (Never Events)</span>
+              <span className="text-xs font-medium text-purple-600 dark:text-purple-400">ทะเบียน Never Events</span>
               <div className="p-1.5 rounded-full bg-purple-50/50 dark:bg-purple-950/30 text-purple-500 dark:text-purple-400">
                 <ShieldCheck className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="mt-2 flex items-baseline gap-1.5">
               <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.neverEventCount}</span>
-              <span className="text-xs text-purple-400 font-medium">เหตุการณ์</span>
+              <span className="text-xs text-purple-400 font-medium">ทะเบียน</span>
             </div>
-            <div className="mt-1 text-[11px] text-purple-500/80 dark:text-purple-400/80 font-medium">ควบคุมอยู่ ⚡</div>
+            <div className="mt-1 text-[11px] text-purple-500/80 dark:text-purple-400/80 font-medium">ต้องติดตามมาตรการป้องกัน</div>
           </div>
 
           <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-blue-100 dark:border-blue-900/30 shadow-sm transition hover:shadow-md hover:border-blue-200">
@@ -968,18 +1030,6 @@ export default function Reports() {
 
             {/* Filter Group */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* Department selector */}
-              <select
-                value={selectedDept}
-                onChange={e => setSelectedDept(e.target.value)}
-                className="px-3 py-2 text-xs font-semibold rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/70 dark:bg-indigo-950/50 text-indigo-900 dark:text-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
-              >
-                <option value="all">ทุกหน่วยงาน (All Depts)</option>
-                {departments.map(d => (
-                  <option key={d.id} value={d.id}>{d.depart_name}</option>
-                ))}
-              </select>
-
               {/* Source Filter */}
               <select
                 value={selectedSource}
@@ -1052,7 +1102,7 @@ export default function Reports() {
       {/* ========================================================================= */}
       {(activeTab === 'hospital' || activeTab === 'department' || activeTab === 'due') && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden print-table-container">
-          
+
           {/* Official Printable Header */}
           <div className="p-4 sm:p-5 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-indigo-50/30 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
@@ -1451,6 +1501,7 @@ export default function Reports() {
       {/* ========================================================================= */}
       {/* TAB 4: 5x5 RISK MATRIX HEATMAP VIEW */}
       {/* ========================================================================= */}
+      {activeTab === 'matrix' && loading && <p role="status" className="rounded-xl border p-6">กำลังโหลดเมทริกซ์อุบัติการณ์…</p>}
       {activeTab === 'matrix' && matrixData && (
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1460,7 +1511,7 @@ export default function Reports() {
                 เมทริกซ์การประเมินระดับความเสี่ยง 5x5 (Risk Assessment Matrix)
               </h3>
               <p className="text-sm text-slate-500">
-                วิเคราะห์ความเสี่ยงเชิงรุกและอุบัติการณ์ที่เกิดขึ้นจริง โดยการจับคู่ระดับโอกาสเกิด (Likelihood 1-5) และระดับผลกระทบ (Consequence 1-5)
+                อุบัติการณ์ที่ยืนยันแล้ว {matrixData.totalConfirmed.toLocaleString()} ครั้ง · ข้อมูลสะสมในขอบเขตที่เลือก จัดกลุ่มความถี่ตามโปรแกรมและระดับความรุนแรง
               </p>
             </div>
 
@@ -1484,9 +1535,7 @@ export default function Reports() {
                 <div key={y} className="grid grid-cols-5 gap-2">
                   {[1, 2, 3, 4, 5].map(x => {
                     const score = x * y;
-                    const cellKey = `${y}-${x}`;
-                    const count = matrixData?.grid ? (matrixData.grid[cellKey]?.count || 0) : 0;
-                    const items = matrixData?.grid ? (matrixData.grid[cellKey]?.items || []) : [];
+                    const { count, items } = getMatrixCell(matrixData, y, x);
 
                     let bgClass = 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-950';
                     let badgeClass = 'bg-emerald-600 text-white';
@@ -1583,7 +1632,7 @@ export default function Reports() {
                   <p className="text-xs text-indigo-200">ระบบช่วยกรอกข้อมูลอัตโนมัติจากมาตรฐานสำคัญ 9 ด้าน และรายงานอุบัติการณ์จริง</p>
                 </div>
               </div>
-              <button onClick={() => setIsCreateModalOpen(false)} className="text-slate-400 hover:text-white p-1 rounded-lg">
+              <button onClick={() => { if (!savingRef.current) setIsCreateModalOpen(false); }} className="text-slate-400 hover:text-white p-1 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1693,6 +1742,9 @@ export default function Reports() {
 
             {/* Modal Body Form */}
             <form onSubmit={handleSubmitCreate} className="p-6 overflow-y-auto space-y-5 flex-1">
+              <fieldset disabled={saving} className="min-w-0 space-y-5">
+
+              <p className="rounded-lg bg-blue-50 p-3 text-xs text-blue-800">รหัสและชื่อความเสี่ยงอ้างอิงจากมาตรฐาน NRLS ระบบจะใช้ชื่อมาตรฐานตามรหัส NRLS เมื่อบันทึก</p>
               {/* Scope, Dept, Source */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
@@ -1702,7 +1754,7 @@ export default function Reports() {
                     onChange={e => setFormData({ ...formData, scope_level: e.target.value })}
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-indigo-500 font-semibold"
                   >
-                    <option value="hospital">🏥 ระดับโรงพยาบาล (Hospital-wide)</option>
+                    {isAdminOrRm && <option value="hospital">🏥 ระดับโรงพยาบาล (Hospital-wide)</option>}
                     <option value="department">🏢 ระดับหน่วยงาน (Departmental)</option>
                   </select>
                 </div>
@@ -1743,23 +1795,19 @@ export default function Reports() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">รหัสความเสี่ยง (Code) *</label>
-                  <input
+                  <input aria-label="รหัสความเสี่ยงตาม NRLS" readOnly
                     type="text"
-                    required
                     placeholder="เช่น STD-01, ER-01"
                     value={formData.risk_code}
-                    onChange={e => setFormData({ ...formData, risk_code: e.target.value })}
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 font-mono font-bold focus:ring-2 focus:ring-indigo-500 uppercase"
                   />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-bold text-slate-700 mb-1">ชื่อหัวข้อความเสี่ยง (Risk Title) *</label>
-                  <input
+                  <input aria-label="ชื่อความเสี่ยงตาม NRLS" readOnly
                     type="text"
-                    required
                     placeholder="เช่น ความคลาดเคลื่อนในการวินิจฉัยโรค (Missed / Delayed Diagnosis)"
                     value={formData.risk_title}
-                    onChange={e => setFormData({ ...formData, risk_title: e.target.value })}
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 font-bold focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
@@ -1880,7 +1928,7 @@ export default function Reports() {
               {/* 4 Pillars Control Measures */}
               <div className="space-y-3">
                 <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">มาตรการควบคุม 4 ด้าน (4 Pillars)</h4>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">1. มาตรการป้องกัน (Risk Prevention)</label>
@@ -1972,19 +2020,21 @@ export default function Reports() {
               <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
+                  onClick={() => { if (!savingRef.current) setIsCreateModalOpen(false); }}
                   className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm hover:bg-slate-100 transition"
                 >
                   ยกเลิก
                 </button>
                 <button
-                  type="submit"
+                  type="submit" disabled={saving}
                   className="px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md transition flex items-center gap-2"
                 >
                   <Check className="w-4 h-4" />
-                  บันทึกลงทะเบียนความเสี่ยง
+                  {saving ? 'กำลังบันทึก…' : 'บันทึกลงทะเบียนความเสี่ยง'}
                 </button>
               </div>
+
+              </fieldset>
             </form>
           </div>
         </div>
@@ -2001,7 +2051,7 @@ export default function Reports() {
                 <Edit3 className="w-5 h-5 text-indigo-400" />
                 <h3 className="font-bold text-lg text-white">แก้ไขข้อมูลความเสี่ยง ({formData.risk_code})</h3>
               </div>
-              <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-white p-1 rounded-lg">
+              <button onClick={() => { if (!savingRef.current) setIsEditModalOpen(false); }} className="text-slate-400 hover:text-white p-1 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -2016,6 +2066,9 @@ export default function Reports() {
             </div>
 
             <form onSubmit={handleSubmitEdit} className="p-6 overflow-y-auto space-y-4 flex-1">
+              <fieldset disabled={saving} className="min-w-0 space-y-5">
+              <p className="rounded-lg bg-blue-50 p-3 text-xs text-blue-800">รหัสและชื่อความเสี่ยงอ้างอิงจากมาตรฐาน NRLS หากเปลี่ยนรหัส NRLS ระบบจะปรับชื่อให้ตรงมาตรฐานเมื่อบันทึก</p>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">รหัส NRLS</label>
@@ -2023,12 +2076,9 @@ export default function Reports() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">รหัสความเสี่ยง</label>
-                  <input
+                  <input aria-label="รหัสความเสี่ยงตาม NRLS" readOnly
                     type="text"
-                    required
-                    disabled={!isAdminOrRm}
                     value={formData.risk_code}
-                    onChange={e => setFormData({ ...formData, risk_code: e.target.value })}
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 font-mono font-bold uppercase disabled:bg-slate-100 disabled:cursor-not-allowed"
                   />
                 </div>
@@ -2063,12 +2113,9 @@ export default function Reports() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">ชื่อความเสี่ยง</label>
-                <input
+                <input aria-label="ชื่อความเสี่ยงตาม NRLS" readOnly
                   type="text"
-                  required
-                  disabled={!isAdminOrRm}
                   value={formData.risk_title}
-                  onChange={e => setFormData({ ...formData, risk_title: e.target.value })}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 font-medium disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
               </div>
@@ -2203,18 +2250,20 @@ export default function Reports() {
               <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsEditModalOpen(false)}
+                  onClick={() => { if (!savingRef.current) setIsEditModalOpen(false); }}
                   className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm hover:bg-slate-100"
                 >
                   ยกเลิก
                 </button>
                 <button
-                  type="submit"
+                  type="submit" disabled={saving}
                   className="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md"
                 >
-                  บันทึกการแก้ไข
+                  {saving ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}
                 </button>
               </div>
+
+              </fieldset>
             </form>
           </div>
         </div>
@@ -2234,12 +2283,14 @@ export default function Reports() {
                   <p className="text-xs text-emerald-200">{selectedRiskItem.risk_code} - {selectedRiskItem.risk_title}</p>
                 </div>
               </div>
-              <button onClick={() => setIsReviewModalOpen(false)} className="text-slate-400 hover:text-white p-1 rounded-lg">
+              <button onClick={() => { if (!savingRef.current) setIsReviewModalOpen(false); }} className="text-slate-400 hover:text-white p-1 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSubmitReview} className="p-6 overflow-y-auto space-y-4 flex-1">
+              <fieldset disabled={saving} className="min-w-0 space-y-5">
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -2382,18 +2433,20 @@ export default function Reports() {
               <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsReviewModalOpen(false)}
+                  onClick={() => { if (!savingRef.current) setIsReviewModalOpen(false); }}
                   className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm hover:bg-slate-100"
                 >
                   ยกเลิก
                 </button>
                 <button
-                  type="submit"
+                  type="submit" disabled={saving}
                   className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md"
                 >
-                  บันทึกผลการทบทวน
+                  {saving ? 'กำลังบันทึก…' : 'บันทึกผลการทบทวน'}
                 </button>
               </div>
+
+              </fieldset>
             </form>
           </div>
         </div>
@@ -2591,7 +2644,7 @@ export default function Reports() {
                 <h3 className="font-bold text-base text-white">
                   รายละเอียดช่องคะแนน: ความรุนแรงระดับ {selectedCell.y} × โอกาสเกิดระดับ {selectedCell.x} (Score: {selectedCell.y * selectedCell.x})
                 </h3>
-                <p className="text-xs text-slate-400">พบอุบัติการณ์ทั้งหมด {selectedCell.count} ครั้ง</p>
+                <p className="text-xs text-slate-400">พบอุบัติการณ์ทั้งหมด {selectedCell.count} ครั้ง · แสดงตัวอย่าง {selectedCell.items.length} รายการ (สูงสุด 5)</p>
               </div>
               <button onClick={() => setSelectedCell(null)} className="text-slate-400 hover:text-white p-1 rounded-lg">
                 <X className="w-5 h-5" />
@@ -2608,7 +2661,7 @@ export default function Reports() {
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-slate-900">#{item.id}</span>
                         <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold">{item.status_risk}</span>
-                        <span className="text-xs text-slate-500">{new Date(item.date_report).toLocaleDateString('th-TH')}</span>
+                        {item.date_report && <span className="text-xs text-slate-500">{new Date(item.date_report).toLocaleDateString('th-TH')}</span>}
                       </div>
                       <p className="text-xs text-slate-700 mt-1 font-medium line-clamp-1">{item.detail}</p>
                     </div>
