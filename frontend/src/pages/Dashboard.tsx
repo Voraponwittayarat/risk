@@ -264,7 +264,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <DashboardTasks />
+      <DashboardTasks personal={{
+        returned: loadingMyReported || myReportedError ? undefined : myReportedData.incidents.filter((incident: { status_risk: string }) => incident.status_risk === 'แก้ไข').length,
+        fiscalYear: selectedFiscalYear,
+        failed: myReportedError,
+        retry: () => setMyReportedAttempt(value => value + 1),
+      }} />
 
       {/* Report search, inspired by the legacy HRMS home screen */}
       <form onSubmit={handleReportSearch} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-700 dark:bg-slate-800">

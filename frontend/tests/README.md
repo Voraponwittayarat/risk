@@ -26,6 +26,10 @@ drill-down limits, matrix and standards CSV exports, failed export loading,
 and declining to leave an unsaved incident through a navigation link.
 Learning checks cover same-code repeat signals, neutral report-count trends,
 personal-report follow-up filtering, and read-only action/effectiveness feedback.
+Home task checks cover staff, team members, heads, hospital RM and admin;
+personal returned reports stay separate from scoped queues, fiscal-year/filter
+links open the matching list, and a failed queue can retry without hiding the
+personal count. Mobile layout is checked with synthetic data.
 
 Backend scope regression tests (from `backend`):
 

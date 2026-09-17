@@ -28,7 +28,8 @@ const os = require('node:os');
     browser = await chromium.launch({ channel: 'msedge', headless: true });
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     const token = `test.${Buffer.from(JSON.stringify({ sub: 1, role: 'admin', name: 'UI Test', departmentId: 1, departmentName: 'Test Unit', exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.test`;
-    await context.addInitScript(value => localStorage.setItem('token', value), token);
+    await context.addInitScript(value => { if (!localStorage.getItem('token')) localStorage.setItem('token', value); }, token);
+    let taskCountsFailed = false;
     let statsFailed = true;
     let myReportedFailed = true;
     let matrixFailed = false;
@@ -50,7 +51,7 @@ const os = require('node:os');
       let data = [];
       let status = 200;
       if (url.pathname === '/incidents/stats') { status = statsFailed ? 503 : 200; data = { total: 18, pending: 2, confirmed: 3, reviewing: 1, closed: 12, byLevel: { E: 2 }, activeSeverityByGoal: { clinical: { E: 2 } } }; }
-      else if (url.pathname === '/incidents/tab-counts') data = { pending: 2, verified: 3, returnedForEdit: 1 };
+      else if (url.pathname === '/incidents/tab-counts') { status = taskCountsFailed ? 503 : 200; data = { pending: 2, verified: 3, returnedForEdit: 4 }; }
       else if (url.pathname === '/incidents/my-reported') { status = myReportedFailed ? 503 : 200; data = { reportedThisMonth: 1, incidents: reportedIncidents, fiscalYearsList: [2026], selectedFiscalYear: 2026 }; }
       else if (url.pathname === '/incidents/form-data') data = { departments: [], locations: [], riskGroups: [], programs: [], risks: [] };
       else if (url.pathname === '/departments') data = [{ id: 1, depart_name: 'Test Unit', depart_group_id: 1 }];
@@ -199,6 +200,43 @@ const os = require('node:os');
     await cancel;
     assert.ok(page.url().includes('/incidents/new'));
     assert.equal(await page.locator('textarea[name="detail"]').inputValue(), 'Synthetic draft only');
+    await page.locator('textarea[name="detail"]').fill('');
+    reportedIncidents = [{ ...reportedIncidents[0], status_risk: 'แก้ไข' }, reportedIncidents[1]];
+    for (const profile of [
+      { role: 'staff' }, { role: 'staff', teamId: 1 }, { role: 'head' },
+      { role: 'rm_committee', rmScope: 'hospital' }, { role: 'admin' },
+    ]) {
+      const roleToken = `test.${Buffer.from(JSON.stringify({ sub: 1, name: 'UI Test', departmentId: 1, exp: Math.floor(Date.now() / 1000) + 3600, ...profile })).toString('base64url')}.test`;
+      await page.evaluate(value => localStorage.setItem('token', value), roleToken);
+      await page.goto(origin + '/dashboard');
+      const queue = page.getByRole('region', { name: 'งานที่ฉันต้องทำต่อ' });
+      const personalLink = queue.getByRole('link').filter({ hasText: 'รายงานของฉันที่ต้องแก้ไข' });
+      await personalLink.getByText('1 เรื่อง', { exact: true }).waitFor();
+      assert.ok((await personalLink.getAttribute('href')).includes('followup=returned&fiscalYear=2026'));
+      assert.equal(await queue.getByRole('link', { name: 'ติดตามมาตรการและกำหนดประเมินผล', exact: true }).count(), profile.rmScope === 'hospital' ? 1 : 0);
+      assert.equal(await queue.getByRole('link', { name: 'งานทบทวนของทีม', exact: true }).count(), profile.teamId || profile.role === 'admin' ? 1 : 0);
+      assert.equal(await queue.getByRole('link').filter({ hasText: 'ทบทวนเรื่องที่ยืนยันแล้ว' }).count(), ['head', 'rm_committee'].includes(profile.role) ? 1 : 0);
+      if (profile.role === 'staff' && !profile.teamId) {
+        await page.setViewportSize({ width: 390, height: 844 });
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+        await page.screenshot({ path: path.join(output, 'next-actions-staff-mobile.png') });
+        await page.setViewportSize({ width: 1440, height: 1000 });
+        await personalLink.click();
+        assert.equal(await page.getByRole('combobox', { name: 'กรองความคืบหน้ารายงานของฉัน' }).inputValue(), 'returned');
+        await page.getByRole('cell', { name: '#101', exact: true }).waitFor();
+        assert.equal(await page.getByRole('cell', { name: '#102', exact: true }).count(), 0);
+      }
+      if (profile.role === 'admin') {
+        taskCountsFailed = true;
+        await page.reload();
+        await queue.getByText('โหลดจำนวนงานบางส่วนไม่สำเร็จ ยังเปิดรายการเพื่อตรวจสอบได้', { exact: true }).waitFor();
+        await personalLink.getByText('1 เรื่อง', { exact: true }).waitFor();
+        taskCountsFailed = false;
+        await queue.getByRole('button', { name: 'โหลดจำนวนงานอีกครั้ง' }).click();
+        await queue.getByRole('link').filter({ hasText: 'ติดตามเรื่องที่ส่งกลับในขอบเขตดูแล' }).getByText('4 เรื่อง', { exact: true }).waitFor();
+        await page.screenshot({ path: path.join(output, 'next-actions-admin.png') });
+      }
+    }
     assert.deepEqual(errors, []);
     console.log('PASS: dashboard and personal reports error/retry, mobile width, NRLS read-only, failed-save draft retention, duplicate submission, matrix counts/details/export/error, standards export and repeat signals, incident follow-up feedback, unsaved incident guard');
     console.log('Synthetic screenshots: ' + output);

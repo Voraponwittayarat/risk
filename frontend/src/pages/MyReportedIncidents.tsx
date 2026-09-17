@@ -5,25 +5,26 @@ import {
   FileText, Calendar, ExternalLink, Search, 
   ArrowLeft, ShieldAlert
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getStatusInfo, getSeverityBadge } from '../utils/statusAdapter';
 import { getImprovementProgress } from '../utils/incidentProgress';
 
 export default function MyReportedIncidents() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [data, setData] = useState<any>({
     reportedThisMonth: 0,
     incidents: [],
     fiscalYearsList: [],
     selectedFiscalYear: new Date().getFullYear(),
   });
-  const [selectedFiscalYear, setSelectedFiscalYear] = useState<string>('');
+  const [selectedFiscalYear, setSelectedFiscalYear] = useState<string>(() => /^20\d{2}$/.test(searchParams.get('fiscalYear') || '') ? searchParams.get('fiscalYear')! : '');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [followupFilter, setFollowupFilter] = useState('all');
+  const [followupFilter, setFollowupFilter] = useState(() => ['returned', 'monitoring', 'closed'].includes(searchParams.get('followup') || '') ? searchParams.get('followup')! : 'all');
 
   useEffect(() => {
     const controller = new AbortController();
