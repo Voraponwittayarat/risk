@@ -30,6 +30,8 @@ Home task checks cover staff, team members, heads, hospital RM and admin;
 personal returned reports stay separate from scoped queues, fiscal-year/filter
 links open the matching list, and a failed queue can retry without hiding the
 personal count. Mobile layout is checked with synthetic data.
+Incident-form checks also cover the visible receiver, gender and age choices,
+conditional exact-age input, unchanged stored option values, and mobile width.
 
 Backend scope regression tests (from `backend`):
 

@@ -411,7 +411,7 @@ export default function IncidentForm() {
       setFormData(prev => ({
         ...prev,
         age_type: value as 'N' | 'I' | 'A',
-        age: value === 'A' ? prev.age : '0'
+        age: value === 'A' ? (prev.age === '0' ? '' : prev.age) : '0'
       }));
       return;
     }
@@ -1175,25 +1175,25 @@ export default function IncidentForm() {
 
           {/* Section 3 */}
           <div id="incident-impact" className="scroll-mt-24 space-y-6">
-            <div className="flex items-center justify-between border-b border-border-light dark:border-border-dark pb-3">
+            <div className="flex flex-col gap-3 border-b border-border-light pb-3 dark:border-border-dark sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">3</div>
-                <h3 className="text-[18px] font-bold text-slate-800 dark:text-slate-200">
-                  ผู้ได้รับผลกระทบและการแก้ไขปัญหาเบื้องต้น (Impact & Immediate Action)
-                </h3>
+                <div>
+                  <h3 className="text-[18px] font-bold text-slate-800 dark:text-slate-200">ผู้ได้รับผลกระทบและการจัดการเบื้องต้น</h3>
+                  <p className="mt-0.5 text-xs text-slate-500">Impact & Immediate Action</p>
+                </div>
               </div>
               <span className="text-[11px] font-bold px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800">
-                ** NRLS Data Set
+                ข้อมูลมาตรฐาน NRLS
               </span>
             </div>
 
-            {/* 2. ผู้ที่ได้รับผลกระทบ** (Affected Receiver) */}
-            <div className="space-y-4 p-4 sm:p-5 rounded-xl border border-border-light dark:border-border-dark bg-slate-50/60 dark:bg-slate-800/40">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-5 rounded-xl border border-border-light bg-slate-50/60 p-4 dark:border-border-dark dark:bg-slate-800/40 sm:p-5">
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                 <div className="space-y-2">
                   <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
                     <FileSearch className="w-4 h-4 text-slate-400" /> 
-                    ที่มาของรายงาน (Incident Source)** <span className="text-danger">*</span>
+                    ที่มาของรายงาน <span className="text-danger">*</span>
                   </label>
                   <select 
                     name="incidentSource" 
@@ -1216,104 +1216,74 @@ export default function IncidentForm() {
                   </select>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                <fieldset className="space-y-2">
+                  <legend className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
                     <User className="w-4 h-4 text-slate-400" /> 
-                    ผู้ที่ได้รับผลกระทบ (Affected Receiver)** <span className="text-danger">*</span>
-                  </label>
-                  <select 
-                    name="affected_receiver" 
-                    required 
-                    value={formData.affected_receiver} 
-                    onChange={handleChange} 
-                    className="w-full px-4 py-2.5 bg-bg-light dark:bg-bg-dark border border-primary/40 rounded-[8px] text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-shadow font-bold text-indigo-700 dark:text-indigo-300"
-                  >
-                    <option value="รายบุคคล">👤 รายบุคคล (Individual)</option>
-                    <option value="กลุ่มบุคคล">👥 กลุ่มบุคคล (Group of people)</option>
-                    <option value="หน่วยงาน/องค์กร">🏢 หน่วยงาน / องค์กร (Hospital Department/Organization)</option>
-                  </select>
-                </div>
+                    ผู้ได้รับผลกระทบ <span className="text-danger">*</span>
+                  </legend>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {[
+                      { value: 'รายบุคคล', label: 'รายบุคคล', help: 'Individual' },
+                      { value: 'กลุ่มบุคคล', label: 'กลุ่มบุคคล', help: 'Group' },
+                      { value: 'หน่วยงาน/องค์กร', label: 'หน่วยงาน / องค์กร', help: 'Organization' },
+                    ].map(option => (
+                      <label key={option.value} className={`cursor-pointer rounded-xl border px-3 py-2.5 transition ${formData.affected_receiver === option.value ? 'border-primary bg-blue-50 text-blue-800 ring-2 ring-primary/15 dark:bg-blue-950/40 dark:text-blue-200' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'}`}>
+                        <input type="radio" name="affected_receiver" value={option.value} checked={formData.affected_receiver === option.value} onChange={handleChange} className="sr-only" />
+                        <span className="block text-sm font-bold">{option.label}</span>
+                        <span className="block text-[11px] opacity-70">{option.help}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
               </div>
 
-              {/* Sub-block for รายบุคคล (Individual): เพศ* และ อายุ** */}
               {formData.affected_receiver === 'รายบุคคล' && (
-                <div className="p-4 bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 rounded-xl space-y-4 animate-in fade-in slide-in-from-top-1 duration-200 shadow-xs">
-                  <div className="flex items-center gap-2 text-xs font-bold text-blue-700 dark:text-blue-300">
-                    <span className="p-1 bg-blue-100 dark:bg-blue-900/60 rounded">ℹ️</span>
-                    <span>ข้อมูลจำแนกตามมาตรฐาน NRLS สำหรับผู้ได้รับผลกระทบ "รายบุคคล"</span>
+                <div className="animate-in space-y-5 rounded-xl border border-blue-200 bg-white p-4 shadow-xs duration-200 fade-in slide-in-from-top-1 dark:border-blue-800 dark:bg-slate-900">
+                  <div className="flex items-start gap-2 text-xs text-blue-700 dark:text-blue-300">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span><strong>รายละเอียดรายบุคคล</strong> — เลือกเพื่อจำแนกตามชุดข้อมูล NRLS</span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                        เพศ (Gender)** <span className="text-danger">*</span>
-                      </label>
-                      <select
-                        name="gender"
-                        required={formData.affected_receiver === 'รายบุคคล'}
-                        value={formData.gender}
-                        onChange={handleChange}
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary font-medium"
-                      >
-                        <option value="">-- เลือกเพศ --</option>
-                        <option value="M">ชาย (Male)</option>
-                        <option value="W">หญิง (Female)</option>
-                        <option value="O">เพศทางเลือก (LGBTQ+)</option>
-                        <option value="N">ไม่ทราบเพศ (Unknown)</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                        ช่วงอายุ (Age Category)** <span className="text-danger">*</span>
-                      </label>
-                      <select
-                        name="age_type"
-                        required={formData.affected_receiver === 'รายบุคคล'}
-                        value={formData.age_type}
-                        onChange={handleChange}
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary font-medium"
-                      >
-                        <option value="A">อายุตั้งแต่ 1 ปีขึ้นไป</option>
-                        <option value="N">0 - 28 วัน (Neonate: ทารกแรกเกิด)</option>
-                        <option value="I">28 วัน แต่ไม่ถึง 1 ปี (Infant: ทารก)</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                          อายุ (ปี)** <span className="text-danger">*</span>
-                        </label>
+                  <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                    <fieldset className="space-y-2">
+                      <legend className="text-xs font-bold text-slate-700 dark:text-slate-300">เพศ <span className="text-danger">*</span></legend>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+                        {[{ value: 'M', label: 'ชาย' }, { value: 'W', label: 'หญิง' }, { value: 'O', label: 'เพศทางเลือก' }, { value: 'N', label: 'ไม่ทราบ' }].map(option => (
+                          <label key={option.value} className={`cursor-pointer rounded-lg border px-3 py-2 text-center text-sm font-medium transition ${formData.gender === option.value ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'}`}>
+                            <input type="radio" name="gender" value={option.value} checked={formData.gender === option.value} onChange={handleChange} className="sr-only" />
+                            {option.label}
+                          </label>
+                        ))}
                       </div>
-                      {formData.age_type === 'A' ? (
-                        <div className="relative">
-                          <input
-                            type="number"
-                            name="age"
-                            min="1"
-                            max="130"
-                            required={formData.affected_receiver === 'รายบุคคล' && formData.age_type === 'A'}
-                            value={formData.age}
-                            onChange={handleChange}
-                            placeholder="เช่น 25, 45, 65"
-                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary font-medium pr-10"
-                          />
-                          <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold">ปี</span>
-                        </div>
-                      ) : (
-                        <div className="px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
-                          <span>0 ปี</span>
-                          <span className="text-[10px] text-blue-600 dark:text-blue-400 font-normal">
-                            {formData.age_type === 'N' ? '(Neonate 0-28 วัน)' : '(Infant 28 วัน-1 ปี)'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                    </fieldset>
+
+                    <fieldset className="space-y-2">
+                      <legend className="text-xs font-bold text-slate-700 dark:text-slate-300">ช่วงอายุ <span className="text-danger">*</span></legend>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        {[{ value: 'N', label: '0–28 วัน', help: 'ทารกแรกเกิด' }, { value: 'I', label: '28 วัน–ไม่ถึง 1 ปี', help: 'ทารก' }, { value: 'A', label: 'ตั้งแต่ 1 ปี', help: 'ระบุอายุ' }].map(option => (
+                          <label key={option.value} className={`cursor-pointer rounded-lg border px-3 py-2 text-sm transition ${formData.age_type === option.value ? 'border-primary bg-blue-50 text-blue-800 ring-2 ring-primary/15 dark:bg-blue-950/40 dark:text-blue-200' : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'}`}>
+                            <input type="radio" name="age_type" value={option.value} checked={formData.age_type === option.value} onChange={handleChange} className="sr-only" />
+                            <span className="block font-bold">{option.label}</span><span className="block text-[11px] opacity-70">{option.help}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
                   </div>
-                  <p className="text-[11px] text-slate-400">
-                    * หมายเหตุ: เศษของปีน้อยกว่า 6 เดือนให้นับเป็น 0 ปี ตั้งแต่ 6 เดือนขึ้นไปนับเป็น 1 ปี
-                  </p>
+
+                  <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/80">
+                    {formData.age_type === 'A' ? (
+                      <div className="max-w-xs space-y-1.5">
+                        <label htmlFor="affected-age" className="text-xs font-bold text-slate-700 dark:text-slate-300">อายุเต็มปี <span className="text-danger">*</span></label>
+                        <div className="relative">
+                          <input id="affected-age" type="number" name="age" min="1" max="130" inputMode="numeric" required value={formData.age} onChange={handleChange} placeholder="เช่น 25" className="w-full rounded-lg border border-border-light bg-white px-3 py-2 pr-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary dark:border-border-dark dark:bg-slate-900" />
+                          <span className="absolute right-3 top-2.5 text-xs font-semibold text-slate-400">ปี</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">กรอกเป็นจำนวนปีเต็ม 1–130 ปี</p>
+                      </div>
+                    ) : (
+                      <p className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300"><Check className="h-4 w-4 text-emerald-600" />ระบบจะบันทึกอายุเป็น 0 ปีตามช่วงอายุที่เลือก จึงไม่ต้องกรอกอายุซ้ำ</p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

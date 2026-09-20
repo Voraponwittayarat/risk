@@ -193,6 +193,27 @@ const os = require('node:os');
     await page.screenshot({ path: path.join(output, 'incident-feedback-mobile.png') });
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(origin + '/incidents/new');
+    const impactSection = page.locator('#incident-impact');
+    await impactSection.scrollIntoViewIfNeeded();
+    await impactSection.getByText('ข้อมูลมาตรฐาน NRLS', { exact: true }).waitFor();
+    assert.equal(await impactSection.getByText('** NRLS Data Set', { exact: true }).count(), 0);
+    await impactSection.getByRole('radio', { name: /กลุ่มบุคคล/ }).check({ force: true });
+    assert.equal(await impactSection.getByText('รายละเอียดรายบุคคล', { exact: true }).count(), 0);
+    await impactSection.getByRole('radio', { name: /^รายบุคคล/ }).check({ force: true });
+    await impactSection.getByRole('radio', { name: 'หญิง', exact: true }).check({ force: true });
+    await impactSection.getByRole('radio', { name: /0–28 วัน/ }).check({ force: true });
+    assert.equal(await impactSection.locator('input[name="age"]').count(), 0);
+    await impactSection.getByText('ระบบจะบันทึกอายุเป็น 0 ปีตามช่วงอายุที่เลือก จึงไม่ต้องกรอกอายุซ้ำ', { exact: true }).waitFor();
+    await impactSection.getByRole('radio', { name: /ตั้งแต่ 1 ปี/ }).check({ force: true });
+    await impactSection.getByLabel('อายุเต็มปี').fill('42');
+    assert.equal(await impactSection.locator('input[name="gender"]:checked').inputValue(), 'W');
+    assert.equal(await impactSection.locator('input[name="age_type"]:checked').inputValue(), 'A');
+    await page.screenshot({ path: path.join(output, 'incident-impact-desktop.png') });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await impactSection.scrollIntoViewIfNeeded();
+    assert.ok(await impactSection.evaluate(el => el.scrollWidth <= el.clientWidth), 'Impact form must not overflow on mobile');
+    await page.screenshot({ path: path.join(output, 'incident-impact-mobile.png') });
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await page.locator('textarea[name="detail"]').fill('Synthetic draft only');
     const dialog = page.waitForEvent('dialog');
     const cancel = page.getByRole('link', { name: 'ยกเลิก', exact: true }).click();
@@ -238,7 +259,7 @@ const os = require('node:os');
       }
     }
     assert.deepEqual(errors, []);
-    console.log('PASS: dashboard and personal reports error/retry, mobile width, NRLS read-only, failed-save draft retention, duplicate submission, matrix counts/details/export/error, standards export and repeat signals, incident follow-up feedback, unsaved incident guard');
+    console.log('PASS: dashboard and personal reports error/retry, mobile width, NRLS read-only, simplified impact editing, failed-save draft retention, duplicate submission, matrix counts/details/export/error, standards export and repeat signals, incident follow-up feedback, unsaved incident guard');
     console.log('Synthetic screenshots: ' + output);
   } finally {
     if (browser) await browser.close();
