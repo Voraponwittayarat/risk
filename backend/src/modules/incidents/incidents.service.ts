@@ -2535,28 +2535,6 @@ export class IncidentsService {
         incidentUpdateData.note = note;
       }
 
-      const forwardingNeedsAction = ['CO_REVIEW', 'ADDITIONAL_ACTION', 'TRANSFER_OWNER'].includes(forwardingPurpose);
-      const shouldCloseAtDepartment = reviewRole === 'OWNER'
-        && isLowSeverity
-        && departmentOutcome === 'RESOLVED'
-        && !forwardingNeedsAction
-        && learningAction !== 'SEND_RCA';
-      if (shouldCloseAtDepartment) {
-        const capaActions = await (tx as any).capa_action.findMany({
-          where: { incident_id: incident.id, incident_id_risk: incident.id_risk },
-          select: { status: true },
-        });
-        const capaStatuses = capaActions.map((action: any) => String(action.status || '').toUpperCase());
-        const activeCapaCount = capaStatuses.filter((status: string) => !['CLOSED', 'CANCELLED'].includes(status)).length;
-        const closedCapaCount = capaStatuses.filter((status: string) => status === 'CLOSED').length;
-        incidentUpdateData.status_risk = 'จำหน่าย';
-        incidentUpdateData.operational_closed_at = new Date();
-        incidentUpdateData.improvement_status = capaStatuses.length === 0 || (activeCapaCount === 0 && closedCapaCount === 0)
-          ? 'NOT_REQUIRED'
-          : activeCapaCount === 0 ? 'CLOSED' : 'MONITORING';
-        incidentUpdateData.effectiveness_closed_at = incidentUpdateData.improvement_status === 'CLOSED' ? new Date() : null;
-      }
-
       if (learningAction === 'SEND_RCA') {
         const existingRca = await tx.standard_rca_case.findFirst({
           where: { incident_id: incident.id },
@@ -2651,6 +2629,87 @@ export class IncidentsService {
     });
 
     return createdReview;
+  }
+
+  async sendReviewToRca(id: number, user?: any) {
+    const incident = await this.prisma.riskregister.findFirst({ where: { id } });
+    if (!incident) throw new NotFoundException('Incident not found');
+    const permissions = await this.getIncidentPermissions(user, incident);
+    this.assertPermission(permissions.canForward, 'ไม่มีสิทธิ์ส่งเรื่องเข้าศูนย์ RCA');
+    if (!incident.nrls_code) throw new BadRequestException('ต้องยืนยันรหัสมาตรฐาน NRLS ก่อนส่งเรื่องเข้าศูนย์ RCA');
+    if (['จำหน่าย', 'ไม่ใช่ความเสี่ยง'].includes(String(incident.status_risk || ''))) {
+      throw new BadRequestException('เคสนี้สิ้นสุดแล้ว ไม่สามารถส่งเข้าศูนย์ RCA ได้');
+    }
+
+    const latestReview = await this.prisma.riskreview.findFirst({
+      where: { riskregister_id: id },
+      orderBy: [{ review_date: 'desc' }, { id: 'desc' }],
+      select: { id: true, contributing_factors: true },
+    });
+    if (!latestReview) throw new BadRequestException('กรุณาบันทึกผลการทบทวนก่อนส่งเรื่องเข้าศูนย์ RCA');
+
+    const actorId = this.getUserId(user);
+    return this.prisma.$transaction(async (tx) => {
+      const existingRca = await tx.standard_rca_case.findFirst({
+        where: { incident_id: incident.id },
+        select: { id: true, status: true, completed_at: true },
+      });
+      const caseId = existingRca?.id
+        || `RCA-FULL-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${incident.id}`;
+
+      if (!existingRca) {
+        await tx.standard_rca_case.create({
+          data: {
+            id: caseId,
+            rm_no: String(incident.id_risk || incident.id),
+            incident_id: incident.id,
+            incident_id_risk: incident.id_risk,
+            topic: String(incident.nrls_name_snapshot || incident.detail || `อุบัติการณ์ #${incident.id}`).slice(0, 255),
+            incident_date: incident.date_report,
+            rca_team: 'รอศูนย์ RCA รับเรื่อง',
+            severity: incident.level_id,
+            nrls_code: incident.nrls_code,
+            nrls_name_snapshot: incident.nrls_name_snapshot,
+            program_id: incident.program_id,
+            department_id: incident.department_id,
+            due_at: incident.rca_due_at,
+            what_happened: incident.detail,
+            actual_impact: incident.problem_basic,
+            contributing_factors: latestReview.contributing_factors,
+            status: 'PENDING',
+            created_by: actorId || 1,
+          },
+        });
+      }
+
+      const rcaStatus = existingRca?.status === 'COMPLETED' && existingRca.completed_at
+        ? 'COMPLETED'
+        : 'REQUIRED';
+      await tx.riskregister.updateMany({
+        where: { id, id_risk: incident.id_risk },
+        data: {
+          status_risk: 'ทบทวน',
+          rca_required: true,
+          rca_status: rcaStatus,
+          rca_case_id: caseId,
+          recommended_rca_type: 'FULL',
+          modify_date: new Date(),
+          updated_by: actorId || 1,
+        },
+      });
+      await tx.workflow_audit.create({
+        data: {
+          entity_type: 'INCIDENT',
+          entity_id: String(id),
+          action: 'RCA_QUEUED_FROM_REVIEW_SUMMARY',
+          old_value: JSON.stringify({ rca_status: incident.rca_status || null }),
+          new_value: JSON.stringify({ rca_status: rcaStatus, rca_case_id: caseId, review_id: latestReview.id }),
+          reason: 'ส่งเรื่องเข้าศูนย์ RCA จากหน้าสรุปผลการทบทวน',
+          changed_by: actorId,
+        },
+      });
+      return { rca_case_id: caseId, rca_status: rcaStatus, already_existed: Boolean(existingRca) };
+    });
   }
 
   async forwardIncident(id: number, forwardDto: { sendto_team_id?: number; sendto_department_id?: string; refer_type?: string; note?: string }, user?: any) {

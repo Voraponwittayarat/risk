@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import {
   Activity,
@@ -113,10 +113,12 @@ function getUrgency(item: UnifiedRcaItem): 'overdue' | 'due_soon' | 'normal' | '
 
 export default function RcaList() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusedCaseId = searchParams.get('case')?.trim() || '';
   const [activeView, setActiveView] = useState<WorkView>('pending');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('all');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(focusedCaseId);
   const [stats, setStats] = useState<OverviewStats>({});
   const [standardCases, setStandardCases] = useState<any[]>([]);
   const [miniConciseCases, setMiniConciseCases] = useState<any[]>([]);
@@ -145,6 +147,15 @@ export default function RcaList() {
   useEffect(() => {
     void loadData();
   }, []);
+
+  useEffect(() => {
+    if (focusedCaseId) {
+      setActiveView('pending');
+      setTypeFilter('standard');
+      setUrgencyFilter('all');
+      setSearch(focusedCaseId);
+    }
+  }, [focusedCaseId]);
 
   const rcaCases = useMemo<UnifiedRcaItem[]>(() => {
     const standards = standardCases.map((item) => ({
@@ -331,6 +342,12 @@ export default function RcaList() {
       </section>
 
       <section className="space-y-4">
+        {focusedCaseId && (
+          <div className="flex flex-col gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200 sm:flex-row sm:items-center sm:justify-between">
+            <span><strong>รับเรื่องจากหน้าสรุปการทบทวนแล้ว</strong> กำลังแสดงเคส {focusedCaseId}</span>
+            <button type="button" onClick={() => { setSearch(''); setTypeFilter('all'); navigate('/rca/list', { replace: true }); }} className="self-start font-bold text-blue-700 hover:underline dark:text-blue-300">แสดงทุกเคส</button>
+          </div>
+        )}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div><div className={`mb-1 flex items-center gap-2 text-xs font-black ${activeView === 'pending' ? 'text-blue-600' : 'text-emerald-600'}`}>{activeView === 'pending' ? <ListTodo className="h-4 w-4" /> : <BarChart3 className="h-4 w-4" />}{activeView === 'pending' ? 'UNFINISHED REVIEW QUEUE' : 'COMPLETED REVIEW SUMMARY'}</div><h2 className="text-xl font-black text-slate-900 dark:text-white">{activeView === 'pending' ? 'รายการงานที่ยังต้องทบทวน' : 'รายการที่ทบทวนแล้ว'}</h2><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{activeView === 'pending' ? 'เรียงงานเกินกำหนดและใกล้ครบกำหนดขึ้นก่อน โดยรวม RCA ทั้ง 3 แบบในรายการเดียว' : 'รวมผล Standard, Concise, Mini RCA และบันทึกผลทบทวนอุบัติการณ์ เรียงจากล่าสุด'}</p></div>
           <span className="text-xs font-bold text-slate-500">แสดง {visibleItems.length} จาก {currentItems.length} รายการ</span>
@@ -350,7 +367,7 @@ export default function RcaList() {
               const daysUntil = getDaysUntil(item.dueAt);
               const canOpen = item.kind === 'standard' || Boolean(item.incidentId);
               return (
-                <article key={`${item.kind}-${item.id}`} className={`group relative overflow-hidden rounded-3xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:bg-slate-900 sm:p-5 ${urgency === 'overdue' && activeView === 'pending' ? 'border-rose-300 dark:border-rose-900' : urgency === 'due_soon' && activeView === 'pending' ? 'border-amber-300 dark:border-amber-900' : 'border-slate-200 dark:border-slate-800'}`}>
+                <article key={`${item.kind}-${item.id}`} className={`group relative overflow-hidden rounded-3xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:bg-slate-900 sm:p-5 ${item.id === focusedCaseId ? 'border-blue-500 ring-4 ring-blue-100 dark:ring-blue-950' : urgency === 'overdue' && activeView === 'pending' ? 'border-rose-300 dark:border-rose-900' : urgency === 'due_soon' && activeView === 'pending' ? 'border-amber-300 dark:border-amber-900' : 'border-slate-200 dark:border-slate-800'}`}>
                   <div className={`absolute inset-y-0 left-0 w-1.5 ${urgency === 'overdue' && activeView === 'pending' ? 'bg-rose-500' : urgency === 'due_soon' && activeView === 'pending' ? 'bg-amber-500' : activeView === 'reviewed' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
                   <div className="flex flex-col gap-4 pl-2 xl:flex-row xl:items-center">
                     <div className="flex min-w-0 flex-1 gap-3">

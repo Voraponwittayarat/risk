@@ -350,6 +350,12 @@ export class IncidentsController {
       : this.incidentsService.addReview(+id, reviewDto, req.user);
   }
 
+  @Post(':id/review/send-rca')
+  @ApiOperation({ summary: 'Queue a reviewed incident in the RCA center' })
+  sendReviewToRca(@Param('id') id: string, @Request() req) {
+    return this.incidentsService.sendReviewToRca(+id, req.user);
+  }
+
   @Post(':id/forward')
   @ApiOperation({ summary: 'Forward incident to Lead Team or Department for joint co-review' })
   forwardIncident(

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
@@ -22,7 +22,6 @@ import {
   type ContributingFactorSelection,
 } from '../utils/contributingFactors';
 
-type ReviewLearningAction = 'NO_NEW_MEASURE' | 'SEND_RCA';
 type DepartmentOutcome = 'IN_PROGRESS' | 'RESOLVED' | 'UNRESOLVED';
 type ForwardingPurpose = 'NONE' | 'INFORM' | 'CO_REVIEW' | 'ADDITIONAL_ACTION' | 'TRANSFER_OWNER';
 type ReviewAttachment = {
@@ -30,6 +29,16 @@ type ReviewAttachment = {
   originalname: string;
   mimetype: string;
   size: number;
+};
+
+type ReviewSummary = {
+  note: string;
+  cause: string;
+  contributingFactors: ContributingFactorSelection[];
+  departmentOutcome: DepartmentOutcome;
+  forwardingPurpose: ForwardingPurpose;
+  forwardingDepartmentName?: string;
+  requiresRca: boolean;
 };
 
 const MAX_REVIEW_ATTACHMENT_BYTES = 10 * 1024 * 1024;
@@ -44,11 +53,6 @@ function parseReviewAttachments(value: unknown): ReviewAttachment[] {
     return [];
   }
 }
-
-const REVIEW_ACTION_NOTES: Record<ReviewLearningAction, string> = {
-  NO_NEW_MEASURE: 'ทบทวนร่วมกับทีมงานแล้ว: ยังคงปฏิบัติตามแนวทาง/มาตรการมาตรฐานเดิมต่อไปอย่างเคร่งครัด เนื่องจากมาตรการเดิมยังครอบคลุมและมีประสิทธิภาพ',
-  SEND_RCA: 'ทบทวนเบื้องต้นแล้ว เห็นควรส่งอุบัติการณ์นี้เข้าสู่ศูนย์ RCA เพื่อวิเคราะห์สาเหตุเชิงระบบและกำหนดมาตรการเพิ่มเติม',
-};
 
 const DEPARTMENT_OUTCOME_LABELS: Record<DepartmentOutcome, string> = {
   IN_PROGRESS: 'อยู่ระหว่างการดำเนินการแก้ปัญหาระดับหน่วยงาน',
@@ -76,6 +80,7 @@ function parseRcaEvaluationSnapshot(value: unknown): any | null {
 
 export default function IncidentDetail() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [incident, setIncident] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -91,7 +96,6 @@ export default function IncidentDetail() {
   const [reviewNote, setReviewNote] = useState('');
   const [causeProblem, setCauseProblem] = useState('');
   const [reviewContributingFactors, setReviewContributingFactors] = useState<ContributingFactorSelection[]>([]);
-  const [reviewLearningAction, setReviewLearningAction] = useState<ReviewLearningAction>('NO_NEW_MEASURE');
   const [departmentOutcome, setDepartmentOutcome] = useState<DepartmentOutcome>('IN_PROGRESS');
   const [forwardingPurpose, setForwardingPurpose] = useState<ForwardingPurpose>('NONE');
   const [reviewFiles, setReviewFiles] = useState<File[]>([]);
@@ -101,6 +105,8 @@ export default function IncidentDetail() {
   const [submittingAction, setSubmittingAction] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
   const [saveSuccessLink, setSaveSuccessLink] = useState<{ to: string; label: string } | null>(null);
+  const [reviewSummary, setReviewSummary] = useState<ReviewSummary | null>(null);
+  const [sendingSummaryToRca, setSendingSummaryToRca] = useState(false);
 
   // Forward / Co-Review State
   const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
@@ -209,9 +215,6 @@ export default function IncidentDetail() {
     })
       .then(res => {
         setIncident(res.data);
-        if (res.data?.rca_required && res.data?.rca_status !== 'COMPLETED') {
-          setReviewLearningAction('SEND_RCA');
-        }
         if (res.data?.sendto_team_id) setForwardTeamId(res.data.sendto_team_id.toString());
         if (res.data?.sendto_department_id) setForwardDeptId(res.data.sendto_department_id);
         if (res.data?.note) setForwardNote(res.data.note);
@@ -412,18 +415,6 @@ export default function IncidentDetail() {
     }
   };
 
-  const handleQuickNoNewMeasure = () => {
-    setReviewLearningAction('NO_NEW_MEASURE');
-    // Preserve the reviewer's own account of what was done.
-  };
-
-  const handleSendToRca = () => {
-    setReviewLearningAction('SEND_RCA');
-    if (!reviewNote.trim() || Object.values(REVIEW_ACTION_NOTES).includes(reviewNote)) {
-      setReviewNote(REVIEW_ACTION_NOTES.SEND_RCA);
-    }
-  };
-
   const handleReviewFileSelection = (files: FileList | null) => {
     const selected = Array.from(files || []);
     if (selected.length > 10) {
@@ -489,58 +480,61 @@ export default function IncidentDetail() {
 
     try {
       const token = localStorage.getItem('token');
-      const selectedLearningAction = reviewLearningAction;
       const selectedForwardingPurpose = forwardingPurpose;
+      const selectedDepartmentOutcome = departmentOutcome;
+      const selectedFactors = [...reviewContributingFactors];
+      const forwardingDepartmentName = departmentsList.find(
+        (department: any) => String(department.id) === coReviewDepartmentId,
+      )?.depart_name;
       const reviewPayload = {
         review_date: reviewDate,
         findings: finalNote,
         notereview: finalNote,
         cause_problem: finalCause,
         contributing_factors: reviewContributingFactors,
-        learning_action: reviewLearningAction,
+        learning_action: 'NO_NEW_MEASURE',
         department_outcome: departmentOutcome,
         forwarding_purpose: forwardingPurpose,
         ...(forwardingPurpose !== 'NONE'
           ? { forwarded_department_id: coReviewDepartmentId }
           : {}),
       };
-      let response;
       if (reviewFiles.length) {
         const formData = new FormData();
         Object.entries(reviewPayload).forEach(([key, value]) => {
           formData.append(key, key === 'contributing_factors' ? JSON.stringify(value) : String(value));
         });
         reviewFiles.forEach((file) => formData.append('files', file));
-        response = await axios.post(`/incidents/${incident.id}/review`, formData, {
+        await axios.post(`/incidents/${incident.id}/review`, formData, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
       } else {
-        response = await axios.post(`/incidents/${incident.id}/review`, reviewPayload, {
+        await axios.post(`/incidents/${incident.id}/review`, reviewPayload, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
       }
       setReviewNote('');
       setCauseProblem('');
       setReviewContributingFactors([]);
-      setReviewLearningAction('NO_NEW_MEASURE');
       setDepartmentOutcome('IN_PROGRESS');
       setForwardingPurpose('NONE');
       setCoReviewDepartmentId('');
       setReviewFiles([]);
       if (reviewFileInputRef.current) reviewFileInputRef.current.value = '';
-      setSaveSuccessMsg(
-        selectedLearningAction === 'SEND_RCA'
-          ? 'ส่งเรื่องเข้าสู่ศูนย์ RCA และบันทึกผลการทบทวนเรียบร้อยแล้ว'
-          : response.data?.incident_status === 'จำหน่าย'
-            ? 'บันทึกผลและสิ้นสุดเคสระดับหน่วยงานเรียบร้อยแล้ว'
-            : selectedForwardingPurpose !== 'NONE'
-              ? 'บันทึกผลและส่งต่อหน่วยงานปลายทางเรียบร้อยแล้ว'
-            : 'บันทึกผลการทบทวนเรียบร้อยแล้ว',
-      );
+      setReviewSummary({
+        note: finalNote,
+        cause: finalCause,
+        contributingFactors: selectedFactors,
+        departmentOutcome: selectedDepartmentOutcome,
+        forwardingPurpose: selectedForwardingPurpose,
+        forwardingDepartmentName,
+        requiresRca: Boolean(incident.rca_required) && incident.rca_status !== 'COMPLETED',
+      });
+      setSaveSuccessMsg(selectedForwardingPurpose !== 'NONE'
+        ? 'บันทึกผลและส่งต่อหน่วยงานปลายทางเรียบร้อยแล้ว'
+        : 'บันทึกผลการทบทวนเรียบร้อยแล้ว');
       setSaveSuccessLink(
-        selectedLearningAction === 'SEND_RCA' && response.data?.rca_case_id
-          ? { to: `/rca/standard/${response.data.rca_case_id}`, label: 'เปิดเคสในศูนย์ RCA' }
-          : selectedForwardingPurpose !== 'NONE'
+        selectedForwardingPurpose !== 'NONE'
             ? { to: '/incidents/dept?tab=forwarded', label: 'ดูรายการส่งร่วมทบทวน' }
             : null,
       );
@@ -553,6 +547,35 @@ export default function IncidentDetail() {
       alert('เกิดข้อผิดพลาดในการบันทึกการทบทวน: ' + (err.response?.data?.message || err.message));
     } finally {
       setSubmittingAction(false);
+    }
+  };
+
+  const handleConfirmDischargeFromSummary = async () => {
+    if (!reviewSummary) return;
+    const succeeded = await handleStatusChange(
+      'จำหน่าย',
+      `ยืนยันจำหน่ายหลังทบทวน: ${reviewSummary.note}`,
+    );
+    if (succeeded) setReviewSummary(null);
+  };
+
+  const handleSendSummaryToRca = async () => {
+    if (!incident || !reviewSummary) return;
+    setSendingSummaryToRca(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `/incidents/${incident.id}/review/send-rca`,
+        {},
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+      );
+      const rcaCaseId = response.data?.rca_case_id;
+      setReviewSummary(null);
+      navigate(rcaCaseId ? `/rca/list?case=${encodeURIComponent(rcaCaseId)}` : '/rca/list');
+    } catch (err: any) {
+      alert('ส่งเรื่องเข้าศูนย์ RCA ไม่สำเร็จ: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSendingSummaryToRca(false);
     }
   };
 
@@ -617,7 +640,6 @@ export default function IncidentDetail() {
       .filter(Boolean);
   const rcaNeedsAction = Boolean(incident.rca_required) && incident.rca_status !== 'COMPLETED';
   const linkedRcaCount = (linkedRca?.standardCases?.length || 0) + (linkedRca?.miniConciseCases?.length || 0);
-  const rcaBlocksClose = Boolean(incident.rca_required) && incident.rca_status !== 'COMPLETED';
 
   const dtEvent = incident.date_report ? format(new Date(incident.date_report), 'dd/MM/yyyy') : '-';
   const dtRegister = incident.register_date ? format(new Date(incident.register_date), 'dd/MM/yyyy HH:mm') : '-';
@@ -735,7 +757,7 @@ export default function IncidentDetail() {
                   </span>
                 </div>
                 <p className="mt-1 text-xs font-semibold text-red-800 dark:text-red-300">
-                  กรุณาเลือก “ส่งวิเคราะห์ RCA เพิ่มเติม” ในส่วนการเรียนรู้และปรับปรุง แล้วบันทึกผลการทบทวน
+                  กรุณาบันทึกผลการทบทวนก่อน ระบบจะแสดงปุ่มส่งทำ RCA ในหน้าสรุปและยังไม่อนุญาตให้จำหน่ายเคส
                 </p>
                 <div className="mt-3 rounded-xl border border-red-200 bg-white/80 p-3 dark:border-red-900 dark:bg-slate-900/70">
                   <div className="text-[11px] font-black uppercase tracking-wide text-red-800 dark:text-red-300">เกณฑ์ที่ตรวจพบ</div>
@@ -759,12 +781,11 @@ export default function IncidentDetail() {
               <button
                 type="button"
                 onClick={() => {
-                  handleSendToRca();
                   document.getElementById('review-workstation')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }}
                 className="flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-red-700"
               >
-                <Target className="h-4 w-4" /> เลือกส่งทำ RCA
+                <Target className="h-4 w-4" /> ไปบันทึกผลทบทวน
               </button>
             ) : (
               <Link to="/rca" className="shrink-0 rounded-xl bg-red-600 px-4 py-2.5 text-center text-xs font-black text-white hover:bg-red-700">ติดตามในศูนย์ RCA</Link>
@@ -1341,85 +1362,12 @@ export default function IncidentDetail() {
           )}
         </section>
 
-        {/* 5. Learning & improvement decision */}
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-black text-slate-800 dark:text-slate-100">
-              การวิเคราะห์เพิ่มเติม <span className="text-rose-500">*</span>
-            </label>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              เลือกแนวทางหลัก 1 รายการ ระบบจะบันทึกเป็นขั้นตอนถัดไปของเคส
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={handleQuickNoNewMeasure}
-              className={`rounded-2xl border p-4 text-left transition-all ${reviewLearningAction === 'NO_NEW_MEASURE'
-                ? 'border-blue-500 bg-blue-50 shadow-sm ring-2 ring-blue-500/20 dark:bg-blue-950/40'
-                : 'border-slate-200 bg-slate-50 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-900/40'}`}
-            >
-              <span className="flex items-start gap-3">
-                <span className="rounded-xl bg-blue-100 p-2 text-blue-700 dark:bg-blue-900 dark:text-blue-300"><Check className="h-4 w-4" /></span>
-                <span>
-                  <span className="block text-xs font-black text-slate-900 dark:text-white">ดำเนินการและติดตามในหน่วยงาน</span>
-                  <span className="mt-1 block text-[11px] leading-relaxed text-slate-500">บันทึกการแก้ไขหรือมาตรการใหม่ในรายละเอียดด้านบน</span>
-                </span>
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSendToRca}
-              disabled={!permissions.canForward}
-              title={!permissions.canForward ? 'สิทธิ์ของคุณบันทึกผลร่วมทบทวนได้ แต่ส่งเข้าศูนย์ RCA ไม่ได้' : undefined}
-              className={`rounded-2xl border p-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 ${reviewLearningAction === 'SEND_RCA'
-                ? 'border-purple-500 bg-purple-50 shadow-sm ring-2 ring-purple-500/20 dark:bg-purple-950/40'
-                : 'border-slate-200 bg-slate-50 hover:border-purple-300 dark:border-slate-700 dark:bg-slate-900/40'}`}
-            >
-              <span className="flex items-start gap-3">
-                <span className="rounded-xl bg-purple-100 p-2 text-purple-700 dark:bg-purple-900 dark:text-purple-300"><Target className="h-4 w-4" /></span>
-                <span>
-                  <span className="flex flex-wrap items-center gap-1.5 text-xs font-black text-slate-900 dark:text-white">
-                    ส่งวิเคราะห์ RCA เพิ่มเติม
-                    {rcaNeedsAction && <span className="rounded-full bg-red-600 px-2 py-0.5 text-[9px] text-white">เข้าเกณฑ์ • ต้องทำต่อ</span>}
-                  </span>
-                  <span className="mt-1 block text-[11px] font-bold leading-relaxed text-purple-700 dark:text-purple-300">สร้างเคสและแสดงในศูนย์ RCA ทันทีหลังบันทึก</span>
-                </span>
-              </span>
-            </button>
-
-          </div>
-
-          {reviewLearningAction === 'SEND_RCA' && (
-            <div className="rounded-2xl border border-purple-200 bg-purple-50/70 p-4 text-xs text-purple-950 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-200">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="font-black">เมื่อบันทึก ระบบจะส่งเคสนี้ไปยังศูนย์ RCA โดยอัตโนมัติ</div>
-                  <p className="mt-1 text-[11px] text-purple-700 dark:text-purple-300">สถานะเคส RCA เริ่มต้นเป็น “รอรับเรื่อง” และเคสนี้จะยังจำหน่ายไม่ได้จนกว่า RCA จะเสร็จสมบูรณ์</p>
-                </div>
-                <Link to="/rca" className="shrink-0 rounded-xl bg-purple-600 px-3 py-2 text-center font-bold text-white hover:bg-purple-700">เปิดศูนย์ RCA</Link>
-              </div>
-              {linkedRca && ((linkedRca.standardCases?.length || 0) + (linkedRca.miniConciseCases?.length || 0) > 0) && (
-                <div className="mt-3 rounded-xl border border-purple-200 bg-white px-3 py-2 dark:border-purple-800 dark:bg-slate-900">
-                  พบ RCA ที่เชื่อมโยงกับเคสนี้แล้ว {(linkedRca.standardCases?.length || 0) + (linkedRca.miniConciseCases?.length || 0)} รายการ
-                  {linkedRca.standardCases?.map((rcaCase: any) => (
-                    <Link key={rcaCase.id} to={`/rca/standard/${rcaCase.id}`} className="ml-2 font-bold text-purple-700 hover:underline dark:text-purple-300">{rcaCase.id}</Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-        </div>
-
           {/* Action Command Center */}
           <div className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed dark:bg-slate-900" aria-live="polite">
             <strong>สรุปก่อนบันทึก</strong>
             <p>{DEPARTMENT_OUTCOME_LABELS[departmentOutcome]}</p>
             <p>{FORWARDING_PURPOSE_LABELS[forwardingPurpose]}{coReviewDepartmentId ? ` • ${departmentsList.find(d => String(d.id) === coReviewDepartmentId)?.depart_name || ''}` : ''}</p>
-            <p>{reviewLearningAction === 'SEND_RCA' ? 'ส่งเข้าศูนย์ RCA เพื่อดำเนินการต่อ' : 'ระบบจะตรวจเงื่อนไขการปิดเคสและงานที่ต้องติดตามหลังบันทึก'}</p>
+            <p>หลังบันทึก ระบบจะแสดงรายละเอียดสำคัญและมาตรการให้ตรวจสอบก่อนเลือกจำหน่ายหรือส่งทำ RCA</p>
           </div>
           <div className="pt-6 border-t border-slate-200/80 dark:border-slate-700/80 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-3">
@@ -1449,33 +1397,13 @@ export default function IncidentDetail() {
                   <Sparkles className="w-5 h-5 text-indigo-200 animate-pulse" />
                   {submittingAction
                     ? 'กำลังบันทึกข้อมูล...'
-                    : reviewLearningAction === 'SEND_RCA'
-                      ? 'บันทึกผลและส่งเข้าศูนย์ RCA'
-                      : departmentOutcome === 'RESOLVED' && forwardingPurpose === 'NONE'
-                        ? 'บันทึกผลและสิ้นสุดงานระดับหน่วยงาน'
-                        : forwardingPurpose !== 'NONE'
+                    : forwardingPurpose !== 'NONE'
                           ? 'บันทึกผลและส่งต่อหน่วยงาน'
                           : 'บันทึกผลการทบทวน'}
                 </button>
               </div>
 
-              {/* Right Action: Discharge / Close Case */}
-              <div className="flex justify-end order-3">
-                {permissions.canClose && incident.status_risk !== 'จำหน่าย' && (
-                  <button
-                    type="button"
-                    onClick={() => requestFinalStatus('จำหน่าย')}
-                    disabled={submittingAction || rcaBlocksClose}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm shadow-md shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all cursor-pointer"
-                    title={rcaBlocksClose ? 'ยังปิดเคสไม่ได้: RCA ต้องเสร็จและมี completed_at ก่อน' : 'ปิดเคสความเสี่ยงนี้เมื่อทบทวนและกำหนดมาตรการเสร็จสิ้นแล้ว'}
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    พิจารณาปิดเคส
-                  </button>
-                )}
-                {permissions.canClose && rcaBlocksClose && <p className="mt-2 text-xs text-amber-700">ยังจำหน่ายไม่ได้: RCA อยู่สถานะ {incident.rca_status || 'REQUIRED'}</p>}
-                {permissions.canClose && !rcaBlocksClose && <p className="mt-2 max-w-xs text-right text-[11px] text-slate-500">“จำหน่าย” ปิดงานเชิงปฏิบัติการเท่านั้น CAPA ที่ยังเปิดจะติดตามต่อจนผ่าน Effectiveness review</p>}
-              </div>
+              <div className="hidden sm:block" aria-hidden="true" />
             </div>
 
             {/* Audit Notice Helper */}
@@ -1663,6 +1591,92 @@ export default function IncidentDetail() {
           </div>
         )}
       </div>
+
+      {reviewSummary && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="review-summary-title">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-5 dark:border-blue-900 dark:from-blue-950/50 dark:to-slate-900 sm:px-7">
+              <div className="flex items-start gap-3">
+                <span className="rounded-2xl bg-blue-600 p-2.5 text-white"><CheckCircle2 className="h-6 w-6" /></span>
+                <div>
+                  <h2 id="review-summary-title" className="text-lg font-black text-slate-950 dark:text-white">สรุปผลการทบทวน</h2>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">บันทึกแล้ว กรุณาตรวจสอบสาระสำคัญก่อนเลือกขั้นตอนถัดไป</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setReviewSummary(null)} className="rounded-xl p-2 text-slate-500 hover:bg-white hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="ปิดหน้าสรุป"><X className="h-5 w-5" /></button>
+            </div>
+
+            <div className="space-y-5 p-5 sm:p-7">
+              <section className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4 dark:border-rose-900 dark:bg-rose-950/20">
+                <div className="text-xs font-black uppercase tracking-wide text-rose-700 dark:text-rose-300">รายละเอียดความเสี่ยงที่สำคัญ</div>
+                <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold">
+                  <span className="rounded-lg bg-white px-2.5 py-1 text-slate-700 shadow-sm dark:bg-slate-800 dark:text-slate-200">RM {incident.id_risk || incident.id}</span>
+                  {incident.nrls_code && <span className="rounded-lg bg-white px-2.5 py-1 font-mono text-blue-700 shadow-sm dark:bg-slate-800 dark:text-blue-300">{incident.nrls_code}</span>}
+                  <span className="rounded-lg bg-white px-2.5 py-1 text-rose-700 shadow-sm dark:bg-slate-800 dark:text-rose-300">ระดับ {severity.label}</span>
+                </div>
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-800 dark:text-slate-200">{incident.detail || incident.risk_topic_name || 'ไม่ระบุรายละเอียดเหตุการณ์'}</p>
+              </section>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900 dark:bg-amber-950/20">
+                  <div className="text-xs font-black text-amber-800 dark:text-amber-300">สาเหตุและปัจจัยสำคัญ</div>
+                  {reviewSummary.contributingFactors.length > 0 && (
+                    <ul className="mt-2 space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
+                      {reviewSummary.contributingFactors.map((factor) => (
+                        <li key={`${factor.code}-${factor.detail || ''}`} className="flex gap-2"><span className="text-amber-600">•</span><span>{getContributingFactor(factor.code)?.labelTh || factor.code}{factor.detail ? `: ${factor.detail}` : ''}</span></li>
+                      ))}
+                    </ul>
+                  )}
+                  {reviewSummary.cause && <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-slate-700 dark:text-slate-300">{reviewSummary.cause}</p>}
+                </section>
+
+                <section className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
+                  <div className="text-xs font-black text-emerald-800 dark:text-emerald-300">มาตรการที่ได้ปรับปรุง</div>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800 dark:text-slate-200">{reviewSummary.note}</p>
+                </section>
+              </div>
+
+              <section className="rounded-2xl border border-slate-200 p-4 text-xs dark:border-slate-700">
+                <div className="font-black text-slate-800 dark:text-slate-100">ผลการดำเนินการ</div>
+                <p className="mt-2 text-slate-600 dark:text-slate-300">{DEPARTMENT_OUTCOME_LABELS[reviewSummary.departmentOutcome]}</p>
+                <p className="mt-1 text-slate-600 dark:text-slate-300">{FORWARDING_PURPOSE_LABELS[reviewSummary.forwardingPurpose]}{reviewSummary.forwardingDepartmentName ? ` • ${reviewSummary.forwardingDepartmentName}` : ''}</p>
+              </section>
+
+              {(reviewSummary.requiresRca || rcaNeedsAction) && (
+                <div className="rounded-2xl border-2 border-red-500 bg-red-50 p-4 text-xs font-semibold leading-relaxed text-red-800 dark:bg-red-950/30 dark:text-red-200">
+                  เรื่องนี้เข้าเกณฑ์ทำ RCA จึงยังจำหน่ายหรือปิดเคสไม่ได้ กรุณาส่งเรื่องเข้าศูนย์ RCA เพื่อดำเนินการต่อ
+                </div>
+              )}
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
+                <button type="button" onClick={() => setReviewSummary(null)} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">ปิดหน้าสรุป</button>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  {permissions.canClose
+                    && incident.status_risk !== 'จำหน่าย'
+                    && reviewSummary.departmentOutcome === 'RESOLVED'
+                    && !['CO_REVIEW', 'ADDITIONAL_ACTION', 'TRANSFER_OWNER'].includes(reviewSummary.forwardingPurpose)
+                    && !reviewSummary.requiresRca
+                    && !rcaNeedsAction && (
+                      <button type="button" onClick={handleConfirmDischargeFromSummary} disabled={submittingAction} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-md hover:bg-emerald-700 disabled:opacity-50"><CheckCircle2 className="h-4 w-4" />{submittingAction ? 'กำลังจำหน่าย...' : 'ยืนยันการจำหน่าย'}</button>
+                    )}
+                  {permissions.canForward && (
+                    <button
+                      type="button"
+                      onClick={handleSendSummaryToRca}
+                      disabled={sendingSummaryToRca}
+                      className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-black shadow-md disabled:opacity-50 ${(reviewSummary.requiresRca || rcaNeedsAction)
+                        ? 'animate-pulse border-2 border-red-600 bg-white text-red-700 ring-4 ring-red-200 hover:bg-red-50 dark:bg-slate-900 dark:text-red-300 dark:ring-red-950'
+                        : 'border-2 border-purple-600 bg-purple-600 text-white hover:bg-purple-700'}`}
+                    >
+                      <Target className="h-4 w-4" />{sendingSummaryToRca ? 'กำลังส่ง...' : 'ส่งทำ RCA'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {finalStatusAction && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">

@@ -35,6 +35,7 @@ describe('IncidentsService incident permissions', () => {
       },
       riskreview: {
         create: jest.fn().mockResolvedValue({ id: 1 }),
+        findFirst: jest.fn(),
         count: jest.fn().mockResolvedValue(0),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
@@ -248,7 +249,7 @@ describe('IncidentsService incident permissions', () => {
     expect(prisma.riskreview.create).not.toHaveBeenCalled();
   });
 
-  it('closes a low-severity incident when the owner resolves it without actionable forwarding', async () => {
+  it('keeps a resolved low-severity incident open until the review summary confirms discharge', async () => {
     prisma.riskregister.findFirst.mockResolvedValue({
       ...pendingIncident,
       status_risk: 'ทบทวน',
@@ -267,13 +268,39 @@ describe('IncidentsService incident permissions', () => {
 
     expect(prisma.riskregister.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
-        status_risk: 'จำหน่าย',
+        status_risk: 'ทบทวน',
         department_review_outcome: 'RESOLVED',
         review_forwarding_purpose: 'NONE',
-        operational_closed_at: expect.any(Date),
       }),
     }));
-    expect(result.incident_status).toBe('จำหน่าย');
+    expect(prisma.riskregister.updateMany.mock.calls[0][0].data).not.toHaveProperty('operational_closed_at');
+    expect(result.incident_status).toBe('ทบทวน');
+  });
+
+  it('queues the latest reviewed incident from the review summary', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({
+      ...pendingIncident,
+      status_risk: 'ทบทวน',
+      nrls_code: 'CPS101',
+      nrls_name_snapshot: 'ความเสี่ยงด้านการดูแลผู้ป่วย',
+      level_id: 'D',
+      detail: 'รายละเอียดเหตุการณ์สำหรับส่งทำ RCA',
+    });
+    prisma.riskreview.findFirst.mockResolvedValue({ id: 9, contributing_factors: '[{"code":"F0001"}]' });
+    prisma.standard_rca_case.findFirst.mockResolvedValue(null);
+
+    const result = await service.sendReviewToRca(
+      pendingIncident.id,
+      { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 },
+    );
+
+    expect(prisma.standard_rca_case.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ incident_id: pendingIncident.id, status: 'PENDING' }),
+    }));
+    expect(prisma.riskregister.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ rca_required: true, rca_status: 'REQUIRED' }),
+    }));
+    expect(result).toMatchObject({ rca_status: 'REQUIRED', already_existed: false });
   });
 
   it('keeps a high-severity resolved incident open for RM closure', async () => {
@@ -641,6 +668,26 @@ describe('IncidentsService incident permissions', () => {
       { id: 30, role: 'head', departmentId: 1 },
       'ทบทวนและกำหนดมาตรการครบถ้วนแล้ว',
     )).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('does not allow discharge while a required RCA is unfinished', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({
+      ...pendingIncident,
+      status_risk: 'ทบทวน',
+      level_id: 'B',
+      rca_required: true,
+      rca_status: 'REQUIRED',
+      rca_case_id: 'RCA-FULL-20260920-10',
+    });
+    prisma.riskreview.count.mockResolvedValue(1);
+    prisma.standard_rca_case.findFirst.mockResolvedValue(null);
+
+    await expect(service.updateStatus(
+      pendingIncident.id,
+      'จำหน่าย',
+      { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 },
+      'หน่วยงานทบทวนและกำหนดมาตรการครบถ้วนแล้ว',
+    )).rejects.toThrow('ต้องทำ RCA ให้เสร็จ');
   });
 
   it('requires at least one recorded review before RM closes a high-severity incident', async () => {
