@@ -3407,7 +3407,7 @@ export class IncidentsService {
       this.prisma.capa_action.count({ where: { incident_id: id } }),
     ]);
     if (reviewCount + miniRcaCount + standardRcaCount + capaCount > 0) {
-      throw new BadRequestException('รายการนี้มีผลทบทวน, RCA หรือ CAPA แล้ว จึงห้ามลบและต้องใช้การแก้ไขข้อมูลแทน');
+      throw new BadRequestException('รายการนี้มีผลทบทวน RCA หรือมาตรการแก้ไขแล้ว จึงห้ามลบและต้องใช้การแก้ไขข้อมูลแทน');
     }
 
     const actorId = this.getUserId(user);

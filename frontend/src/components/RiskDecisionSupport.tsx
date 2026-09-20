@@ -250,7 +250,7 @@ export default function RiskDecisionSupport({
               {
                 title: "งานเกินกำหนด",
                 value: data.backlog.overdueRca + data.backlog.overdueCapa,
-                detail: `RCA ${data.backlog.overdueRca} · CAPA ลงมือทำ ${data.backlog.overdueCapa}`,
+                detail: `RCA ${data.backlog.overdueRca} · มาตรการเกินกำหนด ${data.backlog.overdueCapa}`,
                 icon: Clock,
               },
             ].map((card) => (
@@ -438,7 +438,7 @@ export default function RiskDecisionSupport({
           </div>
           <div className="grid gap-5 lg:grid-cols-2">
             <div className={panel}>
-              <h3 className="font-bold">04 · RCA / CAPA ที่ยังค้าง</h3>
+              <h3 className="font-bold">04 · RCA / มาตรการที่ยังค้าง</h3>
               <p className="mt-1 text-xs text-slate-500">
                 ทุกช่วงเวลา ณ วันนี้ · ไม่ตัดงานเก่าออกตามช่วง Incident
               </p>
@@ -447,7 +447,7 @@ export default function RiskDecisionSupport({
                   RCA <strong>{data.backlog.rca}</strong>
                 </p>
                 <p>
-                  CAPA <strong>{data.backlog.capa}</strong>
+                  มาตรการ <strong>{data.backlog.capa}</strong>
                 </p>
               </div>
               <div className="max-h-72 overflow-auto text-sm">
@@ -472,7 +472,7 @@ export default function RiskDecisionSupport({
                       className="text-indigo-700 dark:text-indigo-300"
                       to={`/incidents/${c.incidentId}`}
                     >
-                      CAPA #{c.id} · {c.code} ↗
+                      มาตรการ #{c.id} · {c.code} ↗
                     </Link>
                     <p className="text-xs text-slate-500">
                       {c.status} · กำหนดลงมือทำ {date(c.due)}
@@ -485,7 +485,7 @@ export default function RiskDecisionSupport({
             <div className={panel}>
               <h3 className="font-bold">05 · มาตรการได้ผลหรือไม่</h3>
               <p className="mt-1 text-xs text-slate-500">
-                สถานะประสิทธิผลล่าสุดของ CAPA ทุกช่วงเวลา · ไม่รวมยกเลิก
+                ผลประเมินล่าสุดของมาตรการทุกช่วงเวลา · ไม่รวมรายการยกเลิก
               </p>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 {[
@@ -509,7 +509,7 @@ export default function RiskDecisionSupport({
               </p>
               <p className="mt-3 text-xs leading-6 text-slate-500">
                 การปิด Incident หรือไม่มีรายงานใหม่ไม่ยืนยันประสิทธิผล
-                ควรตรวจหลักฐาน ค่าตั้งต้น เป้าหมาย และระยะติดตามใน CAPA
+                ควรตรวจหลักฐาน ค่าตั้งต้น เป้าหมาย และระยะติดตามของมาตรการ
                 ก่อนตัดสินใจ
               </p>
             </div>
@@ -565,7 +565,7 @@ export default function RiskDecisionSupport({
               และ 4–5 ตามกลุ่มระดับของระบบ
               ไม่มีตัวหารปริมาณบริการจึงยังสรุปอัตราหรือแนวโน้มทางสถิติไม่ได้
               ข้อมูลหน่วยงานหมายถึงหน่วยงานของรายงาน
-              ยังไม่มีการจัดกลุ่มกระบวนการที่เป็นมาตรฐาน ผลรวม RCA และ CAPA
+              ยังไม่มีการจัดกลุ่มกระบวนการที่เป็นมาตรฐาน ผลรวม RCA และมาตรการแก้ไข
               เป็นจำนวนงานและอาจเกี่ยวกับ Incident เดียวกัน
               ตัวกรองหน่วยงานใช้ร่วมกับทะเบียนด้านล่าง ช่วงวันใช้เฉพาะการวิเคราะห์ Incident
             </p>

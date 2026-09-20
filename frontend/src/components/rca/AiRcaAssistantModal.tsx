@@ -222,7 +222,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                   กำลังประมวลผลการวิเคราะห์สาเหตุเชิงลึก...
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  ระบบกำลังวิเคราะห์ปัจจัยร่วม NRLS 2569, 5 Whys, CMPs, Swiss Cheese และ CAPA จากข้อมูลเหตุการณ์
+                  ระบบกำลังวิเคราะห์ปัจจัยร่วม NRLS 2569, 5 Whys, CMPs, Swiss Cheese และมาตรการแก้ไขจากข้อมูลเหตุการณ์
                 </p>
               </div>
             </div>
@@ -234,7 +234,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                   <div>
                     <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">วางรายละเอียดเหตุการณ์ที่ต้องการให้ AI ช่วยวิเคราะห์</h4>
                     <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-                      ระบบจะสกัดหัวข้อ ผลกระทบ Timeline, CMPs และ CAPA โดยใช้มุมมองเชิงระบบ หากเลือกแบบเจาะลึกจะรวม Clinical Process Analysis 5-Tier ด้วย
+                      ระบบจะสกัดหัวข้อ ผลกระทบ Timeline, CMPs และมาตรการแก้ไขและป้องกัน โดยใช้มุมมองเชิงระบบ หากเลือกแบบเจาะลึกจะรวม Clinical Process Analysis 5-Tier ด้วย
                     </p>
                   </div>
                 </div>
@@ -673,7 +673,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                     <div className="flex items-center gap-2">
                       <ClipboardCheck className="w-4 h-4 text-emerald-500" />
                       <span className="font-semibold text-sm text-slate-800 dark:text-slate-200">
-                        แผนปฏิบัติการแก้ไขและป้องกัน (CAPA Action Plan)
+                        แผนมาตรการแก้ไขและป้องกันการเกิดซ้ำ
                       </span>
                       <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-medium">
                         {aiData.capas?.length || 0} มาตรการ

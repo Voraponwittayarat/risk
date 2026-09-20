@@ -295,7 +295,7 @@ export default function RcaList() {
             { label: 'เกินกำหนด', value: pendingOverdue, note: 'ควรดำเนินการทันที', icon: AlertCircle, color: 'text-rose-600' },
             { label: 'กำลังดำเนินการ', value: pendingInProgress, note: 'อยู่ระหว่างทำ RCA', icon: Clock3, color: 'text-amber-600' },
             { label: 'ทบทวนแล้ว', value: reviewedItems.length, note: `เดือนนี้ ${completedThisMonth} รายการ`, icon: CircleCheckBig, color: 'text-emerald-600' },
-            { label: 'CAPA ค้าง', value: stats.pending_capas || 0, note: `เกินกำหนด ${stats.overdue_capas || 0}`, icon: CalendarClock, color: 'text-violet-600' },
+            { label: 'มาตรการค้าง', value: stats.pending_capas || 0, note: `เกินกำหนด ${stats.overdue_capas || 0}`, icon: CalendarClock, color: 'text-violet-600' },
           ].map((card) => (
             <div key={card.label} className="flex min-h-28 items-center gap-3 bg-white p-4 dark:bg-slate-900 sm:p-5">
               <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800 ${card.color}`}><card.icon className="h-5 w-5" /></span>

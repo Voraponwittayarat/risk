@@ -155,7 +155,7 @@ export default function Layout() {
           badgeColor: "bg-rose-500/20 text-rose-300 border border-rose-500/30",
         },
         ...(user?.role === 'rm_committee' && user?.rmScope === 'hospital' ? [{
-          name: "ติดตามการตอบสนอง / CAPA",
+          name: "ติดตามมาตรการแก้ไข",
           path: "/capa",
           icon: ClipboardCheck,
           badge: "SLA",

@@ -156,7 +156,7 @@ export default function CapaWorkspace() {
     try {
       await axios.patch(`/capa/${selected.id}/progress`, { ...progress, status: nextStatus });
       await load();
-      void Swal.fire({ icon: 'success', title: 'บันทึก CAPA แล้ว', timer: 1300, showConfirmButton: false });
+      void Swal.fire({ icon: 'success', title: 'บันทึกมาตรการแล้ว', timer: 1300, showConfirmButton: false });
     } catch (error) {
       void Swal.fire('บันทึกไม่สำเร็จ', errorMessage(error), 'error');
     } finally {
@@ -193,7 +193,7 @@ export default function CapaWorkspace() {
     try {
       await axios.post(`/capa/${selected.id}/closure-decision`, { decision, note: note || undefined });
       await load();
-      void Swal.fire('บันทึกแล้ว', decision === 'APPROVE' ? 'CAPA ปิดวงจรเรียบร้อย' : 'ส่งกลับให้ Owner แก้ไขแล้ว', 'success');
+      void Swal.fire('บันทึกแล้ว', decision === 'APPROVE' ? 'ปิดการติดตามมาตรการเรียบร้อยแล้ว' : 'ส่งกลับให้ผู้รับผิดชอบแก้ไขแล้ว', 'success');
     } catch (error) {
       void Swal.fire('ดำเนินการไม่สำเร็จ', errorMessage(error), 'error');
     }
@@ -205,9 +205,9 @@ export default function CapaWorkspace() {
       await axios.post('/capa', { ...createForm, incident_id: Number(createForm.incident_id) });
       setShowCreate(false);
       await load();
-      void Swal.fire('สร้าง CAPA แล้ว', 'มาตรการเข้าสู่การติดตาม SLA', 'success');
+      void Swal.fire('สร้างมาตรการแล้ว', 'มาตรการเข้าสู่ระบบติดตามระยะเวลาดำเนินการ', 'success');
     } catch (error) {
-      void Swal.fire('สร้าง CAPA ไม่สำเร็จ', errorMessage(error), 'error');
+      void Swal.fire('สร้างมาตรการไม่สำเร็จ', errorMessage(error), 'error');
     } finally {
       setSaving(false);
     }
@@ -224,18 +224,18 @@ export default function CapaWorkspace() {
     <div className="mx-auto max-w-[1600px] space-y-5 p-4 md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="flex items-center gap-2"><ClipboardCheck className="text-violet-600" /><h1 className="text-2xl font-black text-slate-900">ติดตามการตอบสนองหน่วยงาน / CAPA</h1></div>
+          <div className="flex items-center gap-2"><ClipboardCheck className="text-violet-600" /><h1 className="text-2xl font-black text-slate-900">ศูนย์ติดตามมาตรการแก้ไขและป้องกัน</h1></div>
           <p className="mt-1 text-sm text-slate-500">สำหรับ RM โรงพยาบาล • ติดตามการทบทวนความเสี่ยงและมาตรการแก้ไข</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => void load()} className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-600 hover:bg-slate-50"><RefreshCw size={18} /></button>
-          {user?.role !== 'admin' && <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-700"><Plus size={18} />สร้าง Non-RCA CAPA</button>}
+          {user?.role !== 'admin' && <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-700"><Plus size={18} />สร้างมาตรการนอก RCA</button>}
         </div>
       </div>
 
       <DepartmentResponseMonitor />
 
-      <h2 className="text-lg font-bold text-slate-900">ติดตามมาตรการ CAPA</h2>
+      <h2 className="text-lg font-bold text-slate-900">ติดตามมาตรการแก้ไขและป้องกัน</h2>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { label: 'กำลังติดตาม', value: totals.open, Icon: Clock3, color: 'text-blue-600' },
@@ -263,10 +263,10 @@ export default function CapaWorkspace() {
       <div className="grid gap-5 lg:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.6fr)]">
         <div className="max-h-[70vh] space-y-2 overflow-y-auto pr-1">
           {loading && <div className="rounded-2xl bg-white p-8 text-center text-slate-500">กำลังโหลด...</div>}
-          {!loading && rows.length === 0 && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">ไม่พบ CAPA ในขอบเขตของคุณ</div>}
+          {!loading && rows.length === 0 && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">ไม่พบมาตรการที่ต้องติดตามในขอบเขตของคุณ</div>}
           {rows.map((row) => (
             <button key={row.id} onClick={() => setSelectedId(row.id)} className={`w-full rounded-2xl border p-4 text-left transition ${selectedId === row.id ? 'border-violet-400 bg-violet-50 shadow-sm' : 'border-slate-200 bg-white hover:border-violet-200'}`}>
-              <div className="flex items-start justify-between gap-3"><span className="text-xs font-bold text-slate-500">CAPA #{row.id} · Incident #{row.incident_id}</span>{row.is_overdue && <span className="rounded-full bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700">OVERDUE {row.overdue_hours} ชม.</span>}</div>
+              <div className="flex items-start justify-between gap-3"><span className="text-xs font-bold text-slate-500">มาตรการ #{row.id} · อุบัติการณ์ #{row.incident_id}</span>{row.is_overdue && <span className="rounded-full bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700">เกินกำหนด {row.overdue_hours} ชม.</span>}</div>
               <p className="mt-2 line-clamp-2 text-sm font-semibold text-slate-800">{row.action}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${statusClass[row.status] || 'bg-slate-100'}`}>{statusLabel[row.status] || row.status}</span><span className="text-[11px] text-slate-500">ครบกำหนด {thaiDate(row.due_date)}</span></div>
             </button>
@@ -276,7 +276,7 @@ export default function CapaWorkspace() {
         {selected ? (
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
-              <div><div className="text-xs font-bold text-violet-600">{selected.source_type === 'NON_RCA' ? 'NON-RCA CAPA' : `เอกสาร RCA: ${selected.source_type}`}</div><h2 className="mt-1 text-lg font-black text-slate-900">{selected.action}</h2></div>
+              <div><div className="text-xs font-bold text-violet-600">{selected.source_type === 'NON_RCA' ? 'มาตรการนอกกระบวนการ RCA' : `มาตรการจากเอกสาร RCA: ${selected.source_type}`}</div><h2 className="mt-1 text-lg font-black text-slate-900">{selected.action}</h2></div>
               <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${statusClass[selected.status] || 'bg-slate-100'}`}>{statusLabel[selected.status] || selected.status}</span>
             </div>
 
@@ -320,16 +320,16 @@ export default function CapaWorkspace() {
             {selected.status === 'AWAITING_APPROVAL' && (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <h3 className="font-black text-amber-900">ผลประเมินมีประสิทธิผล — รอ RM อนุมัติปิด</h3>
-                {user?.role === 'rm_committee' && <div className="mt-3 flex gap-2"><button onClick={() => void decideClosure('APPROVE')} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white">อนุมัติปิด CAPA</button><button onClick={() => void decideClosure('RETURN')} className="rounded-xl border border-rose-300 px-4 py-2 text-sm font-bold text-rose-700">ส่งกลับแก้ไข</button></div>}
+                {user?.role === 'rm_committee' && <div className="mt-3 flex gap-2"><button onClick={() => void decideClosure('APPROVE')} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white">อนุมัติปิดการติดตาม</button><button onClick={() => void decideClosure('RETURN')} className="rounded-xl border border-rose-300 px-4 py-2 text-sm font-bold text-rose-700">ส่งกลับแก้ไข</button></div>}
               </div>
             )}
 
             {selected.effectiveness_reviews && selected.effectiveness_reviews.length > 0 && <div><h3 className="mb-2 font-black">ประวัติ Effectiveness review</h3><div className="space-y-2">{selected.effectiveness_reviews.map((review) => <div key={review.id} className="rounded-xl border border-slate-200 p-3 text-sm"><div className="flex justify-between"><span className="font-bold">{review.result} · {review.reviewer_role || 'Reviewer'}</span><span className="text-slate-500">{thaiDate(review.review_date)}</span></div><p className="mt-1 text-slate-600">{review.observation}</p></div>)}</div></div>}
           </div>
-        ) : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-slate-500">เลือก CAPA เพื่อดูรายละเอียด</div>}
+        ) : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-slate-500">เลือกมาตรการเพื่อดูรายละเอียด</div>}
       </div>
 
-      {showCreate && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4"><div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"><div className="flex items-center justify-between"><h2 className="text-xl font-black">สร้าง Non-RCA CAPA</h2><button onClick={() => setShowCreate(false)}><X /></button></div><div className="mt-4 grid gap-3 md:grid-cols-2">
+      {showCreate && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4"><div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"><div className="flex items-center justify-between"><h2 className="text-xl font-black">สร้างมาตรการนอกกระบวนการ RCA</h2><button onClick={() => setShowCreate(false)}><X /></button></div><div className="mt-4 grid gap-3 md:grid-cols-2">
         <input required type="number" placeholder="Incident ID" value={createForm.incident_id} onChange={(event) => setCreateForm({ ...createForm, incident_id: event.target.value })} className="rounded-xl border border-slate-200 p-3" />
         <select value={createForm.action_type} onChange={(event) => setCreateForm({ ...createForm, action_type: event.target.value })} className="rounded-xl border border-slate-200 p-3"><option value="CORRECTIVE">Corrective action</option><option value="PREVENTIVE">Preventive action</option></select>
         <textarea placeholder="มาตรการ (อย่างน้อย 10 ตัวอักษร)" value={createForm.action} onChange={(event) => setCreateForm({ ...createForm, action: event.target.value })} className="min-h-24 rounded-xl border border-slate-200 p-3 md:col-span-2" />

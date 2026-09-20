@@ -177,7 +177,7 @@ export class CapaService {
 
   private assertDateOrder(implementationDue: Date, effectivenessDue: Date): void {
     if (Number.isNaN(implementationDue.getTime()) || Number.isNaN(effectivenessDue.getTime())) {
-      throw new BadRequestException('วันที่ครบกำหนด CAPA ไม่ถูกต้อง');
+      throw new BadRequestException('วันที่ครบกำหนดมาตรการไม่ถูกต้อง');
     }
     if (effectivenessDue.getTime() <= implementationDue.getTime()) {
       throw new BadRequestException('วันประเมินประสิทธิผลต้องอยู่หลังวันครบกำหนดดำเนินมาตรการ');
@@ -257,11 +257,11 @@ export class CapaService {
 
   private async requireCapa(id: number, user: any): Promise<{ capa: any; departments: string[] | null; incident: any }> {
     const capa = await this.db.capa_action.findUnique({ where: { id } });
-    if (!capa) throw new NotFoundException('ไม่พบ CAPA');
+    if (!capa) throw new NotFoundException('ไม่พบมาตรการ');
     const departments = await this.scopeDepartments(user);
     const incident = await this.prisma.riskregister.findFirst({ where: { id: capa.incident_id } });
-    if (!incident) throw new NotFoundException('ไม่พบอุบัติการณ์ต้นทางของ CAPA');
-    if (!this.allowedWithIncident(user, capa, incident, departments)) throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึง CAPA นี้');
+    if (!incident) throw new NotFoundException('ไม่พบอุบัติการณ์ต้นทางของมาตรการ');
+    if (!this.allowedWithIncident(user, capa, incident, departments)) throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงมาตรการนี้');
     return { capa, departments, incident };
   }
 
@@ -357,12 +357,12 @@ export class CapaService {
       throw new ForbiddenException('ผู้ดูแลระบบไม่มีสิทธิ์สร้างมาตรการทางคลินิก กรุณาใช้บัญชีผู้รับผิดชอบความเสี่ยง');
     }
     const incident = await this.prisma.riskregister.findFirst({ where: { id: Number(dto.incident_id) } });
-    if (!incident) throw new NotFoundException('ไม่พบอุบัติการณ์ที่ต้องการสร้าง CAPA');
+    if (!incident) throw new NotFoundException('ไม่พบอุบัติการณ์ที่ต้องการสร้างมาตรการ');
     const departments = await this.scopeDepartments(user);
     const teamParticipant = incident.sendto_team_id != null && Number(incident.sendto_team_id) === Number(user?.teamId);
     const managementRole = this.isRm(user) || user?.role === 'head';
     if ((!managementRole || !this.incidentTouchesScope(incident, departments)) && !teamParticipant) {
-      throw new ForbiddenException('เฉพาะ Owner, Co-review หรือ RM ในขอบเขตอุบัติการณ์เท่านั้นที่สร้าง CAPA ได้');
+      throw new ForbiddenException('เฉพาะผู้รับผิดชอบ ผู้ร่วมทบทวน หรือ RM ในขอบเขตอุบัติการณ์เท่านั้นที่สร้างมาตรการได้');
     }
     const dueDate = new Date(dto.due_date);
     const effectivenessDueDate = new Date(dto.effectiveness_due_date);
@@ -373,10 +373,10 @@ export class CapaService {
     const responsibleDepartment = await this.prisma.department.findUnique({
       where: { id: Number(dto.responsible_department_id) }, select: { id: true },
     });
-    if (!responsibleDepartment) throw new BadRequestException('ไม่พบหน่วยงานรับผิดชอบ CAPA ที่เลือก');
+    if (!responsibleDepartment) throw new BadRequestException('ไม่พบหน่วยงานรับผิดชอบมาตรการที่เลือก');
     if (teamParticipant && !managementRole && ![incident.department_id, incident.sendto_department_id]
       .filter(Boolean).map(String).includes(String(dto.responsible_department_id))) {
-      throw new ForbiddenException('Co-review สร้าง CAPA ได้เฉพาะหน่วยงานต้นทางหรือหน่วยงานเจ้าของเรื่อง');
+      throw new ForbiddenException('ผู้ร่วมทบทวนสร้างมาตรการได้เฉพาะหน่วยงานต้นทางหรือหน่วยงานเจ้าของเรื่อง');
     }
     const actorId = this.actorId(user);
     const sourceId = `INC-${incident.id}-${Date.now()}`.slice(0, 50);
@@ -421,9 +421,9 @@ export class CapaService {
 
   async initializeMonitoring(capaId: number): Promise<void> {
     const capa = await this.db.capa_action.findUnique({ where: { id: capaId } });
-    if (!capa) throw new NotFoundException('ไม่พบ CAPA ที่ต้องเริ่มติดตาม');
+    if (!capa) throw new NotFoundException('ไม่พบมาตรการที่ต้องเริ่มติดตาม');
     const incident = await this.prisma.riskregister.findFirst({ where: { id: capa.incident_id } });
-    if (!incident) throw new NotFoundException('ไม่พบอุบัติการณ์ต้นทางของ CAPA');
+    if (!incident) throw new NotFoundException('ไม่พบอุบัติการณ์ต้นทางของมาตรการ');
     await this.prisma.$transaction(async (tx) => {
       await this.createOrRestartSla(tx, capa, incident, 'CAPA_IMPLEMENTATION', capa.due_date);
       await (tx as any).riskregister.updateMany({
@@ -436,7 +436,7 @@ export class CapaService {
   async update(id: number, dto: UpdateCapaDto, user: any) {
     const { capa, departments, incident } = await this.requireCapa(id, user);
     if (!this.canManageProgress(user, capa, departments)) {
-      throw new ForbiddenException('เฉพาะผู้รับผิดชอบ CAPA หรือหัวหน้าหน่วยงานเจ้าของมาตรการเท่านั้นที่อัปเดตความคืบหน้าได้');
+      throw new ForbiddenException('เฉพาะผู้รับผิดชอบหรือหัวหน้าหน่วยงานเจ้าของมาตรการเท่านั้นที่อัปเดตความคืบหน้าได้');
     }
     const requested = dto.status === 'COMPLETED' ? 'IMPLEMENTED' : dto.status;
     const current = String(capa.status || 'PENDING').toUpperCase();
@@ -446,10 +446,10 @@ export class CapaService {
       REWORK: ['REWORK', 'IN_PROGRESS'],
     };
     if (!Object.prototype.hasOwnProperty.call(transitions, current)) {
-      throw new BadRequestException('เกณฑ์และหลักฐาน CAPA ถูกล็อกแล้วหลังเข้าสู่ช่วงประเมินประสิทธิผล');
+      throw new BadRequestException('เกณฑ์และหลักฐานของมาตรการถูกล็อกแล้วหลังเข้าสู่ช่วงประเมินประสิทธิผล');
     }
     if (requested && requested !== current && !(transitions[current] || []).includes(requested)) {
-      throw new BadRequestException(`ไม่สามารถเปลี่ยน CAPA จาก ${current} เป็น ${requested} ได้`);
+      throw new BadRequestException(`ไม่สามารถเปลี่ยนสถานะมาตรการจาก ${current} เป็น ${requested} ได้`);
     }
     const dueDate = dto.due_date ? new Date(dto.due_date) : capa.due_date;
     const effectivenessDueDate = dto.effectiveness_due_date ? new Date(dto.effectiveness_due_date) : capa.effectiveness_due_date;
@@ -512,7 +512,7 @@ export class CapaService {
     }
     const current = String(capa.status || '').toUpperCase();
     if (!['IMPLEMENTED', 'AWAITING_EFFECTIVENESS'].includes(current)) {
-      throw new BadRequestException('CAPA ยังไม่อยู่ในขั้นพร้อมประเมินประสิทธิผล');
+      throw new BadRequestException('มาตรการยังไม่อยู่ในขั้นพร้อมประเมินประสิทธิผล');
     }
     const reviewDate = new Date(dto.review_date);
     if (capa.completed_at && this.endOfDay(reviewDate).getTime() < new Date(capa.completed_at).getTime()) {
@@ -574,9 +574,9 @@ export class CapaService {
 
   async decideClosure(id: number, dto: DecideCapaClosureDto, user: any) {
     const { capa, incident } = await this.requireCapa(id, user);
-    if (!this.isRm(user)) throw new ForbiddenException('เฉพาะคณะกรรมการ RM ในขอบเขตที่รับผิดชอบเท่านั้นที่อนุมัติปิด CAPA ได้');
+    if (!this.isRm(user)) throw new ForbiddenException('เฉพาะคณะกรรมการ RM ในขอบเขตที่รับผิดชอบเท่านั้นที่อนุมัติปิดการติดตามมาตรการได้');
     if (String(capa.status).toUpperCase() !== 'AWAITING_APPROVAL' || capa.effectiveness_status !== 'EFFECTIVE') {
-      throw new BadRequestException('ปิด CAPA ได้ต่อเมื่อมีผลประเมิน EFFECTIVE และอยู่ระหว่างรอ RM อนุมัติ');
+      throw new BadRequestException('ปิดการติดตามมาตรการได้เมื่อผลประเมินอยู่ในระดับได้ผล และอยู่ระหว่างรอ RM อนุมัติ');
     }
     if (dto.decision === 'RETURN' && String(dto.note || '').trim().length < 10) {
       throw new BadRequestException('กรุณาระบุเหตุผลส่งกลับอย่างน้อย 10 ตัวอักษร');

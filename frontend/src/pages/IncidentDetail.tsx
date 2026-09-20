@@ -1422,7 +1422,7 @@ export default function IncidentDetail() {
             <h2 className="flex items-center gap-2 text-sm font-black text-slate-900 dark:text-white">
               <ShieldCheck className="h-4 w-4 text-violet-600" />สถานะติดตามหลังการทบทวน
             </h2>
-            <p className="mt-0.5 text-[11px] text-slate-500">แยกสถานะเอกสาร RCA ออกจากผลลัพธ์ CAPA หลังติดตาม</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">แยกสถานะเอกสาร RCA ออกจากผลการติดตามมาตรการแก้ไข</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
             {incident.department_review_outcome && (
@@ -1437,9 +1437,9 @@ export default function IncidentDetail() {
               Workflow: {incident.operational_closed_at ? `จำหน่ายแล้ว ${format(new Date(incident.operational_closed_at), 'dd/MM/yyyy')}` : 'ยังเปิดอยู่'}
             </span>
             <span className="rounded-full bg-emerald-50 px-2.5 py-1.5 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-              CAPA: {incident.improvement_status === 'CLOSED' ? 'ปิดวงจรแล้ว' : incident.improvement_status === 'MONITORING' ? `กำลังติดตาม • รอประเมิน ${incident.capa_summary?.awaiting_effectiveness || 0}` : `ยังไม่มี/ไม่ต้องมี • ทั้งหมด ${incident.capa_summary?.total || 0}`}
+              มาตรการ: {incident.improvement_status === 'CLOSED' ? 'ปิดการติดตามแล้ว' : incident.improvement_status === 'MONITORING' ? `กำลังติดตาม • รอประเมิน ${incident.capa_summary?.awaiting_effectiveness || 0}` : `ยังไม่มี/ไม่ต้องมี • ทั้งหมด ${incident.capa_summary?.total || 0}`}
             </span>
-            {user?.role === 'rm_committee' && user?.rmScope === 'hospital' && <Link to="/capa" className="rounded-xl bg-violet-600 px-3 py-1.5 text-white hover:bg-violet-700">ดู CAPA</Link>}
+            {user?.role === 'rm_committee' && user?.rmScope === 'hospital' && <Link to="/capa" className="rounded-xl bg-violet-600 px-3 py-1.5 text-white hover:bg-violet-700">ดูมาตรการ</Link>}
           </div>
         </div>
       </div>

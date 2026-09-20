@@ -171,7 +171,7 @@ export default function NineStandardsDashboard({
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-300">9 Essential Standards Monitor</p>
-              <h2 className="mt-1 text-xl font-bold">ติดตามมาตรฐานสำคัญจำเป็นจาก Incident, RCA และ CAPA</h2>
+              <h2 className="mt-1 text-xl font-bold">ติดตามมาตรฐานสำคัญจากอุบัติการณ์ RCA และมาตรการแก้ไข</h2>
               <p className="mt-1 text-xs text-slate-300">{data.scope} · {thaiDate(data.period.start)}–{thaiDate(data.period.end)} · เทียบช่วงก่อนหน้าเท่ากัน</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -219,7 +219,7 @@ export default function NineStandardsDashboard({
         <div className="overflow-x-auto">
           <table className="min-w-[1120px] w-full text-sm">
             <thead className="bg-slate-50 text-xs text-slate-600 dark:bg-slate-900/60 dark:text-slate-300"><tr>
-              <th className="p-3 text-left">มาตรฐาน</th><th className="p-3 text-center">ช่วงนี้</th><th className="p-3 text-center">แนวโน้ม</th><th className="p-3 text-center">รุนแรง</th><th className="p-3 text-center">Near Miss / สภาวะไม่ปลอดภัย</th><th className="p-3 text-center">หน่วยงานเกิดซ้ำ</th><th className="p-3 text-center">RCA ค้าง</th><th className="p-3 text-center">CAPA ค้าง</th><th className="p-3 text-left">มาตรการได้ผลหรือไม่</th>
+              <th className="p-3 text-left">มาตรฐาน</th><th className="p-3 text-center">ช่วงนี้</th><th className="p-3 text-center">แนวโน้ม</th><th className="p-3 text-center">รุนแรง</th><th className="p-3 text-center">Near Miss / สภาวะไม่ปลอดภัย</th><th className="p-3 text-center">หน่วยงานเกิดซ้ำ</th><th className="p-3 text-center">RCA ค้าง</th><th className="p-3 text-center">มาตรการค้าง</th><th className="p-3 text-left">มาตรการได้ผลหรือไม่</th>
             </tr></thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {rows.map(row => <tr key={row.id} className="align-top hover:bg-slate-50/70 dark:hover:bg-slate-900/30">
