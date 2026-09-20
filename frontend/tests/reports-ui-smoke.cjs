@@ -80,10 +80,11 @@ const os = require('node:os');
       }
       else if (url.pathname === '/incidents/201') data = {
         id: 201, id_risk: 9201, status_risk: 'ทบทวน', level_id: 'B', department_id: '1',
+        user_ir_type: 'ตนเอง',
         nrls_code: 'TEST001', nrls_name: 'Synthetic low-severity review',
         detail: 'Synthetic low-severity incident for review summary testing',
         reviews: [], structured_reviews: [], capa_actions: [], rca_required: false, rca_status: null,
-        permissions: { canView: true, canReview: true, canClose: true, canForward: true, canReject: true },
+        permissions: { canView: true, canReview: true, canClose: true, canForward: true, canForwardToTeam: true, canEdit: true, canReject: true },
       };
       else if (url.pathname.startsWith('/rca/by-incident/')) data = null;
       else if (url.pathname.includes('decision-support')) {
@@ -210,6 +211,8 @@ const os = require('node:os');
     await page.goto(origin + '/incidents/201');
     const reviewWorkstation = page.locator('#review-workstation');
     await reviewWorkstation.waitFor();
+    assert.equal(await page.getByText('ลักษณะการรายงาน :', { exact: true }).count(), 0, 'Review page must not show the legacy self-report label');
+    assert.equal(await reviewWorkstation.getByText('ส่งผลที่บันทึกแล้วเข้าภาพรวมทีมนำ', { exact: true }).count(), 0, 'Department review must route team escalation through RCA');
     assert.equal(await reviewWorkstation.getByText('สาเหตุและปัจจัยที่เกี่ยวข้อง', { exact: true }).count(), 0, 'Severity B must not require contributing factors');
     const lowRiskMeasure = reviewWorkstation.getByLabel('มาตรการแก้ไขและป้องกันการเกิดซ้ำ *', { exact: true });
     await lowRiskMeasure.waitFor();
@@ -223,6 +226,9 @@ const os = require('node:os');
     assert.equal(reviewOutcomePatchCount, 1, 'Department outcome must be saved from the review summary');
     await reviewSummary.getByRole('button', { name: 'ยืนยันการจำหน่าย', exact: true }).waitFor();
     await reviewSummary.getByText('ปิดหน้าสรุป', { exact: true }).click();
+    await page.getByRole('button', { name: 'แก้ไขรายละเอียด', exact: true }).first().click();
+    await page.getByText('แก้ไขรายละเอียดอุบัติการณ์ความเสี่ยง', { exact: true }).waitFor();
+    assert.equal(await page.getByText(/ลักษณะการรายงาน/).count(), 0, 'Incident editor must not expose the legacy reporting-type field');
     await page.goto(origin + '/incidents/new');
     const impactSection = page.locator('#incident-impact');
     await impactSection.scrollIntoViewIfNeeded();

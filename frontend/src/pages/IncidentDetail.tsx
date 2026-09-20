@@ -1104,11 +1104,6 @@ export default function IncidentDetail() {
             </div>
 
             <div className="flex items-center justify-between text-xs py-2 border-b border-slate-200/60 dark:border-slate-800">
-              <span className="text-slate-400">ลักษณะการรายงาน :</span>
-              <span className="font-semibold text-slate-700 dark:text-slate-200">{incident.user_ir_type}</span>
-            </div>
-
-            <div className="flex items-center justify-between text-xs py-2 border-b border-slate-200/60 dark:border-slate-800">
               <span className="text-slate-400">ผู้ได้รับผลกระทบ :</span>
               <span className="font-semibold text-slate-700 dark:text-slate-200">{incident.affected || 'ไม่ระบุ'}</span>
             </div>
@@ -1339,12 +1334,6 @@ export default function IncidentDetail() {
               <option key={value} value={value} disabled={value !== 'NONE' && !permissions.canForward}>{label}</option>
             ))}
           </select>
-          {permissions.canForwardToTeam && (
-            <button type="button" onClick={() => { setForwardTargetType('team'); setIsForwardModalOpen(true); }}
-              className="text-xs font-semibold text-purple-700 underline dark:text-purple-300">
-              ส่งผลที่บันทึกแล้วเข้าภาพรวมทีมนำ
-            </button>
-          )}
           {forwardingPurpose !== 'NONE' && (
             <div>
               <label className="block text-xs font-black text-amber-950 dark:text-amber-200">
@@ -2001,7 +1990,7 @@ export default function IncidentDetail() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
                 {/* Severity Level */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">⚠️ ระดับความรุนแรง:</label>
@@ -2033,31 +2022,6 @@ export default function IncidentDetail() {
                   </select>
                 </div>
 
-                {/* Reporting Type */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">👤 ลักษณะการรายงาน:</label>
-                  <select
-                    required
-                    value={editFormData.user_ir_type}
-                    onChange={e => {
-                      const newType = e.target.value;
-                      setEditFormData({
-                        ...editFormData,
-                        user_ir_type: newType,
-                      });
-                    }}
-                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold"
-                  >
-                    <option value="ตนเอง">ตนเอง (รายงานตนเอง)</option>
-                    <option value="ผู้อื่น">ผู้อื่น (รายงานผู้อื่น)</option>
-                  </select>
-                  {editFormData.user_ir_type === 'ผู้อื่น' && (
-                    <div className="mt-1 px-2.5 py-1 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 rounded-lg text-[11px] font-semibold border border-purple-200 dark:border-purple-800 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span>
-                      <span>หน่วยงานต้นทางคงเดิม: {departmentsList.find(d => String(d.id) === String(editFormData.department_id))?.depart_name || incident?.department_name || '-'}</span>
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* Source & Affected */}
