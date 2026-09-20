@@ -32,10 +32,12 @@ type ReviewAttachment = {
 };
 
 type ReviewSummary = {
+  reviewId: number;
+  structuredReviewId: number;
   note: string;
   cause: string;
   contributingFactors: ContributingFactorSelection[];
-  departmentOutcome: DepartmentOutcome;
+  departmentOutcome: DepartmentOutcome | null;
   forwardingPurpose: ForwardingPurpose;
   forwardingDepartmentName?: string;
   requiresRca: boolean;
@@ -96,7 +98,6 @@ export default function IncidentDetail() {
   const [reviewNote, setReviewNote] = useState('');
   const [causeProblem, setCauseProblem] = useState('');
   const [reviewContributingFactors, setReviewContributingFactors] = useState<ContributingFactorSelection[]>([]);
-  const [departmentOutcome, setDepartmentOutcome] = useState<DepartmentOutcome>('IN_PROGRESS');
   const [forwardingPurpose, setForwardingPurpose] = useState<ForwardingPurpose>('NONE');
   const [reviewFiles, setReviewFiles] = useState<File[]>([]);
   const [openingReviewFile, setOpeningReviewFile] = useState('');
@@ -106,6 +107,7 @@ export default function IncidentDetail() {
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
   const [saveSuccessLink, setSaveSuccessLink] = useState<{ to: string; label: string } | null>(null);
   const [reviewSummary, setReviewSummary] = useState<ReviewSummary | null>(null);
+  const [savingReviewOutcome, setSavingReviewOutcome] = useState(false);
   const [sendingSummaryToRca, setSendingSummaryToRca] = useState(false);
 
   // Forward / Co-Review State
@@ -465,7 +467,8 @@ export default function IncidentDetail() {
       alert('กรุณาระบุรายละเอียดการทบทวน หรือมาตรการแก้ไข');
       return;
     }
-    if (reviewContributingFactors.length === 0 && !causeProblem.trim()) {
+    const lowSeverityReview = ['A', 'B', '1'].includes(String(incident.level_id || '').trim().toUpperCase());
+    if (!lowSeverityReview && reviewContributingFactors.length === 0 && !causeProblem.trim()) {
       alert('กรุณาเลือกปัจจัยที่เกี่ยวข้อง หรือพิมพ์สาเหตุอื่น ๆ');
       return;
     }
@@ -481,7 +484,6 @@ export default function IncidentDetail() {
     try {
       const token = localStorage.getItem('token');
       const selectedForwardingPurpose = forwardingPurpose;
-      const selectedDepartmentOutcome = departmentOutcome;
       const selectedFactors = [...reviewContributingFactors];
       const forwardingDepartmentName = departmentsList.find(
         (department: any) => String(department.id) === coReviewDepartmentId,
@@ -493,39 +495,40 @@ export default function IncidentDetail() {
         cause_problem: finalCause,
         contributing_factors: reviewContributingFactors,
         learning_action: 'NO_NEW_MEASURE',
-        department_outcome: departmentOutcome,
         forwarding_purpose: forwardingPurpose,
         ...(forwardingPurpose !== 'NONE'
           ? { forwarded_department_id: coReviewDepartmentId }
           : {}),
       };
+      let response;
       if (reviewFiles.length) {
         const formData = new FormData();
         Object.entries(reviewPayload).forEach(([key, value]) => {
           formData.append(key, key === 'contributing_factors' ? JSON.stringify(value) : String(value));
         });
         reviewFiles.forEach((file) => formData.append('files', file));
-        await axios.post(`/incidents/${incident.id}/review`, formData, {
+        response = await axios.post(`/incidents/${incident.id}/review`, formData, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
       } else {
-        await axios.post(`/incidents/${incident.id}/review`, reviewPayload, {
+        response = await axios.post(`/incidents/${incident.id}/review`, reviewPayload, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
       }
       setReviewNote('');
       setCauseProblem('');
       setReviewContributingFactors([]);
-      setDepartmentOutcome('IN_PROGRESS');
       setForwardingPurpose('NONE');
       setCoReviewDepartmentId('');
       setReviewFiles([]);
       if (reviewFileInputRef.current) reviewFileInputRef.current.value = '';
       setReviewSummary({
+        reviewId: Number(response.data?.id),
+        structuredReviewId: Number(response.data?.structured_review?.id),
         note: finalNote,
         cause: finalCause,
         contributingFactors: selectedFactors,
-        departmentOutcome: selectedDepartmentOutcome,
+        departmentOutcome: null,
         forwardingPurpose: selectedForwardingPurpose,
         forwardingDepartmentName,
         requiresRca: Boolean(incident.rca_required) && incident.rca_status !== 'COMPLETED',
@@ -550,8 +553,35 @@ export default function IncidentDetail() {
     }
   };
 
+  const handleSelectReviewOutcome = async (value: DepartmentOutcome) => {
+    if (!incident || !reviewSummary) return;
+    setSavingReviewOutcome(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(
+        `/incidents/${incident.id}/review/outcome`,
+        {
+          review_id: reviewSummary.reviewId,
+          structured_review_id: reviewSummary.structuredReviewId,
+          department_outcome: value,
+        },
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+      );
+      setReviewSummary((current) => current ? { ...current, departmentOutcome: value } : current);
+      setIncident((current: any) => current ? { ...current, department_review_outcome: value } : current);
+    } catch (err: any) {
+      alert('บันทึกผลการดำเนินการไม่สำเร็จ: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSavingReviewOutcome(false);
+    }
+  };
+
   const handleConfirmDischargeFromSummary = async () => {
     if (!reviewSummary) return;
+    if (reviewSummary.departmentOutcome !== 'RESOLVED') {
+      alert('กรุณาเลือก “ยุติปัญหาได้” ก่อนยืนยันการจำหน่าย');
+      return;
+    }
     const succeeded = await handleStatusChange(
       'จำหน่าย',
       `ยืนยันจำหน่ายหลังทบทวน: ${reviewSummary.note}`,
@@ -561,6 +591,10 @@ export default function IncidentDetail() {
 
   const handleSendSummaryToRca = async () => {
     if (!incident || !reviewSummary) return;
+    if (!reviewSummary.departmentOutcome) {
+      alert('กรุณาเลือกผลการดำเนินการระดับหน่วยงานก่อนส่งทำ RCA');
+      return;
+    }
     setSendingSummaryToRca(true);
     try {
       const token = localStorage.getItem('token');
@@ -639,6 +673,7 @@ export default function IncidentDetail() {
       .map((item) => item.trim())
       .filter(Boolean);
   const rcaNeedsAction = Boolean(incident.rca_required) && incident.rca_status !== 'COMPLETED';
+  const isLowSeverityReview = ['A', 'B', '1'].includes(String(incident.level_id || '').trim().toUpperCase());
   const linkedRcaCount = (linkedRca?.standardCases?.length || 0) + (linkedRca?.miniConciseCases?.length || 0);
 
   const dtEvent = incident.date_report ? format(new Date(incident.date_report), 'dd/MM/yyyy') : '-';
@@ -1202,30 +1237,31 @@ export default function IncidentDetail() {
           </details>
         )}
 
-        {/* 2. Cause analysis — the primary review input */}
-        <section className="space-y-4 rounded-2xl border-2 border-indigo-300 bg-indigo-50/30 p-4 dark:border-indigo-800 dark:bg-indigo-950/20 sm:p-5">
-          <div>
-            <h3 className="text-sm font-black text-indigo-950 dark:text-indigo-200">
-              1. สาเหตุและปัจจัยที่เกี่ยวข้อง <span className="text-rose-500">*</span>
-            </h3>
-            <p className="mt-1 text-xs text-indigo-700 dark:text-indigo-300">เลือก Contributing Factor ที่เกี่ยวข้องได้มากกว่า 1 ปัจจัย โดยแยกตามหมวดด้านต่าง ๆ</p>
-          </div>
-          <div className="rounded-2xl border border-indigo-200 bg-white p-4 dark:border-indigo-900 dark:bg-slate-900">
-            <ContributingFactorSelector
-              value={reviewContributingFactors}
-              onChange={setReviewContributingFactors}
-              otherCause={causeProblem}
-              onOtherCauseChange={setCauseProblem}
-            />
-          </div>
-        </section>
+        {!isLowSeverityReview && (
+          <section className="space-y-4 rounded-2xl border-2 border-indigo-300 bg-indigo-50/30 p-4 dark:border-indigo-800 dark:bg-indigo-950/20 sm:p-5">
+            <div>
+              <h3 className="text-sm font-black text-indigo-950 dark:text-indigo-200">
+                สาเหตุและปัจจัยที่เกี่ยวข้อง <span className="text-rose-500">*</span>
+              </h3>
+              <p className="mt-1 text-xs text-indigo-700 dark:text-indigo-300">เลือกปัจจัยที่เกี่ยวข้องได้มากกว่า 1 ปัจจัย หรือระบุสาเหตุอื่น</p>
+            </div>
+            <div className="rounded-2xl border border-indigo-200 bg-white p-4 dark:border-indigo-900 dark:bg-slate-900">
+              <ContributingFactorSelector
+                value={reviewContributingFactors}
+                onChange={setReviewContributingFactors}
+                otherCause={causeProblem}
+                onOtherCauseChange={setCauseProblem}
+              />
+            </div>
+          </section>
+        )}
 
         {/* 4. ฟอร์มบันทึกข้อมูลหลัก (Main Review Inputs) */}
         <form onSubmit={handleAddReview} className="space-y-4">
           {/* ช่องเพิ่มมาตรการใหม่ / รายละเอียดการทบทวน */}
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              2. การแก้ไขในการทบทวนครั้งนี้ *
+              การแก้ไขในการทบทวนครั้งนี้ *
             </label>
             <textarea
               required
@@ -1282,45 +1318,10 @@ export default function IncidentDetail() {
             )}
           </div>
 
-        {/* 3. Department outcome */}
-        <section className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
-          <div>
-            <h3 className="text-sm font-black text-emerald-950 dark:text-emerald-200">
-              3. ผลการดำเนินการระดับหน่วยงาน <span className="text-rose-500">*</span>
-            </h3>
-            <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
-              ระดับ {String(incident.level_id || '-').toUpperCase()}: {['A', 'B', '1'].includes(String(incident.level_id || '').toUpperCase())
-                ? 'เมื่อยุติปัญหาได้และไม่มีงานส่งต่อ ระบบจะสิ้นสุดเคสระดับหน่วยงานอัตโนมัติ'
-                : 'เมื่อหน่วยงานดำเนินการเสร็จ เคสยังต้องผ่านการปิดโดยคณะกรรมการ RM'}
-            </p>
-          </div>
-          <div className={`grid grid-cols-1 gap-3 ${['A', 'B', '1'].includes(String(incident.level_id || '').toUpperCase()) ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
-            {([
-              ['IN_PROGRESS', 'อยู่ระหว่างการดำเนินการแก้ปัญหาระดับหน่วยงาน', 'ยังมีงานที่หน่วยงานต้องติดตามต่อ'],
-              ['RESOLVED', 'สิ้นสุดการแก้ปัญหาระดับหน่วยงาน โดยยุติปัญหาได้', 'หน่วยงานแก้ไขและควบคุมปัญหาได้แล้ว'],
-              ...(['A', 'B', '1'].includes(String(incident.level_id || '').toUpperCase())
-                ? []
-                : [['UNRESOLVED', 'สิ้นสุดการแก้ปัญหาระดับหน่วยงาน แต่ไม่สามารถยุติปัญหาได้', 'ส่งต่อให้ RM พิจารณาการจัดการระดับระบบ']]),
-            ] as Array<[DepartmentOutcome, string, string]>).map(([value, label, description]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setDepartmentOutcome(value)}
-                className={`rounded-xl border p-3 text-left transition-all ${departmentOutcome === value
-                  ? 'border-emerald-500 bg-white shadow-sm ring-2 ring-emerald-500/20 dark:bg-emerald-950/60'
-                  : 'border-emerald-100 bg-white/60 hover:border-emerald-300 dark:border-emerald-900 dark:bg-slate-900/40'}`}
-              >
-                <span className="block text-xs font-black text-slate-900 dark:text-white">{label}</span>
-                <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{description}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* 4. Forwarding purpose */}
+        {/* Forwarding purpose */}
         <section className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-900 dark:bg-amber-950/20">
           <div>
-            <h3 className="text-sm font-black text-amber-950 dark:text-amber-200">4. การส่งต่อหลังทบทวน</h3>
+            <h3 className="text-sm font-black text-amber-950 dark:text-amber-200">การส่งต่อหลังทบทวน</h3>
             <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">ผลการแก้ไขและการส่งต่อเป็นคนละเรื่องกัน จึงเลือก “ยุติปัญหาได้” พร้อมส่งเพื่อรับทราบได้</p>
           </div>
           <select aria-label="การส่งต่อหลังทบทวน" value={forwardingPurpose}
@@ -1365,9 +1366,8 @@ export default function IncidentDetail() {
           {/* Action Command Center */}
           <div className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed dark:bg-slate-900" aria-live="polite">
             <strong>สรุปก่อนบันทึก</strong>
-            <p>{DEPARTMENT_OUTCOME_LABELS[departmentOutcome]}</p>
             <p>{FORWARDING_PURPOSE_LABELS[forwardingPurpose]}{coReviewDepartmentId ? ` • ${departmentsList.find(d => String(d.id) === coReviewDepartmentId)?.depart_name || ''}` : ''}</p>
-            <p>หลังบันทึก ระบบจะแสดงรายละเอียดสำคัญและมาตรการให้ตรวจสอบก่อนเลือกจำหน่ายหรือส่งทำ RCA</p>
+            <p>หลังบันทึก ระบบจะแสดงรายละเอียดสำคัญและให้เลือกผลการดำเนินการระดับหน่วยงานก่อนเลือกจำหน่ายหรือส่งทำ RCA</p>
           </div>
           <div className="pt-6 border-t border-slate-200/80 dark:border-slate-700/80 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-3">
@@ -1603,7 +1603,7 @@ export default function IncidentDetail() {
                   <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">บันทึกแล้ว กรุณาตรวจสอบสาระสำคัญก่อนเลือกขั้นตอนถัดไป</p>
                 </div>
               </div>
-              <button type="button" onClick={() => setReviewSummary(null)} className="rounded-xl p-2 text-slate-500 hover:bg-white hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="ปิดหน้าสรุป"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setReviewSummary(null)} disabled={savingReviewOutcome || !reviewSummary.departmentOutcome} className="rounded-xl p-2 text-slate-500 hover:bg-white hover:text-slate-800 disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="ปิดหน้าสรุป"><X className="h-5 w-5" /></button>
             </div>
 
             <div className="space-y-5 p-5 sm:p-7">
@@ -1617,18 +1617,20 @@ export default function IncidentDetail() {
                 <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-800 dark:text-slate-200">{incident.detail || incident.risk_topic_name || 'ไม่ระบุรายละเอียดเหตุการณ์'}</p>
               </section>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900 dark:bg-amber-950/20">
-                  <div className="text-xs font-black text-amber-800 dark:text-amber-300">สาเหตุและปัจจัยสำคัญ</div>
-                  {reviewSummary.contributingFactors.length > 0 && (
-                    <ul className="mt-2 space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
-                      {reviewSummary.contributingFactors.map((factor) => (
-                        <li key={`${factor.code}-${factor.detail || ''}`} className="flex gap-2"><span className="text-amber-600">•</span><span>{getContributingFactor(factor.code)?.labelTh || factor.code}{factor.detail ? `: ${factor.detail}` : ''}</span></li>
-                      ))}
-                    </ul>
-                  )}
-                  {reviewSummary.cause && <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-slate-700 dark:text-slate-300">{reviewSummary.cause}</p>}
-                </section>
+              <div className={`grid gap-4 ${reviewSummary.contributingFactors.length > 0 || reviewSummary.cause ? 'md:grid-cols-2' : ''}`}>
+                {(reviewSummary.contributingFactors.length > 0 || reviewSummary.cause) && (
+                  <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900 dark:bg-amber-950/20">
+                    <div className="text-xs font-black text-amber-800 dark:text-amber-300">สาเหตุและปัจจัยสำคัญ</div>
+                    {reviewSummary.contributingFactors.length > 0 && (
+                      <ul className="mt-2 space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
+                        {reviewSummary.contributingFactors.map((factor) => (
+                          <li key={`${factor.code}-${factor.detail || ''}`} className="flex gap-2"><span className="text-amber-600">•</span><span>{getContributingFactor(factor.code)?.labelTh || factor.code}{factor.detail ? `: ${factor.detail}` : ''}</span></li>
+                        ))}
+                      </ul>
+                    )}
+                    {reviewSummary.cause && <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-slate-700 dark:text-slate-300">{reviewSummary.cause}</p>}
+                  </section>
+                )}
 
                 <section className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
                   <div className="text-xs font-black text-emerald-800 dark:text-emerald-300">มาตรการที่ได้ปรับปรุง</div>
@@ -1636,10 +1638,37 @@ export default function IncidentDetail() {
                 </section>
               </div>
 
-              <section className="rounded-2xl border border-slate-200 p-4 text-xs dark:border-slate-700">
-                <div className="font-black text-slate-800 dark:text-slate-100">ผลการดำเนินการ</div>
-                <p className="mt-2 text-slate-600 dark:text-slate-300">{DEPARTMENT_OUTCOME_LABELS[reviewSummary.departmentOutcome]}</p>
-                <p className="mt-1 text-slate-600 dark:text-slate-300">{FORWARDING_PURPOSE_LABELS[reviewSummary.forwardingPurpose]}{reviewSummary.forwardingDepartmentName ? ` • ${reviewSummary.forwardingDepartmentName}` : ''}</p>
+              <section className="space-y-3 rounded-2xl border-2 border-emerald-300 bg-emerald-50/50 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
+                <div>
+                  <div className="font-black text-emerald-950 dark:text-emerald-200">ผลการดำเนินการระดับหน่วยงาน <span className="text-rose-500">*</span></div>
+                  <p className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">เลือก 1 รายการ ระบบจะบันทึกให้อัตโนมัติโดยไม่ต้องกดปุ่มเพิ่ม</p>
+                </div>
+                <div className={`grid grid-cols-1 gap-3 ${isLowSeverityReview ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+                  {([
+                    ['IN_PROGRESS', 'อยู่ระหว่างดำเนินการ', 'ยังมีงานที่หน่วยงานต้องติดตามต่อ'],
+                    ['RESOLVED', 'ยุติปัญหาได้', 'หน่วยงานแก้ไขและควบคุมปัญหาได้แล้ว'],
+                    ...(isLowSeverityReview ? [] : [['UNRESOLVED', 'ยังยุติปัญหาไม่ได้', 'ต้องส่งต่อให้ RM พิจารณาระดับระบบ']]),
+                  ] as Array<[DepartmentOutcome, string, string]>).map(([value, label, description]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => void handleSelectReviewOutcome(value)}
+                      disabled={savingReviewOutcome}
+                      className={`rounded-xl border p-3 text-left transition-all disabled:cursor-wait disabled:opacity-60 ${reviewSummary.departmentOutcome === value
+                        ? 'border-emerald-500 bg-white shadow-sm ring-2 ring-emerald-500/20 dark:bg-emerald-950/60'
+                        : 'border-emerald-100 bg-white/70 hover:border-emerald-300 dark:border-emerald-900 dark:bg-slate-900/40'}`}
+                    >
+                      <span className="block text-xs font-black text-slate-900 dark:text-white">{label}</span>
+                      <span className="mt-1 block text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{description}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                  <span className={reviewSummary.departmentOutcome ? 'font-bold text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}>
+                    {savingReviewOutcome ? 'กำลังบันทึก...' : reviewSummary.departmentOutcome ? `บันทึกแล้ว: ${DEPARTMENT_OUTCOME_LABELS[reviewSummary.departmentOutcome]}` : 'กรุณาเลือกผลการดำเนินการก่อนทำขั้นตอนถัดไป'}
+                  </span>
+                  <span className="text-slate-500 dark:text-slate-400">การส่งต่อ: {FORWARDING_PURPOSE_LABELS[reviewSummary.forwardingPurpose]}{reviewSummary.forwardingDepartmentName ? ` • ${reviewSummary.forwardingDepartmentName}` : ''}</span>
+                </div>
               </section>
 
               {(reviewSummary.requiresRca || rcaNeedsAction) && (
@@ -1649,7 +1678,7 @@ export default function IncidentDetail() {
               )}
 
               <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
-                <button type="button" onClick={() => setReviewSummary(null)} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">ปิดหน้าสรุป</button>
+                <button type="button" onClick={() => setReviewSummary(null)} disabled={savingReviewOutcome || !reviewSummary.departmentOutcome} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">ปิดหน้าสรุป</button>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   {permissions.canClose
                     && incident.status_risk !== 'จำหน่าย'
@@ -1663,7 +1692,7 @@ export default function IncidentDetail() {
                     <button
                       type="button"
                       onClick={handleSendSummaryToRca}
-                      disabled={sendingSummaryToRca}
+                      disabled={sendingSummaryToRca || savingReviewOutcome || !reviewSummary.departmentOutcome}
                       className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-black shadow-md disabled:opacity-50 ${(reviewSummary.requiresRca || rcaNeedsAction)
                         ? 'animate-pulse border-2 border-red-600 bg-white text-red-700 ring-4 ring-red-200 hover:bg-red-50 dark:bg-slate-900 dark:text-red-300 dark:ring-red-950'
                         : 'border-2 border-purple-600 bg-purple-600 text-white hover:bg-purple-700'}`}

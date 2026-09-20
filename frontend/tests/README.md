@@ -32,6 +32,9 @@ links open the matching list, and a failed queue can retry without hiding the
 personal count. Mobile layout is checked with synthetic data.
 Incident-form checks also cover the visible receiver, gender and age choices,
 conditional exact-age input, unchanged stored option values, and mobile width.
+Department-review checks cover hiding contributing factors for severity A, B,
+and 1, then saving the department outcome from the review summary before the
+discharge action becomes available.
 
 Backend scope regression tests (from `backend`):
 

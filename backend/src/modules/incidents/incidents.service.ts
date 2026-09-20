@@ -2439,7 +2439,7 @@ export class IncidentsService {
       throw new BadRequestException('วัตถุประสงค์การส่งต่อไม่ถูกต้อง');
     }
     const serializedContributingFactors = serializeContributingFactors(reviewDto.contributing_factors);
-    if (reviewDto.learning_action && !serializedContributingFactors && !String(reviewDto.cause_problem || '').trim()) {
+    if (!isLowSeverity && reviewDto.learning_action && !serializedContributingFactors && !String(reviewDto.cause_problem || '').trim()) {
       throw new BadRequestException('กรุณาเลือกปัจจัยที่เกี่ยวข้อง หรือพิมพ์สาเหตุอื่น ๆ');
     }
     const reviewAttachments = this.validateStoredReviewAttachments(reviewDto.files, user);
@@ -2629,6 +2629,80 @@ export class IncidentsService {
     });
 
     return createdReview;
+  }
+
+  async updateReviewOutcome(
+    id: number,
+    body: { review_id: number; structured_review_id: number; department_outcome: string },
+    user?: any,
+  ) {
+    const incident = await this.prisma.riskregister.findFirst({ where: { id } });
+    if (!incident) throw new NotFoundException('Incident not found');
+    const permissions = await this.getIncidentPermissions(user, incident);
+    const canRecordOutcome = permissions.canReview
+      || permissions.canTeamReview
+      || (this.isRmCommittee(user) && await this.isInManagementScope(user, incident));
+    this.assertPermission(canRecordOutcome, 'ไม่มีสิทธิ์บันทึกผลการดำเนินการระดับหน่วยงาน');
+
+    const reviewId = Number(body.review_id);
+    const structuredReviewId = Number(body.structured_review_id);
+    if (!Number.isInteger(reviewId) || reviewId < 1 || !Number.isInteger(structuredReviewId) || structuredReviewId < 1) {
+      throw new BadRequestException('ไม่พบรายการทบทวนที่ต้องการบันทึกผล');
+    }
+    const departmentOutcome = String(body.department_outcome || '').trim().toUpperCase();
+    if (!['IN_PROGRESS', 'RESOLVED', 'UNRESOLVED'].includes(departmentOutcome)) {
+      throw new BadRequestException('ผลการดำเนินการแก้ไขปัญหาระดับหน่วยงานไม่ถูกต้อง');
+    }
+    const severity = String(incident.level_id || '').trim().toUpperCase();
+    if (['A', 'B', '1'].includes(severity) && departmentOutcome === 'UNRESOLVED') {
+      throw new BadRequestException('อุบัติการณ์ระดับ A–B หรือ 1 เลือกได้เฉพาะอยู่ระหว่างดำเนินการหรือยุติปัญหาได้');
+    }
+
+    const [review, structuredReview] = await Promise.all([
+      this.prisma.riskreview.findFirst({
+        where: { id: reviewId, riskregister_id: id },
+        select: { id: true, created_by: true, department_outcome: true },
+      }),
+      (this.prisma as any).incident_review_entry.findFirst({
+        where: { id: structuredReviewId, incident_id: id, incident_id_risk: incident.id_risk },
+        select: { id: true, reviewer_user_id: true },
+      }),
+    ]);
+    if (!review || !structuredReview) throw new NotFoundException('ไม่พบผลการทบทวนที่เพิ่งบันทึก');
+    const actorId = this.getUserId(user);
+    if (!this.isRmCommittee(user) && (
+      Number(review.created_by || 0) !== Number(actorId || 0)
+      || Number(structuredReview.reviewer_user_id || 0) !== Number(actorId || 0)
+    )) {
+      throw new ForbiddenException('บันทึกผลการดำเนินการได้เฉพาะรายการทบทวนของตนเอง');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.riskreview.updateMany({
+        where: { id: reviewId, riskregister_id: id },
+        data: { department_outcome: departmentOutcome, updated_by: actorId || 1, modify_date: new Date() },
+      });
+      await (tx as any).incident_review_entry.updateMany({
+        where: { id: structuredReviewId, incident_id: id, incident_id_risk: incident.id_risk },
+        data: { department_outcome: departmentOutcome },
+      });
+      await tx.riskregister.updateMany({
+        where: { id, id_risk: incident.id_risk },
+        data: { department_review_outcome: departmentOutcome, modify_date: new Date(), updated_by: actorId || 1 },
+      });
+      await tx.workflow_audit.create({
+        data: {
+          entity_type: 'INCIDENT',
+          entity_id: String(id),
+          action: 'DEPARTMENT_OUTCOME_RECORDED',
+          old_value: JSON.stringify({ department_outcome: review.department_outcome || null }),
+          new_value: JSON.stringify({ department_outcome: departmentOutcome, review_id: reviewId }),
+          reason: 'บันทึกผลการดำเนินการระดับหน่วยงานจากหน้าสรุปผลการทบทวน',
+          changed_by: actorId,
+        },
+      });
+    });
+    return { department_outcome: departmentOutcome, review_id: reviewId, structured_review_id: structuredReviewId };
   }
 
   async sendReviewToRca(id: number, user?: any) {

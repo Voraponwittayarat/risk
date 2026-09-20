@@ -36,6 +36,7 @@ const os = require('node:os');
     let patchFailed = true;
     let patchCount = 0;
     let reportedIncidents = [];
+    let reviewOutcomePatchCount = 0;
     let decisionReady = false;
     const errors = [];
     const risk = { id: 1, nrls_code: 'TEST001', risk_code: 'TEST001', risk_title: 'Synthetic risk', scope_level: 'hospital', department_id: '1', department_name: 'Test Unit', source: 'FMEA', category_name: 'Clinical', initial_likelihood: 2, initial_consequence: 3, initial_risk_score: 6, initial_risk_level: 'Medium', status: 'open', risk_owner_name: 'Test "Owner", Unit', reviews: [], review_frequency_months: 3 };
@@ -69,6 +70,20 @@ const os = require('node:os');
           { id: 1, review_date: '2026-09-01', result: 'INEFFECTIVE', observation: 'Earlier synthetic review' },
           { id: 2, review_date: '2026-09-10', result: 'PARTIALLY_EFFECTIVE', measured_value: '4', observation: 'Synthetic follow-up observation' },
         ] }],
+      };
+      else if (url.pathname === '/incidents/201/review/outcome' && request.method() === 'PATCH') {
+        reviewOutcomePatchCount++;
+        data = { department_outcome: 'RESOLVED', review_id: 71, structured_review_id: 81 };
+      }
+      else if (url.pathname === '/incidents/201/review' && request.method() === 'POST') {
+        data = { id: 71, structured_review: { id: 81 }, incident_status: 'ทบทวน' };
+      }
+      else if (url.pathname === '/incidents/201') data = {
+        id: 201, id_risk: 9201, status_risk: 'ทบทวน', level_id: 'B', department_id: '1',
+        nrls_code: 'TEST001', nrls_name: 'Synthetic low-severity review',
+        detail: 'Synthetic low-severity incident for review summary testing',
+        reviews: [], structured_reviews: [], capa_actions: [], rca_required: false, rca_status: null,
+        permissions: { canView: true, canReview: true, canClose: true, canForward: true, canReject: true },
       };
       else if (url.pathname.startsWith('/rca/by-incident/')) data = null;
       else if (url.pathname.includes('decision-support')) {
@@ -192,6 +207,20 @@ const os = require('node:os');
     assert.equal(await feedback.evaluate(el => el.scrollWidth <= el.clientWidth), true);
     await page.screenshot({ path: path.join(output, 'incident-feedback-mobile.png') });
     await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(origin + '/incidents/201');
+    const reviewWorkstation = page.locator('#review-workstation');
+    await reviewWorkstation.waitFor();
+    assert.equal(await reviewWorkstation.getByText('สาเหตุและปัจจัยที่เกี่ยวข้อง', { exact: true }).count(), 0, 'Severity B must not require contributing factors');
+    await reviewWorkstation.locator('textarea[required]').first().fill('Synthetic review measure recorded without contributing factors');
+    await reviewWorkstation.getByRole('button', { name: 'บันทึกผลการทบทวน', exact: true }).click();
+    const reviewSummary = page.getByRole('dialog', { name: 'สรุปผลการทบทวน' });
+    await reviewSummary.waitFor();
+    assert.equal(await reviewSummary.getByText('สาเหตุและปัจจัยสำคัญ', { exact: true }).count(), 0);
+    await reviewSummary.getByRole('button').filter({ hasText: 'ยุติปัญหาได้' }).click();
+    await reviewSummary.getByText(/บันทึกแล้ว: สิ้นสุดการแก้ปัญหาระดับหน่วยงาน/).waitFor();
+    assert.equal(reviewOutcomePatchCount, 1, 'Department outcome must be saved from the review summary');
+    await reviewSummary.getByRole('button', { name: 'ยืนยันการจำหน่าย', exact: true }).waitFor();
+    await reviewSummary.getByText('ปิดหน้าสรุป', { exact: true }).click();
     await page.goto(origin + '/incidents/new');
     const impactSection = page.locator('#incident-impact');
     await impactSection.scrollIntoViewIfNeeded();
@@ -259,7 +288,7 @@ const os = require('node:os');
       }
     }
     assert.deepEqual(errors, []);
-    console.log('PASS: dashboard and personal reports error/retry, mobile width, NRLS read-only, simplified impact editing, failed-save draft retention, duplicate submission, matrix counts/details/export/error, standards export and repeat signals, incident follow-up feedback, unsaved incident guard');
+    console.log('PASS: dashboard and personal reports error/retry, mobile width, NRLS read-only, simplified impact editing, low-severity review summary outcome, failed-save draft retention, duplicate submission, matrix counts/details/export/error, standards export and repeat signals, incident follow-up feedback, unsaved incident guard');
     console.log('Synthetic screenshots: ' + output);
   } finally {
     if (browser) await browser.close();

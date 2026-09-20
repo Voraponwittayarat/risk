@@ -36,13 +36,18 @@ describe('IncidentsService incident permissions', () => {
       riskreview: {
         create: jest.fn().mockResolvedValue({ id: 1 }),
         findFirst: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         count: jest.fn().mockResolvedValue(0),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       rca_case: { findFirst: jest.fn(), count: jest.fn().mockResolvedValue(0) },
       standard_rca_case: { findFirst: jest.fn(), create: jest.fn(), count: jest.fn().mockResolvedValue(0) },
       capa_action: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
-      incident_review_entry: { create: jest.fn().mockResolvedValue({ id: 1 }) },
+      incident_review_entry: {
+        create: jest.fn().mockResolvedValue({ id: 1 }),
+        findFirst: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
       sla_policy: { findUnique: jest.fn().mockResolvedValue({ id: 1, duration_hours: 336 }) },
       sla_instance: {
         upsert: jest.fn().mockResolvedValue({ id: 1 }),
@@ -247,6 +252,68 @@ describe('IncidentsService incident permissions', () => {
       learning_action: 'NO_NEW_MEASURE', contributing_factors: [], cause_problem: cause,
     }, { id: 30, role: 'head', departmentId: 1 })).rejects.toThrow('หรือพิมพ์สาเหตุอื่น');
     expect(prisma.riskreview.create).not.toHaveBeenCalled();
+  });
+
+  it('does not require contributing factors for severity A-B or 1', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({
+      ...pendingIncident,
+      status_risk: 'ตรวจสอบ',
+      level_id: 'B',
+    });
+
+    await service.addReview(10, {
+      findings: 'หน่วยงานทบทวนและปรับปรุงวิธีปฏิบัติงานเรียบร้อยแล้ว',
+      learning_action: 'NO_NEW_MEASURE',
+      contributing_factors: [],
+    }, { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 });
+
+    expect(prisma.riskreview.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ contributing_factors: null, cause_problem: null }),
+    }));
+  });
+
+  it('records the department outcome selected from the review summary', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({
+      ...pendingIncident,
+      status_risk: 'ทบทวน',
+      level_id: 'B',
+    });
+    prisma.riskreview.findFirst.mockResolvedValue({ id: 7, created_by: 30, department_outcome: null });
+    prisma.incident_review_entry.findFirst.mockResolvedValue({ id: 8, reviewer_user_id: 30 });
+
+    const result = await service.updateReviewOutcome(10, {
+      review_id: 7,
+      structured_review_id: 8,
+      department_outcome: 'RESOLVED',
+    }, { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 });
+
+    expect(prisma.riskreview.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 7, riskregister_id: 10 },
+      data: expect.objectContaining({ department_outcome: 'RESOLVED' }),
+    }));
+    expect(prisma.incident_review_entry.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 8, incident_id: 10 }),
+      data: { department_outcome: 'RESOLVED' },
+    }));
+    expect(result.department_outcome).toBe('RESOLVED');
+  });
+
+  it('does not let a reviewer change the outcome of another reviewer entry', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({
+      ...pendingIncident,
+      status_risk: 'ทบทวน',
+      level_id: 'B',
+    });
+    prisma.riskreview.findFirst.mockResolvedValue({ id: 7, created_by: 30, department_outcome: null });
+    prisma.incident_review_entry.findFirst.mockResolvedValue({ id: 8, reviewer_user_id: 99 });
+
+    await expect(service.updateReviewOutcome(10, {
+      review_id: 7,
+      structured_review_id: 8,
+      department_outcome: 'RESOLVED',
+    }, { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 })).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.riskreview.updateMany).not.toHaveBeenCalled();
   });
 
   it('keeps a resolved low-severity incident open until the review summary confirms discharge', async () => {

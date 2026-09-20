@@ -350,6 +350,16 @@ export class IncidentsController {
       : this.incidentsService.addReview(+id, reviewDto, req.user);
   }
 
+  @Patch(':id/review/outcome')
+  @ApiOperation({ summary: 'Record the department outcome selected from the review summary' })
+  updateReviewOutcome(
+    @Param('id') id: string,
+    @Body() body: { review_id: number; structured_review_id: number; department_outcome: string },
+    @Request() req,
+  ) {
+    return this.incidentsService.updateReviewOutcome(+id, body, req.user);
+  }
+
   @Post(':id/review/send-rca')
   @ApiOperation({ summary: 'Queue a reviewed incident in the RCA center' })
   sendReviewToRca(@Param('id') id: string, @Request() req) {
