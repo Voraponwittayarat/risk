@@ -1259,19 +1259,27 @@ export default function IncidentDetail() {
         {/* 4. ฟอร์มบันทึกข้อมูลหลัก (Main Review Inputs) */}
         <form onSubmit={handleAddReview} className="space-y-4">
           {/* ช่องเพิ่มมาตรการใหม่ / รายละเอียดการทบทวน */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              การแก้ไขในการทบทวนครั้งนี้ *
+          <div className={isLowSeverityReview ? 'rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900 dark:bg-emerald-950/20' : ''}>
+            <label htmlFor="review-measure" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              {isLowSeverityReview ? 'มาตรการแก้ไขและป้องกันการเกิดซ้ำ *' : 'การแก้ไขในการทบทวนครั้งนี้ *'}
             </label>
             <textarea
+              id="review-measure"
               required
               minLength={10}
               rows={3}
               value={reviewNote}
               onChange={(e) => setReviewNote(e.target.value)}
-              placeholder="ระบุข้อเท็จจริงจากการทบทวน, มาตรการใหม่ที่ได้ปรับเปลี่ยน, แนวทางปฏิบัติ หรือการคงมาตรการเดิม..."
+              placeholder={isLowSeverityReview
+                ? 'พิมพ์มาตรการที่หน่วยงานดำเนินการ เช่น ปรับขั้นตอน เพิ่มการตรวจสอบ ย้ำแนวทาง หรือคงมาตรการเดิม...'
+                : 'ระบุข้อเท็จจริงจากการทบทวน, มาตรการใหม่ที่ได้ปรับเปลี่ยน, แนวทางปฏิบัติ หรือการคงมาตรการเดิม...'}
               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
+            {isLowSeverityReview && (
+              <p className="mt-2 text-[11px] text-emerald-700 dark:text-emerald-300">
+                ระดับ {incident.level_id}: ไม่ต้องเลือกปัจจัย กรุณาพิมพ์มาตรการที่ดำเนินการอย่างน้อย 10 ตัวอักษร
+              </p>
+            )}
           </div>
 
           <div className="rounded-xl border border-dashed border-indigo-300 bg-indigo-50/40 p-4 dark:border-indigo-800 dark:bg-indigo-950/20">
