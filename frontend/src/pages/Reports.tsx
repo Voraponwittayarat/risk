@@ -747,7 +747,7 @@ export default function Reports() {
             ทะเบียน • เมทริกซ์ • มาตรฐานความปลอดภัย
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-2.5">
-            วิเคราะห์ข้อมูลความเสี่ยง
+            ติดตามความเสี่ยง
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 max-w-lg leading-relaxed">
             เชื่อมสัญญาณจากอุบัติการณ์กับทะเบียนความเสี่ยง งานทบทวน และผลของมาตรการ เพื่อวางแผนความปลอดภัยร่วมกัน

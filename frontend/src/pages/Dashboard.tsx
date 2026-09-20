@@ -490,10 +490,10 @@ export default function Dashboard() {
             </div>
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
-                รายงาน & Risk Matrix
+                ติดตามความเสี่ยง
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
-                สรุปสถิติ & เมทริกซ์ความเสี่ยง 5x5
+                ทะเบียน เมทริกซ์ และผลของมาตรการ
               </p>
             </div>
           </Link>

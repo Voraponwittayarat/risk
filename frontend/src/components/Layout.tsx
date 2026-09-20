@@ -154,6 +154,13 @@ export default function Layout() {
           badge: "RCA Program",
           badgeColor: "bg-rose-500/20 text-rose-300 border border-rose-500/30",
         },
+        {
+          name: "ติดตามความเสี่ยง",
+          path: "/reports",
+          icon: BarChart3,
+          badge: "5x5 Matrix",
+          badgeColor: "bg-blue-500/20 text-blue-300 border border-blue-500/30",
+        },
         ...(user?.role === 'rm_committee' && user?.rmScope === 'hospital' ? [{
           name: "ติดตามมาตรการแก้ไข",
           path: "/capa",
@@ -174,18 +181,6 @@ export default function Layout() {
           badge: "KPI",
           badgeColor:
             "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
-        },
-      ],
-    },
-    {
-      groupTitle: "รายงาน & การวิเคราะห์",
-      items: [
-        {
-          name: "วิเคราะห์ข้อมูลความเสี่ยง",
-          path: "/reports",
-          icon: BarChart3,
-          badge: "5x5 Matrix",
-          badgeColor: "bg-blue-500/20 text-blue-300 border border-blue-500/30",
         },
       ],
     },
