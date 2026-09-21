@@ -158,13 +158,20 @@ describe('RcaService Standard RCA completion', () => {
     is_not_risk: false,
     topic: 'ยาความเสี่ยงสูง',
     rca_team: 'หน่วยงานเจ้าของเรื่อง',
+    review_outcome: 'DEPARTMENT_MONITORING',
     what_happened: 'ผู้ป่วยได้รับยาผิดขนาด',
     potential_impact: 'อาจเกิดอันตรายรุนแรง',
+    info_interview: true,
     contributing_factors: JSON.stringify([{ code: 'P01', detail: 'ขั้นตอนตรวจสอบไม่ชัดเจน' }]),
     timelines: [{ event_description: 'พบความคลาดเคลื่อนก่อนให้ยา' }],
     cmps: [{ observation: 'ขั้นตอนตรวจสอบยาความเสี่ยงสูงไม่ครบถ้วน', hypothesis: 'ไม่มีจุดหยุดตรวจสอบ' }],
     whys: [],
     process_analyses: [],
+    participants: [{
+      participant_type: 'DEPARTMENT', display_name: 'หอผู้ป่วย', role: 'OWNER',
+      response_status: 'ACCEPTED', is_owner: true,
+    }],
+    voice_of_staff_entries: [{ key_points: 'ขั้นตอนตรวจสอบทำได้ยากในช่วงภาระงานสูง' }],
     capas: [{
       action: 'จัดทำ independent double check',
       responsible: 'หัวหน้าหอผู้ป่วย',
@@ -190,7 +197,7 @@ describe('RcaService Standard RCA completion', () => {
     const tx: any = {
       riskanalysis: {
         findFirst: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue(createdProfile),
+        upsert: jest.fn().mockResolvedValue(createdProfile),
       },
       department: { findUnique: jest.fn().mockResolvedValue({ depart_name: 'หอผู้ป่วย' }) },
       standard_rca_case: {
@@ -215,8 +222,8 @@ describe('RcaService Standard RCA completion', () => {
       review_frequency_months: 3,
     }, { id: 7, role: 'staff', departmentId: 15 });
 
-    expect(tx.riskanalysis.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
+    expect(tx.riskanalysis.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
         nrls_code: 'CPP101',
         scope_level: 'department',
         scope_identifier: '15',
@@ -244,5 +251,31 @@ describe('RcaService Standard RCA completion', () => {
 
     await expect(service.completeStandard('RCA-FULL-1', {}, { id: 7, role: 'staff', departmentId: 15 }))
       .rejects.toThrow('เกณฑ์ประเมินมาตรการที่ 1');
+  });
+
+  it('requires the department owner and review route before completion', async () => {
+    const service = new RcaService({} as any, {} as any, {} as any);
+    jest.spyOn(service, 'getStandardById').mockResolvedValue({
+      ...completeCase,
+      review_outcome: 'IN_PROGRESS',
+      participants: [{ ...completeCase.participants[0], is_owner: false }],
+    } as any);
+
+    await expect(service.completeStandard('RCA-FULL-1', {}, { id: 7, role: 'staff', departmentId: 15 }))
+      .rejects.toThrow('เจ้าของเรื่องในทีมทบทวน');
+    await expect(service.completeStandard('RCA-FULL-1', {}, { id: 7, role: 'staff', departmentId: 15 }))
+      .rejects.toThrow('ผลลัพธ์หลังหน่วยงานทบทวน');
+  });
+
+  it('returns the existing Risk Register link when completion is retried', async () => {
+    const prisma: any = { $transaction: jest.fn() };
+    const service = new RcaService(prisma, {} as any, {} as any);
+    const completed = { ...completeCase, status: 'COMPLETED', risk_analysis: { id: 88, risk_code: 'CPP101' } };
+    jest.spyOn(service, 'getStandardById').mockResolvedValue(completed as any);
+
+    const result = await service.completeStandard('RCA-FULL-1', {}, { id: 7, role: 'staff', departmentId: 15 });
+
+    expect(result).toMatchObject({ already_completed: true, risk_profile_created: false, risk_analysis: { id: 88 } });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -19,6 +19,8 @@ import {
   FileSpreadsheet,
   Database,
   Link2,
+  Users,
+  MessageSquareText,
 } from 'lucide-react';
 import type { TimelineItem } from '../../components/rca/EventTimeline';
 import { TierContributingFactorPicker } from '../../components/rca/TierContributingFactorPicker';
@@ -122,6 +124,39 @@ interface ReviewSessionItem {
   notes: string;
 }
 
+interface ReviewParticipantItem {
+  participant_type: 'PERSON' | 'DEPARTMENT' | 'TEAM' | 'EXPERT';
+  display_name: string;
+  role: 'OWNER' | 'FACILITATOR' | 'INFORMANT' | 'ANALYST' | 'APPROVER';
+  department_id?: string;
+  team_id?: number;
+  purpose: string;
+  response_status: 'NOT_REQUIRED' | 'PENDING' | 'ACCEPTED' | 'DECLINED';
+  responded_at?: string;
+  is_owner: boolean;
+}
+
+interface VoiceOfStaffItem {
+  interviewee_name: string;
+  interviewee_role: string;
+  interviewee_department: string;
+  interview_date: string;
+  work_context: string;
+  key_points: string;
+  contributing_conditions: string;
+  suggestions: string;
+}
+
+interface DepartmentOption {
+  id: number;
+  depart_name: string;
+}
+
+interface TeamOption {
+  id: number;
+  team_name: string;
+}
+
 interface IncidentSource {
   id: number;
   id_risk?: number;
@@ -158,12 +193,18 @@ export default function StandardRcaForm() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [lastAutoSavedAt, setLastAutoSavedAt] = useState<Date | null>(null);
+  const latestDraftPayloadRef = useRef<any>(null);
+  const lastAutoSavedFingerprintRef = useRef('');
 
   // Modals & UI Toggles
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isTriggerModalOpen, setIsTriggerModalOpen] = useState(false);
   const [triggerSearch, setTriggerSearch] = useState('');
   const [useSwissCheese, setUseSwissCheese] = useState(false);
+  const [guidedMode, setGuidedMode] = useState(true);
+  const [activeStep, setActiveStep] = useState('rca-facts');
 
   // Section 1: General Metadata
   const [caseId, setCaseId] = useState(id || '');
@@ -181,6 +222,10 @@ export default function StandardRcaForm() {
   const [riskOwnerName, setRiskOwnerName] = useState('');
   const [initialLikelihood, setInitialLikelihood] = useState(1);
   const [reviewFrequencyMonths, setReviewFrequencyMonths] = useState(3);
+  const [reviewOutcome, setReviewOutcome] = useState('IN_PROGRESS');
+  const [supportRequestPurpose, setSupportRequestPurpose] = useState('PROCESS_ANALYSIS');
+  const [supportTargetName, setSupportTargetName] = useState('');
+  const [escalationReason, setEscalationReason] = useState('');
   const [sourceTriggerReviewId, setSourceTriggerReviewId] = useState<number | undefined>(undefined);
   const [incidentId, setIncidentId] = useState<number | undefined>(undefined);
   const [sourceIncident, setSourceIncident] = useState<IncidentSource | null>(null);
@@ -259,6 +304,40 @@ export default function StandardRcaForm() {
       notes: 'การประชุมทบทวนรอบแรกเพื่อรวบรวมข้อเท็จจริงและลำดับเหตุการณ์',
     },
   ]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [teamOptions, setTeamOptions] = useState<TeamOption[]>([]);
+  const [participants, setParticipants] = useState<ReviewParticipantItem[]>([
+    {
+      participant_type: 'DEPARTMENT',
+      display_name: 'หน่วยงานเจ้าของเรื่อง',
+      role: 'OWNER',
+      purpose: 'รับผิดชอบทบทวนข้อเท็จจริง วิเคราะห์ และติดตามมาตรการ',
+      response_status: 'ACCEPTED',
+      responded_at: new Date().toISOString(),
+      is_owner: true,
+    },
+  ]);
+  const [voiceOfStaffEntries, setVoiceOfStaffEntries] = useState<VoiceOfStaffItem[]>([
+    {
+      interviewee_name: '',
+      interviewee_role: '',
+      interviewee_department: '',
+      interview_date: new Date().toISOString().slice(0, 16),
+      work_context: '',
+      key_points: '',
+      contributing_conditions: '',
+      suggestions: '',
+    },
+  ]);
+
+  useEffect(() => {
+    axios.get('/rca/collaboration-options')
+      .then((response) => {
+        setDepartments(Array.isArray(response.data?.departments) ? response.data.departments : []);
+        setTeamOptions(Array.isArray(response.data?.teams) ? response.data.teams : []);
+      })
+      .catch(() => { setDepartments([]); setTeamOptions([]); });
+  }, []);
 
   const applyIncidentSource = (incident: IncidentSource) => {
     const linkedIncidentId = Number(incident.id);
@@ -358,12 +437,22 @@ export default function StandardRcaForm() {
       const matches = (Array.isArray(response.data) ? response.data : [])
         .filter((profile: any) => profile.nrls_code === nrlsCode);
       setRiskProfiles(matches);
-      setSelectedRiskProfileId((current) => current || (matches[0]?.id ? String(matches[0].id) : ''));
     }).catch(() => {
       if (active) setRiskProfiles([]);
     });
     return () => { active = false; };
   }, [sourceIncident?.department_id, sourceIncident?.nrls_code]);
+
+  useEffect(() => {
+    if (!sourceIncident?.department_id || !departments.length) return;
+    const ownerDepartment = departments.find((item) => String(item.id) === String(sourceIncident.department_id));
+    if (!ownerDepartment) return;
+    setParticipants((current) => current.map((participant) => (
+      participant.is_owner && participant.display_name === 'หน่วยงานเจ้าของเรื่อง'
+        ? { ...participant, display_name: ownerDepartment.depart_name, department_id: String(ownerDepartment.id) }
+        : participant
+    )));
+  }, [departments, sourceIncident?.department_id]);
 
   const loadCaseData = async (caseIdToLoad: string) => {
     try {
@@ -404,6 +493,10 @@ export default function StandardRcaForm() {
       setSelectedRiskProfileId(data.risk_analysis_id ? String(data.risk_analysis_id) : '');
       setRiskDescription(data.risk_analysis?.risk_description || data.what_happened || '');
       setRiskOwnerName(data.risk_analysis?.risk_owner_name || user?.name || 'เจ้าของกระบวนการ');
+      setReviewOutcome(data.review_outcome || 'IN_PROGRESS');
+      setSupportRequestPurpose(data.support_request_purpose || 'PROCESS_ANALYSIS');
+      setSupportTargetName(data.support_target_name || '');
+      setEscalationReason(data.escalation_reason || '');
       setSourceTriggerReviewId(data.source_trigger_review_id);
 
       setInfoInterview(data.info_interview ?? true);
@@ -434,6 +527,31 @@ export default function StandardRcaForm() {
             notes: s.notes || '',
           }))
         );
+      }
+      if (data.participants?.length) {
+        setParticipants(data.participants.map((participant: any) => ({
+          participant_type: participant.participant_type || 'DEPARTMENT',
+          display_name: participant.display_name || '',
+          role: participant.role || 'INFORMANT',
+          department_id: participant.department_id || undefined,
+          team_id: participant.team_id || undefined,
+          purpose: participant.purpose || '',
+          response_status: participant.response_status || 'PENDING',
+          responded_at: participant.responded_at || undefined,
+          is_owner: Boolean(participant.is_owner),
+        })));
+      }
+      if (data.voice_of_staff_entries?.length) {
+        setVoiceOfStaffEntries(data.voice_of_staff_entries.map((voice: any) => ({
+          interviewee_name: voice.interviewee_name || '',
+          interviewee_role: voice.interviewee_role || '',
+          interviewee_department: voice.interviewee_department || '',
+          interview_date: voice.interview_date ? voice.interview_date.slice(0, 16) : '',
+          work_context: voice.work_context || '',
+          key_points: voice.key_points || '',
+          contributing_conditions: voice.contributing_conditions || '',
+          suggestions: voice.suggestions || '',
+        })));
       }
     } catch (err) {
       console.error('Failed to load standard RCA case', err);
@@ -672,6 +790,41 @@ export default function StandardRcaForm() {
     setReviewSessions(updated);
   };
 
+  const handleAddParticipant = () => {
+    setParticipants((current) => [...current, {
+      participant_type: 'TEAM',
+      display_name: '',
+      role: 'ANALYST',
+      purpose: 'ช่วยวิเคราะห์กระบวนการและร่วมกำหนดมาตรการ',
+      response_status: 'PENDING',
+      is_owner: false,
+    }]);
+  };
+
+  const handleParticipantChange = (index: number, field: keyof ReviewParticipantItem, value: any) => {
+    setParticipants((current) => current.map((participant, itemIndex) => (
+      itemIndex === index ? {
+        ...participant,
+        [field]: value,
+        ...(field === 'response_status' ? { responded_at: ['ACCEPTED', 'DECLINED'].includes(value) ? new Date().toISOString() : undefined } : {}),
+      } : participant
+    )));
+  };
+
+  const handleAddVoiceOfStaff = () => {
+    setVoiceOfStaffEntries((current) => [...current, {
+      interviewee_name: '', interviewee_role: '', interviewee_department: '',
+      interview_date: new Date().toISOString().slice(0, 16), work_context: '', key_points: '',
+      contributing_conditions: '', suggestions: '',
+    }]);
+  };
+
+  const handleVoiceOfStaffChange = (index: number, field: keyof VoiceOfStaffItem, value: string) => {
+    setVoiceOfStaffEntries((current) => current.map((voice, itemIndex) => (
+      itemIndex === index ? { ...voice, [field]: value } : voice
+    )));
+  };
+
   const buildPayload = (markAsNotRisk = isNotRisk) => {
     const finalTeam = rcaTeam === 'other' ? customTeam : rcaTeam;
     return {
@@ -692,6 +845,10 @@ export default function StandardRcaForm() {
       info_cctv: infoCctv,
       info_document: infoDocument,
       info_inspection: infoInspection,
+      review_outcome: reviewOutcome,
+      support_request_purpose: ['CROSS_FUNCTIONAL_SUPPORT', 'ORGANIZATION_RCA'].includes(reviewOutcome) ? supportRequestPurpose : undefined,
+      support_target_name: ['CROSS_FUNCTIONAL_SUPPORT', 'ORGANIZATION_RCA'].includes(reviewOutcome) ? supportTargetName : undefined,
+      escalation_reason: ['CROSS_FUNCTIONAL_SUPPORT', 'ORGANIZATION_RCA'].includes(reviewOutcome) ? escalationReason : undefined,
       status: markAsNotRisk ? 'closed' : status,
       created_by: user?.id || 1,
       timelines: timelines.filter((t) => t.event_description.trim() || t.event_time.trim()),
@@ -718,8 +875,40 @@ export default function StandardRcaForm() {
         review_date_time: s.review_date_time ? new Date(s.review_date_time).toISOString() : null,
         notes: s.notes,
       })),
+      participants: participants.filter((participant) => participant.display_name.trim()).map((participant) => ({
+        ...participant,
+        responded_at: participant.responded_at || undefined,
+      })),
+      voice_of_staff_entries: infoInterview
+        ? voiceOfStaffEntries.filter((voice) => voice.key_points.trim()).map((voice) => ({
+            ...voice,
+            interview_date: voice.interview_date ? new Date(voice.interview_date).toISOString() : undefined,
+          }))
+        : [],
     };
   };
+
+  latestDraftPayloadRef.current = buildPayload();
+
+  useEffect(() => {
+    const savedCaseId = id && id !== 'new' ? id : caseId;
+    if (!savedCaseId || status.toUpperCase() === 'COMPLETED') return;
+    const timer = window.setInterval(async () => {
+      if (saving || completing || !latestDraftPayloadRef.current) return;
+      const fingerprint = JSON.stringify(latestDraftPayloadRef.current);
+      if (fingerprint === lastAutoSavedFingerprintRef.current) return;
+      try {
+        setAutoSaveStatus('saving');
+        await axios.patch(`/rca/standard/${savedCaseId}`, latestDraftPayloadRef.current);
+        lastAutoSavedFingerprintRef.current = fingerprint;
+        setLastAutoSavedAt(new Date());
+        setAutoSaveStatus('saved');
+      } catch {
+        setAutoSaveStatus('error');
+      }
+    }, 20000);
+    return () => window.clearInterval(timer);
+  }, [caseId, completing, id, saving, status]);
 
   const persistRca = async (markAsNotRisk = isNotRisk, navigateAfter = true) => {
     if ((!id || id === 'new') && !incidentId) {
@@ -813,6 +1002,21 @@ export default function StandardRcaForm() {
   const selectableIncidents = sourceIncident && !incidentCandidates.some((candidate) => candidate.id === sourceIncident.id)
     ? [sourceIncident, ...incidentCandidates]
     : incidentCandidates;
+  const hasAnalysis = contributingFactors.length > 0 || cmps.some((item) => item.observation.trim() || item.hypothesis.trim()) || whys.some((item) => item.answer.trim()) || processAnalyses.some((item) => item.problem.trim() || item.corrective_action.trim());
+  const hasCompleteCapa = capas.some((item) => item.action.trim() && item.responsible.trim() && item.due_date && item.effectiveness_criteria?.trim() && item.baseline_value?.trim() && item.target_value?.trim() && item.effectiveness_due_date);
+  const hasReviewTeam = participants.some((item) => item.is_owner && item.display_name.trim());
+  const hasVoice = !infoInterview || voiceOfStaffEntries.some((item) => item.key_points.trim());
+  const hasRoute = reviewOutcome !== 'IN_PROGRESS' && (!['CROSS_FUNCTIONAL_SUPPORT', 'ORGANIZATION_RCA'].includes(reviewOutcome) || Boolean(supportTargetName.trim() && escalationReason.trim()));
+  const hasRegister = Boolean(selectedRiskProfileId || (riskDescription.trim() && riskOwnerName.trim()));
+  const sectionCompletion: Record<string, boolean> = {
+    'rca-facts': Boolean(incidentId && topic.trim() && whatHappened.trim()),
+    'rca-timeline': timelines.some((item) => item.event_description.trim()),
+    'rca-analysis': Boolean(hasAnalysis && hasReviewTeam && hasVoice),
+    'rca-actions': Boolean(hasCompleteCapa),
+    'rca-route': hasRoute,
+    'risk-register-link': hasRegister,
+  };
+  const completionPercent = Math.round(Object.values(sectionCompletion).filter(Boolean).length / Object.keys(sectionCompletion).length * 100);
 
   if (loading) {
     return (
@@ -863,6 +1067,10 @@ export default function StandardRcaForm() {
               <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
                 Case ID: {caseId || 'สร้างเคสใหม่'} {incidentId ? `• เชื่อม Incident #${incidentId}` : ''} {sourceTriggerReviewId ? `(เชื่อมโยงจาก Trigger Tool Review #${sourceTriggerReviewId})` : ''}
               </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                <span className={`rounded-full px-2.5 py-1 font-black ${completionPercent === 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>ความครบถ้วน {completionPercent}%</span>
+                {caseId && <span className={`font-semibold ${autoSaveStatus === 'error' ? 'text-rose-600' : 'text-slate-500'}`}>{autoSaveStatus === 'saving' ? 'กำลังบันทึกอัตโนมัติ...' : autoSaveStatus === 'error' ? 'บันทึกอัตโนมัติไม่สำเร็จ กรุณากดบันทึกร่าง' : lastAutoSavedAt ? `บันทึกอัตโนมัติล่าสุด ${lastAutoSavedAt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}` : 'ระบบจะบันทึกร่างอัตโนมัติทุก 20 วินาทีเมื่อมีการแก้ไข'}</span>}
+              </div>
             </div>
           </div>
         </div>
@@ -965,17 +1173,19 @@ export default function StandardRcaForm() {
               ['rca-timeline', '2. Timeline'],
               ['rca-analysis', '3. วิเคราะห์สาเหตุ'],
               ['rca-actions', '4. มาตรการ'],
-              ['risk-register-link', '5. Risk Register'],
+              ['rca-route', '5. เส้นทางต่อ'],
+              ['risk-register-link', '6. Risk Register'],
             ].map(([target, label]) => (
-              <button key={target} type="button" onClick={() => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="rounded-xl px-3 py-2 text-xs font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-300 dark:hover:bg-indigo-950">
-                {label}
+              <button key={target} type="button" onClick={() => { setActiveStep(target); window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); }} className={`rounded-xl px-3 py-2 text-xs font-bold transition ${activeStep === target && guidedMode ? 'ring-2 ring-indigo-400' : ''} ${sectionCompletion[target] ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'text-slate-600 hover:bg-amber-50 hover:text-amber-700 dark:text-slate-300 dark:hover:bg-amber-950'}`}>
+                {sectionCompletion[target] ? '✓ ' : '○ '}{label}
               </button>
             ))}
+            <button type="button" onClick={() => setGuidedMode((current) => !current)} className="ml-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 dark:border-slate-700 dark:text-slate-300">{guidedMode ? 'แสดงทุกส่วน' : 'ทำทีละขั้น'}</button>
           </div>
         </nav>
 
         {/* ================= SECTION 1: GENERAL METADATA ================= */}
-        <section id="rca-facts" className="scroll-mt-24 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+        <section id="rca-facts" className={`scroll-mt-24 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 ${guidedMode && activeStep !== 'rca-facts' ? 'hidden print:block' : ''}`}>
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
@@ -1169,7 +1379,7 @@ export default function StandardRcaForm() {
         </section>
 
         {/* ================= SECTION 2: PROBLEM & IMPACT ================= */}
-        <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+        <section className={`bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 ${guidedMode && activeStep !== 'rca-facts' ? 'hidden print:block' : ''}`}>
           <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800">
             <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
               2
@@ -1224,7 +1434,7 @@ export default function StandardRcaForm() {
         </section>
 
         {/* ================= SECTION 3: INCIDENT TIMELINE ================= */}
-        <section id="rca-timeline" className="scroll-mt-24 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+        <section id="rca-timeline" className={`scroll-mt-24 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 ${guidedMode && activeStep !== 'rca-timeline' ? 'hidden print:block' : ''}`}>
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
@@ -1307,7 +1517,7 @@ export default function StandardRcaForm() {
         </section>
 
         {/* ================= SECTION 4: QUICK STAKEHOLDER REVIEW & CMPS ================= */}
-        <section id="rca-analysis" className="scroll-mt-24 space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+        <section id="rca-analysis" className={`scroll-mt-24 space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8 ${guidedMode && activeStep !== 'rca-analysis' ? 'hidden print:block' : ''}`}>
           <div className="flex items-center gap-2.5 border-b border-slate-100 pb-4 dark:border-slate-800">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-sm font-black text-violet-600 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-400">4</span>
             <div>
@@ -1393,7 +1603,7 @@ export default function StandardRcaForm() {
         </section>
 
         {/* ================= SECTION 5: CLINICAL PROCESS BOARD ================= */}
-        <section className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+        <section className={`space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8 ${guidedMode && activeStep !== 'rca-analysis' ? 'hidden print:block' : ''}`}>
           <div className="flex items-center gap-2.5 border-b border-slate-100 pb-4 dark:border-slate-800">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-sm font-black text-blue-600 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-400">5</span>
             <div>
@@ -1533,7 +1743,7 @@ export default function StandardRcaForm() {
         </section>
 
         {/* ================= SECTION 6: 5 WHYS & SWISS CHEESE MODEL ================= */}
-        <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+        <section className={`bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 ${guidedMode && activeStep !== 'rca-analysis' ? 'hidden print:block' : ''}`}>
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
@@ -1663,7 +1873,7 @@ export default function StandardRcaForm() {
         </section>
 
         {/* ================= SECTION 7: CAPA ACTION PLAN ================= */}
-        <section id="rca-actions" className="scroll-mt-24 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+        <section id="rca-actions" className={`scroll-mt-24 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 ${guidedMode && activeStep !== 'rca-actions' ? 'hidden print:block' : ''}`}>
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
@@ -1812,7 +2022,7 @@ export default function StandardRcaForm() {
         </section>
 
         {/* ================= SECTION 8: REVIEW SESSIONS ================= */}
-        <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+        <section className={`bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 ${guidedMode && activeStep !== 'rca-analysis' ? 'hidden print:block' : ''}`}>
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
@@ -1835,6 +2045,122 @@ export default function StandardRcaForm() {
               <Plus className="w-3.5 h-3.5" />
               <span>เพิ่มรอบการประชุม</span>
             </button>
+          </div>
+
+          <div className="space-y-4 rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4 dark:border-indigo-900 dark:bg-indigo-950/20">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200"><Users size={18} /></span>
+                <div>
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white">ทีมทบทวนเรื่องนี้</h4>
+                  <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">หน่วยงานเจ้าของเรื่องยังรับผิดชอบหลัก การเพิ่มทีมอื่นหมายถึงขอให้ช่วยตามบทบาทที่ระบุ ไม่ใช่ส่งมอบเรื่องทั้งหมด</p>
+                </div>
+              </div>
+              <button type="button" onClick={handleAddParticipant} className="shrink-0 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:bg-slate-900 dark:text-indigo-300">
+                + ขอทีม/ผู้เชี่ยวชาญช่วย
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {participants.map((participant, index) => (
+                <div key={index} className={`rounded-2xl border p-4 ${participant.is_owner ? 'border-emerald-300 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/20' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'}`}>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${participant.is_owner ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200'}`}>
+                        {participant.is_owner ? 'เจ้าของเรื่อง' : `ผู้ร่วมทบทวน ${index}`}
+                      </span>
+                      <span className="text-[11px] text-slate-500">{participant.response_status === 'ACCEPTED' ? 'ตอบรับแล้ว' : participant.response_status === 'DECLINED' ? 'ไม่สะดวกเข้าร่วม' : participant.response_status === 'PENDING' ? 'รอตอบรับ' : 'ไม่ต้องตอบรับ'}</span>
+                    </div>
+                    {!participant.is_owner && <button type="button" onClick={() => setParticipants((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="text-slate-400 hover:text-rose-500"><Trash2 size={15} /></button>}
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-12">
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-2">
+                      ประเภท
+                      <select disabled={participant.is_owner} value={participant.participant_type} onChange={(event) => handleParticipantChange(index, 'participant_type', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-normal disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-950">
+                        <option value="DEPARTMENT">หน่วยงาน</option><option value="TEAM">ทีมนำ/ทีมคร่อม</option><option value="PERSON">บุคคล</option><option value="EXPERT">ผู้เชี่ยวชาญ</option>
+                      </select>
+                    </label>
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-4">
+                      ชื่อผู้ร่วมทบทวน/ทีม
+                      {participant.participant_type === 'DEPARTMENT' ? (
+                        <select value={participant.department_id || ''} onChange={(event) => {
+                          const department = departments.find((item) => String(item.id) === event.target.value);
+                          handleParticipantChange(index, 'department_id', event.target.value);
+                          if (department) handleParticipantChange(index, 'display_name', department.depart_name);
+                        }} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-normal dark:border-slate-700 dark:bg-slate-950">
+                          <option value="">เลือกหน่วยงาน</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.depart_name}</option>)}
+                        </select>
+                      ) : participant.participant_type === 'TEAM' && teamOptions.length ? (
+                        <select value={participant.team_id || ''} onChange={(event) => {
+                          const team = teamOptions.find((item) => String(item.id) === event.target.value);
+                          handleParticipantChange(index, 'team_id', Number(event.target.value) || undefined);
+                          if (team) handleParticipantChange(index, 'display_name', team.team_name);
+                        }} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-normal dark:border-slate-700 dark:bg-slate-950">
+                          <option value="">เลือกทีมนำ/ทีมคร่อมสายงาน</option>{teamOptions.map((team) => <option key={team.id} value={team.id}>{team.team_name}</option>)}
+                        </select>
+                      ) : (
+                        <input value={participant.display_name} onChange={(event) => handleParticipantChange(index, 'display_name', event.target.value)} placeholder="ชื่อบุคคลหรือทีม" className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-normal dark:border-slate-700 dark:bg-slate-950" />
+                      )}
+                    </label>
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-3">
+                      บทบาท
+                      <select disabled={participant.is_owner} value={participant.role} onChange={(event) => handleParticipantChange(index, 'role', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-normal disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-950">
+                        <option value="OWNER">เจ้าของเรื่อง</option><option value="FACILITATOR">ผู้ดำเนินการทบทวน</option><option value="INFORMANT">ผู้ให้ข้อมูล</option><option value="ANALYST">ผู้ช่วยวิเคราะห์</option><option value="APPROVER">ผู้รับรองข้อสรุป</option>
+                      </select>
+                    </label>
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-3">
+                      สถานะเข้าร่วม
+                      <select disabled={participant.is_owner} value={participant.response_status} onChange={(event) => handleParticipantChange(index, 'response_status', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-normal disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-950">
+                        <option value="PENDING">รอตอบรับ</option><option value="ACCEPTED">ตอบรับแล้ว</option><option value="DECLINED">ไม่สะดวกเข้าร่วม</option><option value="NOT_REQUIRED">ไม่ต้องตอบรับ</option>
+                      </select>
+                    </label>
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-12">
+                      วัตถุประสงค์/สิ่งที่ขอให้ช่วย
+                      <input value={participant.purpose} onChange={(event) => handleParticipantChange(index, 'purpose', event.target.value)} placeholder="เช่น ช่วยวิเคราะห์ขั้นตอนการให้ยาและร่วมกำหนดมาตรการ" className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-normal dark:border-slate-700 dark:bg-slate-950" />
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4 rounded-2xl border border-violet-200 bg-violet-50/40 p-4 dark:border-violet-900 dark:bg-violet-950/20">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-200"><MessageSquareText size={18} /></span>
+                <div>
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white">Voice of Staff</h4>
+                  <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">บันทึกสิ่งที่บุคลากรพบจากการทำงานจริง เน้นบริบทและเงื่อนไขของระบบ ไม่ใช้เพื่อตำหนิบุคคล</p>
+                </div>
+              </div>
+              <button type="button" onClick={handleAddVoiceOfStaff} className="shrink-0 rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs font-bold text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:bg-slate-900 dark:text-violet-300">+ เพิ่มการสัมภาษณ์</button>
+            </div>
+            {!infoInterview ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">ยังไม่ได้เลือก “สัมภาษณ์บุคลากร” ในแหล่งข้อมูล ส่วนนี้จะไม่ถูกส่งบันทึก</div>
+            ) : (
+              <div className="space-y-3">
+                {voiceOfStaffEntries.map((voice, index) => (
+                  <div key={index} className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="mb-3 flex items-center justify-between"><span className="text-xs font-black text-violet-700 dark:text-violet-300">การสัมภาษณ์ครั้งที่ {index + 1}</span>{voiceOfStaffEntries.length > 1 && <button type="button" onClick={() => setVoiceOfStaffEntries((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="text-slate-400 hover:text-rose-500"><Trash2 size={15} /></button>}</div>
+                    <div className="grid gap-3 md:grid-cols-12">
+                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-3">ชื่อผู้ให้ข้อมูล (ถ้าระบุได้)<input value={voice.interviewee_name} onChange={(event) => handleVoiceOfStaffChange(index, 'interviewee_name', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-normal dark:border-slate-700 dark:bg-slate-950" /></label>
+                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-3">บทบาท/ตำแหน่ง<input value={voice.interviewee_role} onChange={(event) => handleVoiceOfStaffChange(index, 'interviewee_role', event.target.value)} placeholder="เช่น พยาบาลเวร" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-normal dark:border-slate-700 dark:bg-slate-950" /></label>
+                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-3">หน่วยงาน<input value={voice.interviewee_department} onChange={(event) => handleVoiceOfStaffChange(index, 'interviewee_department', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-normal dark:border-slate-700 dark:bg-slate-950" /></label>
+                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-3">วันเวลาสัมภาษณ์<input type="datetime-local" value={voice.interview_date} onChange={(event) => handleVoiceOfStaffChange(index, 'interview_date', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-normal dark:border-slate-700 dark:bg-slate-950" /></label>
+                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-6">บริบทการทำงานขณะเกิดเหตุ<textarea rows={2} value={voice.work_context} onChange={(event) => handleVoiceOfStaffChange(index, 'work_context', event.target.value)} placeholder="ภาระงาน จำนวนผู้ป่วย เครื่องมือ เวลา หรือข้อจำกัดที่มีในขณะนั้น" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-normal dark:border-slate-700 dark:bg-slate-950" /></label>
+                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-6">ประเด็นสำคัญที่ได้จากการรับฟัง *<textarea rows={2} value={voice.key_points} onChange={(event) => handleVoiceOfStaffChange(index, 'key_points', event.target.value)} placeholder="สิ่งที่เกิดขึ้นจริง มุมมองของผู้ปฏิบัติงาน และจุดที่ระบบไม่เอื้อ" className="mt-1 w-full rounded-xl border border-violet-200 px-3 py-2 text-xs font-normal dark:border-violet-800 dark:bg-slate-950" /></label>
+                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-6">เงื่อนไขที่มีส่วนให้เกิดเหตุ<textarea rows={2} value={voice.contributing_conditions} onChange={(event) => handleVoiceOfStaffChange(index, 'contributing_conditions', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-normal dark:border-slate-700 dark:bg-slate-950" /></label>
+                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-6">ข้อเสนอแนะจากผู้ปฏิบัติงาน<textarea rows={2} value={voice.suggestions} onChange={(event) => handleVoiceOfStaffChange(index, 'suggestions', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-normal dark:border-slate-700 dark:bg-slate-950" /></label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-slate-200 pt-5 dark:border-slate-800">
+            <h4 className="text-sm font-black text-slate-900 dark:text-white">ประวัติรอบการประชุมทบทวน</h4>
+            <p className="mt-1 text-xs text-slate-500">บันทึกว่าแต่ละรอบประชุมเมื่อใดและได้ข้อสรุปอะไร</p>
           </div>
 
           <div className="space-y-4">
@@ -1923,7 +2249,34 @@ export default function StandardRcaForm() {
           </div>
         </section>
 
-        <section id="risk-register-link" className="space-y-5 rounded-3xl border-2 border-indigo-300 bg-indigo-50/40 p-6 shadow-sm dark:border-indigo-800 dark:bg-indigo-950/20 sm:p-8">
+        <section id="rca-route" className={`scroll-mt-24 space-y-5 rounded-3xl border border-cyan-200 bg-white p-6 shadow-sm dark:border-cyan-900 dark:bg-slate-900 sm:p-8 ${guidedMode && activeStep !== 'rca-route' ? 'hidden print:block' : ''}`}>
+          <div>
+            <div className="text-xs font-black text-cyan-700 dark:text-cyan-300">ผลลัพธ์หลังหน่วยงานทบทวน</div>
+            <h3 className="mt-1 text-lg font-black text-slate-900 dark:text-white">เรื่องนี้ควรดำเนินต่ออย่างไร</h3>
+            <p className="mt-1 text-xs text-slate-500">หน่วยงานจบเรื่องเองได้เมื่อมีอำนาจและข้อมูลเพียงพอ หรือขอทีมคร่อมสายงานช่วยโดยหน่วยงานยังเป็นเจ้าของเรื่อง</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {[
+              ['DEPARTMENT_CLOSED', 'จัดการและจบที่หน่วยงาน', 'ปัญหาอยู่ในขอบเขตหน่วยงานและมีมาตรการครบ'],
+              ['DEPARTMENT_MONITORING', 'ติดตามมาตรการต่อในหน่วยงาน', 'สรุป RCA แล้วและติดตามผลผ่าน CAPA/Risk Register'],
+              ['CROSS_FUNCTIONAL_SUPPORT', 'ขอทีมคร่อมสายงานร่วมทบทวน', 'ต้องการความรู้หรือการประสานงานจากทีมอื่น'],
+              ['ORGANIZATION_RCA', 'ยกระดับเป็น RCA ระดับองค์กร', 'เป็นปัญหาเชิงระบบ รุนแรง หรือกระทบหลายกระบวนการ'],
+            ].map(([value, label, hint]) => (
+              <button key={value} type="button" onClick={() => setReviewOutcome(value)} className={`rounded-2xl border p-4 text-left transition ${reviewOutcome === value ? 'border-cyan-500 bg-cyan-50 ring-2 ring-cyan-100 dark:bg-cyan-950/30 dark:ring-cyan-950' : 'border-slate-200 hover:border-cyan-300 dark:border-slate-700'}`}>
+                <div className="text-sm font-black text-slate-900 dark:text-white">{label}</div><div className="mt-1 text-xs leading-5 text-slate-500">{hint}</div>
+              </button>
+            ))}
+          </div>
+          {['CROSS_FUNCTIONAL_SUPPORT', 'ORGANIZATION_RCA'].includes(reviewOutcome) && (
+            <div className="grid gap-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900 dark:bg-amber-950/20 md:grid-cols-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-200">ทีมที่ขอให้ช่วย<input value={supportTargetName} onChange={(event) => setSupportTargetName(event.target.value)} placeholder="เช่น PCT, PTC, IC, ENV หรือทีมเฉพาะกิจ" className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-sm font-normal dark:border-amber-800 dark:bg-slate-950" /></label>
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-200">วัตถุประสงค์<select value={supportRequestPurpose} onChange={(event) => setSupportRequestPurpose(event.target.value)} className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-sm font-normal dark:border-amber-800 dark:bg-slate-950"><option value="PROCESS_ANALYSIS">ช่วยวิเคราะห์กระบวนการ</option><option value="SPECIALIST_ADVICE">ให้ความเห็นเฉพาะด้าน</option><option value="JOINT_ACTION">ร่วมกำหนดมาตรการ</option><option value="POLICY_DECISION">พิจารณานโยบาย/ทรัพยากร</option></select></label>
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-200 md:col-span-2">เหตุผลที่ต้องขอความช่วยเหลือหรือยกระดับ<textarea rows={3} value={escalationReason} onChange={(event) => setEscalationReason(event.target.value)} placeholder="ระบุขอบเขตที่หน่วยงานแก้เองไม่ได้ ความซับซ้อน เหตุซ้ำ หรือความรุนแรง" className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-sm font-normal dark:border-amber-800 dark:bg-slate-950" /></label>
+            </div>
+          )}
+        </section>
+
+        <section id="risk-register-link" className={`scroll-mt-24 space-y-5 rounded-3xl border-2 border-indigo-300 bg-indigo-50/40 p-6 shadow-sm dark:border-indigo-800 dark:bg-indigo-950/20 sm:p-8 ${guidedMode && activeStep !== 'risk-register-link' ? 'hidden print:block' : ''}`}>
           <div className="flex flex-col gap-2 border-b border-indigo-200 pb-4 dark:border-indigo-900 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="text-xs font-black text-indigo-600">ขั้นตอนสุดท้ายก่อนสรุป RCA</div>
@@ -1948,10 +2301,12 @@ export default function StandardRcaForm() {
                 >
                   <option value="">สร้าง Risk Register ใหม่จาก RCA นี้</option>
                   {riskProfiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>[{profile.risk_code}] {profile.risk_title} · {profile.risk_owner_name || 'ยังไม่ระบุเจ้าของ'}</option>
+                    <option key={profile.id} value={profile.id}>[{profile.risk_code}] {profile.risk_title} · {profile.scope_level === 'hospital' ? 'ระดับโรงพยาบาล' : profile.department_name || `หน่วยงาน ${profile.department_id}`} · เจ้าของ {profile.risk_owner_name || 'ยังไม่ระบุ'}</option>
                   ))}
                 </select>
               </label>
+
+              {selectedRiskProfileId && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">ระบบจะเชื่อม RCA กับ Risk Register ที่คุณเลือกโดยตรง กรุณาตรวจขอบเขต หน่วยงาน และเจ้าของความเสี่ยงก่อนกดสรุป</div>}
 
               {!selectedRiskProfileId && (
                 <div className="grid gap-4 rounded-2xl border border-indigo-200 bg-white p-4 dark:border-indigo-900 dark:bg-slate-900 md:grid-cols-2">

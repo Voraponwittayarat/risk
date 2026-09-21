@@ -83,6 +83,12 @@ export class RcaController {
     return this.rcaService.getStandardCandidates(search, req.user);
   }
 
+  @Get('collaboration-options')
+  @ApiOperation({ summary: 'Get departments and cross-functional teams available for RCA collaboration' })
+  getCollaborationOptions() {
+    return this.rcaService.getCollaborationOptions();
+  }
+
   @Get('standard')
   @ApiOperation({ summary: 'Get list of Standard Full RCA cases' })
   getStandardList(@Request() req: any) {

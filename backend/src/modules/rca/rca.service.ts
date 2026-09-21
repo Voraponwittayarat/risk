@@ -92,6 +92,10 @@ export class CreateStandardRcaDto {
   info_cctv?: boolean;
   info_document?: boolean;
   info_inspection?: boolean;
+  review_outcome?: 'IN_PROGRESS' | 'DEPARTMENT_CLOSED' | 'DEPARTMENT_MONITORING' | 'CROSS_FUNCTIONAL_SUPPORT' | 'ORGANIZATION_RCA';
+  support_request_purpose?: 'PROCESS_ANALYSIS' | 'SPECIALIST_ADVICE' | 'JOINT_ACTION' | 'POLICY_DECISION';
+  support_target_name?: string;
+  escalation_reason?: string;
   status?: string;
   created_by?: number;
   timelines?: Array<{
@@ -148,6 +152,31 @@ export class CreateStandardRcaDto {
     reviewers?: string;
     review_date_time?: string;
     notes?: string;
+    sort_order?: number;
+  }>;
+  participants?: Array<{
+    participant_type: string;
+    display_name: string;
+    role: string;
+    user_id?: number;
+    member_cid?: string;
+    department_id?: string;
+    team_id?: number;
+    purpose?: string;
+    response_status?: string;
+    responded_at?: string;
+    is_owner?: boolean;
+    sort_order?: number;
+  }>;
+  voice_of_staff_entries?: Array<{
+    interviewee_name?: string;
+    interviewee_role?: string;
+    interviewee_department?: string;
+    interview_date?: string;
+    work_context?: string;
+    key_points: string;
+    contributing_conditions?: string;
+    suggestions?: string;
     sort_order?: number;
   }>;
 }
@@ -517,7 +546,18 @@ export class RcaService {
   async getStandardList(user?: any) {
     const allowed = await this.allowedDepartments(user);
     return this.prisma.standard_rca_case.findMany({
-      where: allowed ? { OR: [{ department_id: { in: allowed } }, { assigned_member_cid: user?.cid }] } : {},
+      where: allowed ? {
+        OR: [
+          { department_id: { in: allowed } },
+          { assigned_member_cid: user?.cid },
+          { participants: { some: { OR: [
+            { user_id: Number(user?.id) || -1 },
+            { member_cid: user?.cid || '__none__' },
+            { department_id: { in: allowed } },
+            { team_id: Number(user?.teamId) || -1 },
+          ] } } },
+        ],
+      } : {},
       include: {
         timelines: { orderBy: { sort_order: 'asc' } },
         cmps: { orderBy: { sort_order: 'asc' } },
@@ -526,6 +566,8 @@ export class RcaService {
         process_analyses: { orderBy: { sort_order: 'asc' } },
         capas: { orderBy: { sort_order: 'asc' } },
         review_sessions: { orderBy: { sort_order: 'asc' } },
+        participants: { orderBy: [{ is_owner: 'desc' }, { sort_order: 'asc' }] },
+        voice_of_staff_entries: { orderBy: { sort_order: 'asc' } },
         risk_analysis: true,
       },
       orderBy: { created_at: 'desc' },
@@ -543,11 +585,24 @@ export class RcaService {
         process_analyses: { orderBy: { sort_order: 'asc' } },
         capas: { orderBy: { sort_order: 'asc' } },
         review_sessions: { orderBy: { sort_order: 'asc' } },
+        participants: { orderBy: [{ is_owner: 'desc' }, { sort_order: 'asc' }] },
+        voice_of_staff_entries: { orderBy: { sort_order: 'asc' } },
         risk_analysis: true,
       },
     });
     if (!stdCase) throw new NotFoundException(`Standard RCA Case #${id} not found`);
-    if (user) await this.assertDepartmentAccess(stdCase.department_id, user, stdCase.assigned_member_cid);
+    if (user) {
+      const allowed = await this.allowedDepartments(user);
+      const participantAccess = stdCase.participants.some((participant) =>
+        (participant.user_id != null && Number(participant.user_id) === Number(user?.id))
+        || (participant.member_cid && String(participant.member_cid) === String(user?.cid || ''))
+        || (participant.department_id && Boolean(allowed?.includes(String(participant.department_id))))
+        || (participant.team_id != null && Number(participant.team_id) === Number(user?.teamId)),
+      );
+      const ownerAccess = allowed === null || allowed.includes(String(stdCase.department_id || ''))
+        || (stdCase.assigned_member_cid && String(stdCase.assigned_member_cid) === String(user?.cid || ''));
+      if (!ownerAccess && !participantAccess) throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึง RCA นอกขอบเขต');
+    }
 
     let incidentDetail = '';
 
@@ -620,6 +675,12 @@ export class RcaService {
         info_cctv: data.info_cctv ?? false,
         info_document: data.info_document ?? false,
         info_inspection: data.info_inspection ?? false,
+        review_outcome: data.review_outcome || 'IN_PROGRESS',
+        support_request_purpose: data.support_request_purpose,
+        support_target_name: data.support_target_name,
+        escalation_reason: data.escalation_reason,
+        review_decided_by: data.review_outcome && data.review_outcome !== 'IN_PROGRESS' ? Number(user?.id) || data.created_by : null,
+        review_decided_at: data.review_outcome && data.review_outcome !== 'IN_PROGRESS' ? new Date() : null,
         status: (data.status || 'IN_PROGRESS').toUpperCase(),
         created_by: data.created_by,
         timelines: data.timelines?.length
@@ -706,6 +767,40 @@ export class RcaService {
               })),
             }
           : undefined,
+        participants: data.participants?.length
+          ? {
+              create: data.participants.map((participant, idx) => ({
+                participant_type: String(participant.participant_type || 'DEPARTMENT').toUpperCase(),
+                display_name: participant.display_name.trim(),
+                role: String(participant.role || 'REVIEWER').toUpperCase(),
+                user_id: participant.user_id,
+                member_cid: participant.member_cid,
+                department_id: participant.department_id,
+                team_id: participant.team_id,
+                purpose: participant.purpose,
+                response_status: String(participant.response_status || (participant.is_owner ? 'ACCEPTED' : 'PENDING')).toUpperCase(),
+                responded_at: participant.responded_at ? new Date(participant.responded_at) : participant.is_owner ? new Date() : null,
+                is_owner: participant.is_owner ?? false,
+                sort_order: participant.sort_order ?? idx + 1,
+              })),
+            }
+          : undefined,
+        voice_of_staff_entries: data.voice_of_staff_entries?.length
+          ? {
+              create: data.voice_of_staff_entries.map((voice, idx) => ({
+                interviewee_name: voice.interviewee_name,
+                interviewee_role: voice.interviewee_role,
+                interviewee_department: voice.interviewee_department,
+                interview_date: voice.interview_date ? new Date(voice.interview_date) : null,
+                work_context: voice.work_context,
+                key_points: voice.key_points.trim(),
+                contributing_conditions: voice.contributing_conditions,
+                suggestions: voice.suggestions,
+                sort_order: voice.sort_order ?? idx + 1,
+                created_by: Number(user?.id) || data.created_by,
+              })),
+            }
+          : undefined,
       },
       include: {
         timelines: true,
@@ -715,8 +810,39 @@ export class RcaService {
         process_analyses: true,
         capas: true,
         review_sessions: true,
+        participants: true,
+        voice_of_staff_entries: true,
       },
     });
+
+    const createdParticipants = created.participants || [];
+    const createdVoices = created.voice_of_staff_entries || [];
+    if (createdParticipants.length || createdVoices.length) {
+      await this.prisma.workflow_audit.create({
+        data: {
+          entity_type: 'RCA',
+          entity_id: caseId,
+          action: 'COLLABORATION_CONFIGURED',
+          new_value: JSON.stringify({
+            participants: createdParticipants.map((item) => ({ type: item.participant_type, name: item.display_name, role: item.role, status: item.response_status, owner: item.is_owner })),
+            voice_of_staff_count: createdVoices.length,
+          }),
+          reason: 'กำหนดทีมทบทวนและข้อมูล Voice of Staff',
+          changed_by: Number(user?.id) || data.created_by,
+        },
+      });
+      await Promise.all(createdParticipants.filter((item) => !item.is_owner && item.response_status === 'PENDING').map((item) =>
+        this.prisma.notification_log.upsert({
+          where: { notification_key: `RCA:${caseId}:PARTICIPANT:${item.sort_order}` },
+          create: {
+            notification_key: `RCA:${caseId}:PARTICIPANT:${item.sort_order}`,
+            entity_type: 'RCA', entity_id: caseId, notification_type: 'REVIEW_INVITATION',
+            recipient_scope: `${item.participant_type}:${item.user_id || item.member_cid || item.department_id || item.team_id || item.display_name}`,
+          },
+          update: {},
+        }),
+      ));
+    }
 
     await this.prisma.riskregister.updateMany({
       where: { id: incident.id, id_risk: incident.id_risk },
@@ -785,6 +911,12 @@ export class RcaService {
     if (data.review_sessions) {
       await this.prisma.standard_rca_review_session.deleteMany({ where: { standard_rca_case_id: id } });
     }
+    if (data.participants) {
+      await this.prisma.standard_rca_participant.deleteMany({ where: { standard_rca_case_id: id } });
+    }
+    if (data.voice_of_staff_entries) {
+      await this.prisma.standard_rca_voice_of_staff.deleteMany({ where: { standard_rca_case_id: id } });
+    }
 
     const updated = await this.prisma.standard_rca_case.update({
       where: { id },
@@ -805,6 +937,12 @@ export class RcaService {
         info_cctv: data.info_cctv,
         info_document: data.info_document,
         info_inspection: data.info_inspection,
+        review_outcome: data.review_outcome,
+        support_request_purpose: data.support_request_purpose,
+        support_target_name: data.support_target_name,
+        escalation_reason: data.escalation_reason,
+        review_decided_by: data.review_outcome && data.review_outcome !== 'IN_PROGRESS' ? Number(user?.id) || data.created_by : undefined,
+        review_decided_at: data.review_outcome && data.review_outcome !== 'IN_PROGRESS' ? new Date() : undefined,
         status: data.status ? data.status.toUpperCase() : undefined,
         completed_at: data.status?.toUpperCase() === 'COMPLETED' ? new Date() : data.status ? null : undefined,
         timelines: data.timelines?.length
@@ -891,6 +1029,40 @@ export class RcaService {
               })),
             }
           : undefined,
+        participants: data.participants?.length
+          ? {
+              create: data.participants.map((participant, idx) => ({
+                participant_type: String(participant.participant_type || 'DEPARTMENT').toUpperCase(),
+                display_name: participant.display_name.trim(),
+                role: String(participant.role || 'REVIEWER').toUpperCase(),
+                user_id: participant.user_id,
+                member_cid: participant.member_cid,
+                department_id: participant.department_id,
+                team_id: participant.team_id,
+                purpose: participant.purpose,
+                response_status: String(participant.response_status || (participant.is_owner ? 'ACCEPTED' : 'PENDING')).toUpperCase(),
+                responded_at: participant.responded_at ? new Date(participant.responded_at) : participant.is_owner ? new Date() : null,
+                is_owner: participant.is_owner ?? false,
+                sort_order: participant.sort_order ?? idx + 1,
+              })),
+            }
+          : undefined,
+        voice_of_staff_entries: data.voice_of_staff_entries?.length
+          ? {
+              create: data.voice_of_staff_entries.map((voice, idx) => ({
+                interviewee_name: voice.interviewee_name,
+                interviewee_role: voice.interviewee_role,
+                interviewee_department: voice.interviewee_department,
+                interview_date: voice.interview_date ? new Date(voice.interview_date) : null,
+                work_context: voice.work_context,
+                key_points: voice.key_points.trim(),
+                contributing_conditions: voice.contributing_conditions,
+                suggestions: voice.suggestions,
+                sort_order: voice.sort_order ?? idx + 1,
+                created_by: Number(user?.id) || data.created_by,
+              })),
+            }
+          : undefined,
       },
       include: {
         timelines: true,
@@ -900,6 +1072,8 @@ export class RcaService {
         process_analyses: true,
         capas: true,
         review_sessions: true,
+        participants: true,
+        voice_of_staff_entries: true,
       },
     });
     if (updated.incident_id) {
@@ -942,11 +1116,69 @@ export class RcaService {
         }
       }
     }
+    if (data.participants || data.voice_of_staff_entries) {
+      const previousCollaboration = {
+        participants: existing.participants.map((item) => ({ type: item.participant_type, name: item.display_name, role: item.role, status: item.response_status, owner: item.is_owner })),
+        voice_of_staff_count: existing.voice_of_staff_entries.length,
+      };
+      const nextCollaboration = {
+        participants: updated.participants.map((item) => ({ type: item.participant_type, name: item.display_name, role: item.role, status: item.response_status, owner: item.is_owner })),
+        voice_of_staff_count: updated.voice_of_staff_entries.length,
+      };
+      if (JSON.stringify(previousCollaboration) !== JSON.stringify(nextCollaboration)) {
+        await this.prisma.workflow_audit.create({
+          data: {
+            entity_type: 'RCA', entity_id: id, action: 'COLLABORATION_UPDATED',
+            old_value: JSON.stringify(previousCollaboration),
+            new_value: JSON.stringify(nextCollaboration),
+            reason: 'ปรับผู้ร่วมทบทวนหรือข้อมูล Voice of Staff',
+            changed_by: Number(user?.id) || data.created_by,
+          },
+        });
+        await Promise.all(updated.participants.filter((item) => !item.is_owner && item.response_status === 'PENDING').map((item) =>
+          this.prisma.notification_log.upsert({
+            where: { notification_key: `RCA:${id}:PARTICIPANT:${item.sort_order}` },
+            create: {
+              notification_key: `RCA:${id}:PARTICIPANT:${item.sort_order}`,
+              entity_type: 'RCA', entity_id: id, notification_type: 'REVIEW_INVITATION',
+              recipient_scope: `${item.participant_type}:${item.user_id || item.member_cid || item.department_id || item.team_id || item.display_name}`,
+            },
+            update: {},
+          }),
+        ));
+      }
+    }
+    if (data.review_outcome && data.review_outcome !== existing.review_outcome) {
+      await this.prisma.workflow_audit.create({
+        data: {
+          entity_type: 'RCA', entity_id: id, action: 'REVIEW_ROUTE_DECIDED',
+          old_value: JSON.stringify({ outcome: existing.review_outcome }),
+          new_value: JSON.stringify({
+            outcome: updated.review_outcome,
+            support_request_purpose: updated.support_request_purpose,
+            support_target_name: updated.support_target_name,
+          }),
+          reason: updated.escalation_reason || 'บันทึกผลลัพธ์หลังหน่วยงานทบทวน',
+          changed_by: Number(user?.id) || data.created_by,
+        },
+      });
+    }
     return updated;
+  }
+
+  async getCollaborationOptions() {
+    const [departments, teams] = await Promise.all([
+      this.prisma.department.findMany({ select: { id: true, depart_name: true }, orderBy: { depart_name: 'asc' } }),
+      this.prisma.team.findMany({ select: { id: true, team_name: true }, orderBy: { team_name: 'asc' } }),
+    ]);
+    return { departments, teams };
   }
 
   async completeStandard(id: string, data: CompleteStandardRcaDto, user?: any) {
     const standardCase = await this.getStandardById(id, user);
+    if (String(standardCase.status || '').toUpperCase() === 'COMPLETED' && standardCase.risk_analysis) {
+      return { rca: standardCase, risk_analysis: standardCase.risk_analysis, risk_profile_created: false, already_completed: true };
+    }
     if (standardCase.is_not_risk) throw new BadRequestException('รายการที่ระบุว่าไม่ใช่ความเสี่ยงไม่สามารถสรุปเป็น RCA ได้');
     if (!standardCase.incident_id) throw new BadRequestException('RCA ต้องเชื่อมกับรายงานอุบัติการณ์ต้นทาง');
 
@@ -959,6 +1191,17 @@ export class RcaService {
     if (!standardCase.what_happened?.trim()) missing.push('รายละเอียดเหตุการณ์');
     if (!standardCase.timelines.some((item) => item.event_description?.trim())) missing.push('Timeline');
     if (!hasAnalysis) missing.push('ผลการวิเคราะห์สาเหตุ');
+    if (!(standardCase.participants || []).some((item) => item.is_owner && item.display_name?.trim())) missing.push('เจ้าของเรื่องในทีมทบทวน');
+    if (standardCase.info_interview && !(standardCase.voice_of_staff_entries || []).some((item) => item.key_points?.trim())) {
+      missing.push('ประเด็นสำคัญจาก Voice of Staff');
+    }
+    const reviewOutcome = String(standardCase.review_outcome || 'IN_PROGRESS').toUpperCase();
+    if (reviewOutcome === 'IN_PROGRESS') missing.push('ผลลัพธ์หลังหน่วยงานทบทวน');
+    if (['CROSS_FUNCTIONAL_SUPPORT', 'ORGANIZATION_RCA'].includes(reviewOutcome)) {
+      if (!standardCase.support_target_name?.trim()) missing.push('ทีมที่ขอให้ช่วยทบทวน');
+      if (!standardCase.support_request_purpose?.trim()) missing.push('วัตถุประสงค์การขอความช่วยเหลือ');
+      if (!standardCase.escalation_reason?.trim()) missing.push('เหตุผลการยกระดับ');
+    }
     if (!standardCase.capas.length) missing.push('มาตรการแก้ไขและป้องกัน');
     standardCase.capas.forEach((capa, index) => {
       if (!capa.responsible?.trim()) missing.push(`ผู้รับผิดชอบมาตรการที่ ${index + 1}`);
@@ -1012,8 +1255,16 @@ export class RcaService {
         const nextReview = new Date();
         nextReview.setMonth(nextReview.getMonth() + Math.max(1, Number(data.review_frequency_months) || 3));
         const department = await tx.department.findUnique({ where: { id: Number(incident.department_id) } });
-        profile = await tx.riskanalysis.create({
-          data: {
+        profile = await tx.riskanalysis.upsert({
+          where: {
+            nrls_code_scope_level_scope_identifier: {
+              nrls_code: nrlsCode,
+              scope_level: 'department',
+              scope_identifier: String(incident.department_id),
+            },
+          },
+          update: { updated_at: new Date() },
+          create: {
             risk_code: nrlsCode,
             nrls_code: nrlsCode,
             nrls_name_snapshot: incident.nrls_name_snapshot || standardCase.topic,
@@ -1093,7 +1344,16 @@ export class RcaService {
     const pendingCapas = capas.filter((c) => !['CLOSED', 'CANCELLED'].includes(c.status.toUpperCase())).length;
     const completedCapas = capas.filter((c) => c.status.toUpperCase() === 'CLOSED').length;
     const implementedCapas = capas.filter((c) => ['IMPLEMENTED', 'AWAITING_EFFECTIVENESS', 'AWAITING_APPROVAL'].includes(c.status.toUpperCase())).length;
+    const awaitingEffectiveness = capas.filter((c) => ['IMPLEMENTED', 'AWAITING_EFFECTIVENESS'].includes(c.status.toUpperCase())).length;
     const overdueCapas = capas.filter((c) => c.due_date && c.due_date < new Date() && !['CLOSED', 'CANCELLED'].includes(c.status.toUpperCase())).length;
+    const needsSupport = standardRows.filter((item) => ['CROSS_FUNCTIONAL_SUPPORT', 'ORGANIZATION_RCA'].includes(String(item.review_outcome || '').toUpperCase()) && String(item.status || '').toUpperCase() !== 'COMPLETED').length;
+    const riskDue = await this.prisma.riskanalysis.count({
+      where: {
+        ...(departments ? { department_id: { in: departments } } : {}),
+        status: { not: 'closed' },
+        next_review_date: { lte: new Date(Date.now() + 30 * 86400000) },
+      },
+    });
 
     return {
       total_rca: miniCases + conciseCases + standardCases + incidentReviews,
@@ -1104,7 +1364,10 @@ export class RcaService {
       pending_capas: pendingCapas,
       completed_capas: completedCapas,
       implemented_capas: implementedCapas,
+      awaiting_effectiveness: awaitingEffectiveness,
       overdue_capas: overdueCapas,
+      needs_support: needsSupport,
+      risk_register_due: riskDue,
     };
   }
 

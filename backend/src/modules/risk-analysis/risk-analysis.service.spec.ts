@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { RiskAnalysisService } from './risk-analysis.service';
 
 describe('Risk reports use stored records and selected scope', () => {
@@ -108,5 +108,24 @@ describe('Risk profile destination scope authorization', () => {
   it('still rejects editing a source outside the user scope', async () => {
     await expect(service.update(1, { department_id: '9' }, { role: 'staff', departmentId: 9 })).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.riskanalysis.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('Risk Register lifecycle review', () => {
+  it('does not close monitoring while residual risk is above green', async () => {
+    const prisma: any = {
+      riskanalysis: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 1, nrls_code: 'CPP101', scope_level: 'department', department_id: '1',
+          reviews: [], review_frequency_months: 3, status: 'open',
+        }),
+      },
+    };
+    const service = new RiskAnalysisService(prisma);
+
+    await expect(service.addReview(1, {
+      review_date: '2026-09-21', result_of_review: 'ยังมีความเสี่ยงสูง',
+      current_likelihood: 4, current_consequence: 4, lifecycle_decision: 'CLOSE_MONITORING',
+    }, { role: 'admin', id: 1 })).rejects.toBeInstanceOf(BadRequestException);
   });
 });

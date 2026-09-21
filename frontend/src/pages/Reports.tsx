@@ -209,8 +209,9 @@ export default function Reports() {
     current_consequence: 3,
     updated_prevention: '',
     is_escalated: 0,
-    escalation_target: 'PCT Committee',
+    escalation_target: 'ทีมนำ/ทีมคร่อมสายงานที่เกี่ยวข้อง',
     reviewed_by: '',
+    lifecycle_decision: 'KEEP',
   });
 
   useEffect(() => {
@@ -2389,6 +2390,18 @@ export default function Reports() {
                 </div>
               </div>
 
+              <div className="rounded-xl border border-cyan-200 bg-cyan-50/60 p-4">
+                <label className="block text-xs font-bold text-cyan-900">ผลลัพธ์ของ Risk Register หลังทบทวนรอบนี้</label>
+                <select value={reviewFormData.lifecycle_decision} onChange={e => setReviewFormData({ ...reviewFormData, lifecycle_decision: e.target.value, is_escalated: e.target.value === 'ESCALATE' ? 1 : reviewFormData.is_escalated })} className="mt-2 w-full rounded-lg border border-cyan-200 bg-white px-3 py-2.5 text-sm">
+                  <option value="KEEP">คงระดับและติดตามรอบถัดไป</option>
+                  <option value="DECREASE">ลดระดับความเสี่ยงและติดตามต่อ</option>
+                  <option value="ESCALATE">ยกระดับให้ทีมนำ/องค์กรสนับสนุน</option>
+                  <option value="CLOSE_MONITORING">ปิดแบบเฝ้าระวัง (เฉพาะ Residual Risk สีเขียว)</option>
+                  <option value="REOPEN">เปิดความเสี่ยงกลับมาติดตามเข้มข้น</option>
+                </select>
+                <p className="mt-1 text-[11px] text-cyan-700">แม้ไม่มี Incident ใหม่ ระบบยังคงนัดทบทวนตามรอบได้ การปิดแบบเฝ้าระวังสามารถเปิดกลับมาใหม่เมื่อเกิดเหตุซ้ำหรือระดับเพิ่มขึ้น</p>
+              </div>
+
               {/* UPDATED MEASURE INPUT (มาตรการที่ได้เปลี่ยนแปลง) */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -2588,6 +2601,56 @@ export default function Reports() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* RCA and CAPA linked to this Risk Register item */}
+              {((selectedRiskItem.standard_rca_cases?.length || 0) > 0 || (selectedRiskItem.capas?.length || 0) > 0) && (
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">งานทบทวนและมาตรการที่เชื่อมโยง</h4>
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="text-xs font-bold text-indigo-900">RCA ({selectedRiskItem.standard_rca_cases?.length || 0})</span>
+                      </div>
+                      {selectedRiskItem.standard_rca_cases?.length ? (
+                        <div className="space-y-2">
+                          {selectedRiskItem.standard_rca_cases.map((rca: any) => (
+                            <div key={rca.id} className="rounded-lg border border-indigo-100 bg-white p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-semibold text-slate-900">{rca.topic || `Standard RCA #${rca.id}`}</p>
+                                  <p className="mt-1 text-[11px] text-slate-500">สถานะ: {rca.status === 'COMPLETED' ? 'ทบทวนเสร็จแล้ว' : 'กำลังทบทวน'}</p>
+                                </div>
+                                <Link to={`/rca/standard/${rca.id}`} className="shrink-0 rounded-lg bg-indigo-100 px-2.5 py-1 text-[11px] font-bold text-indigo-700 hover:bg-indigo-200">เปิด RCA</Link>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : <p className="text-xs text-slate-500">ยังไม่มี RCA ที่เชื่อมโยง</p>}
+                    </div>
+
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="text-xs font-bold text-emerald-900">CAPA ({selectedRiskItem.capas?.length || 0})</span>
+                        {!!selectedRiskItem.capas?.length && <Link to="/capa" className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900">เปิดศูนย์ติดตาม CAPA</Link>}
+                      </div>
+                      {selectedRiskItem.capas?.length ? (
+                        <div className="space-y-2">
+                          {selectedRiskItem.capas.map((capa: any) => (
+                            <div key={capa.id} className="rounded-lg border border-emerald-100 bg-white p-3">
+                              <p className="text-xs font-semibold text-slate-900">{capa.action}</p>
+                              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                                <span>ดำเนินการ: {capa.status || '-'}</span>
+                                <span>ประสิทธิผล: {capa.effectiveness_status || 'รอประเมิน'}</span>
+                                {capa.due_date && <span>กำหนด: {new Date(capa.due_date).toLocaleDateString('th-TH')}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : <p className="text-xs text-slate-500">ยังไม่มี CAPA ที่เชื่อมโยง</p>}
+                    </div>
                   </div>
                 </div>
               )}

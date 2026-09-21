@@ -269,7 +269,9 @@ export class CapaService {
     if (!rows.length) return [];
     const ids = rows.map((row) => String(row.id));
     const incidentIds = [...new Set(rows.map((row) => Number(row.incident_id)))];
-    const [slas, incidents] = await Promise.all([
+    const nrlsCodes = [...new Set(rows.map((row) => String(row.nrls_code || '')).filter(Boolean))];
+    const repeatWindowStart = new Date(Date.now() - 90 * 86400000);
+    const [slas, incidents, relatedIncidents] = await Promise.all([
       this.db.sla_instance.findMany({
         where: { entity_type: 'CAPA', entity_id: { in: ids } },
         include: { escalation_events: { orderBy: { notified_at: 'desc' } } },
@@ -289,6 +291,10 @@ export class CapaService {
           improvement_status: true,
         },
       }),
+      nrlsCodes.length ? this.db.riskregister.findMany({
+        where: { nrls_code: { in: nrlsCodes }, date_report: { gte: repeatWindowStart }, classification_status: 'CONFIRMED' },
+        select: { nrls_code: true, department_id: true, repeat_code: true },
+      }) : [],
     ]);
     const incidentMap = new Map(incidents.map((incident: any) => [Number(incident.id), incident]));
     const now = Date.now();
@@ -303,6 +309,11 @@ export class CapaService {
         active_sla: activeSla || null,
         is_overdue: overdue,
         overdue_hours: overdue ? Math.floor((now - new Date(activeSla.due_at).getTime()) / 3600000) : 0,
+        repeat_context: (() => {
+          const related = relatedIncidents.filter((incident: any) => incident.nrls_code === row.nrls_code
+            && String(incident.department_id) === String(row.responsible_department_id || ''));
+          return { window_days: 90, incident_count: related.length, repeat_count: related.filter((incident: any) => Boolean(incident.repeat_code)).length };
+        })(),
       };
     });
   }

@@ -26,6 +26,9 @@ import { normalizeContributingFactorSelections } from '../../utils/contributingF
 interface OverviewStats {
   pending_capas?: number;
   overdue_capas?: number;
+  awaiting_effectiveness?: number;
+  needs_support?: number;
+  risk_register_due?: number;
 }
 
 type WorkView = 'pending' | 'reviewed';
@@ -118,6 +121,7 @@ export default function RcaList() {
   const [activeView, setActiveView] = useState<WorkView>('pending');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'IN_PROGRESS'>('all');
   const [search, setSearch] = useState(focusedCaseId);
   const [stats, setStats] = useState<OverviewStats>({});
   const [standardCases, setStandardCases] = useState<any[]>([]);
@@ -251,6 +255,7 @@ export default function RcaList() {
   const visibleItems = currentItems.filter((item) => {
     if (typeFilter !== 'all' && item.kind !== typeFilter) return false;
     if (activeView === 'pending' && urgencyFilter !== 'all' && getUrgency(item) !== urgencyFilter) return false;
+    if (activeView === 'pending' && statusFilter !== 'all' && item.status !== statusFilter) return false;
     if (!query) return true;
     return [item.id, item.topic, item.detail, item.nrlsCode, item.rmNo, item.departmentId, item.severity]
       .some((value) => String(value || '').toLowerCase().includes(query));
@@ -289,18 +294,19 @@ export default function RcaList() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-px bg-slate-200 dark:bg-slate-800 sm:grid-cols-3 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-px bg-slate-200 dark:bg-slate-800 sm:grid-cols-3 xl:grid-cols-6">
           {[
-            { label: 'งานที่ต้องทบทวน', value: pendingItems.length, note: 'รวม RCA ทั้ง 3 แบบ', icon: ListTodo, color: 'text-blue-600' },
-            { label: 'เกินกำหนด', value: pendingOverdue, note: 'ควรดำเนินการทันที', icon: AlertCircle, color: 'text-rose-600' },
-            { label: 'กำลังดำเนินการ', value: pendingInProgress, note: 'อยู่ระหว่างทำ RCA', icon: Clock3, color: 'text-amber-600' },
-            { label: 'ทบทวนแล้ว', value: reviewedItems.length, note: `เดือนนี้ ${completedThisMonth} รายการ`, icon: CircleCheckBig, color: 'text-emerald-600' },
-            { label: 'มาตรการค้าง', value: stats.pending_capas || 0, note: `เกินกำหนด ${stats.overdue_capas || 0}`, icon: CalendarClock, color: 'text-violet-600' },
+            { label: 'งานที่ต้องทบทวน', value: pendingItems.length, note: 'รวม RCA ทั้ง 3 แบบ', icon: ListTodo, color: 'text-blue-600', action: () => { setActiveView('pending'); setTypeFilter('all'); setUrgencyFilter('all'); setStatusFilter('all'); setSearch(''); } },
+            { label: 'เกินกำหนด', value: pendingOverdue, note: 'ควรดำเนินการทันที', icon: AlertCircle, color: 'text-rose-600', action: () => { setActiveView('pending'); setTypeFilter('all'); setUrgencyFilter('overdue'); setStatusFilter('all'); setSearch(''); } },
+            { label: 'กำลังดำเนินการ', value: pendingInProgress, note: 'อยู่ระหว่างทำ RCA', icon: Clock3, color: 'text-amber-600', action: () => { setActiveView('pending'); setTypeFilter('all'); setUrgencyFilter('all'); setStatusFilter('IN_PROGRESS'); setSearch(''); } },
+            { label: 'ทบทวนแล้ว', value: reviewedItems.length, note: `เดือนนี้ ${completedThisMonth} รายการ`, icon: CircleCheckBig, color: 'text-emerald-600', action: () => { setActiveView('reviewed'); setTypeFilter('all'); setUrgencyFilter('all'); setStatusFilter('all'); setSearch(''); } },
+            { label: 'มาตรการค้าง', value: stats.pending_capas || 0, note: `รอวัดผล ${stats.awaiting_effectiveness || 0} • เกินกำหนด ${stats.overdue_capas || 0}`, icon: CalendarClock, color: 'text-violet-600', action: () => navigate('/capa') },
+            { label: 'ต้องสนับสนุน/ทบทวนรอบ', value: (stats.needs_support || 0) + (stats.risk_register_due || 0), note: `ขอทีมช่วย ${stats.needs_support || 0} • Risk Register ${stats.risk_register_due || 0}`, icon: ShieldAlert, color: 'text-cyan-600', action: () => navigate('/reports') },
           ].map((card) => (
-            <div key={card.label} className="flex min-h-28 items-center gap-3 bg-white p-4 dark:bg-slate-900 sm:p-5">
+            <button type="button" onClick={card.action} key={card.label} className="flex min-h-28 items-center gap-3 bg-white p-4 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:bg-slate-900 dark:hover:bg-slate-800 sm:p-5">
               <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800 ${card.color}`}><card.icon className="h-5 w-5" /></span>
               <div><div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{card.label}</div><div className="text-2xl font-black text-slate-900 dark:text-white">{card.value}</div><div className="text-[10px] text-slate-400">{card.note}</div></div>
-            </div>
+            </button>
           ))}
         </div>
       </header>
@@ -314,8 +320,8 @@ export default function RcaList() {
 
       <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
         <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5 dark:bg-slate-800">
-          <button type="button" onClick={() => { setActiveView('pending'); setTypeFilter('all'); }} className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-black transition ${activeView === 'pending' ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-950 dark:text-blue-300' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'}`}><ListTodo className="h-4 w-4" /> งานที่ต้องทบทวน <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] text-blue-700 dark:bg-blue-950 dark:text-blue-300">{pendingItems.length}</span></button>
-          <button type="button" onClick={() => { setActiveView('reviewed'); setTypeFilter('all'); setUrgencyFilter('all'); }} className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-black transition ${activeView === 'reviewed' ? 'bg-white text-emerald-700 shadow-sm dark:bg-slate-950 dark:text-emerald-300' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'}`}><History className="h-4 w-4" /> สรุปที่ทบทวนแล้ว <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">{reviewedItems.length}</span></button>
+          <button type="button" onClick={() => { setActiveView('pending'); setTypeFilter('all'); setStatusFilter('all'); }} className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-black transition ${activeView === 'pending' ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-950 dark:text-blue-300' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'}`}><ListTodo className="h-4 w-4" /> งานที่ต้องทบทวน <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] text-blue-700 dark:bg-blue-950 dark:text-blue-300">{pendingItems.length}</span></button>
+          <button type="button" onClick={() => { setActiveView('reviewed'); setTypeFilter('all'); setUrgencyFilter('all'); setStatusFilter('all'); }} className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-black transition ${activeView === 'reviewed' ? 'bg-white text-emerald-700 shadow-sm dark:bg-slate-950 dark:text-emerald-300' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'}`}><History className="h-4 w-4" /> สรุปที่ทบทวนแล้ว <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">{reviewedItems.length}</span></button>
         </div>
 
         {activeView === 'reviewed' && (
@@ -337,6 +343,7 @@ export default function RcaList() {
             {typeOptions.map((option) => <button key={option.value} type="button" onClick={() => setTypeFilter(option.value)} className={`shrink-0 rounded-xl border px-3 py-2 text-[11px] font-bold transition ${typeFilter === option.value ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300'}`}>{option.label} ({currentTypeCounts[option.value]})</button>)}
           </div>
           {activeView === 'pending' && <select value={urgencyFilter} onChange={(event) => setUrgencyFilter(event.target.value as UrgencyFilter)} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"><option value="all">ทุกกำหนดเวลา</option><option value="overdue">เกินกำหนด</option><option value="due_soon">ครบกำหนดใน 7 วัน</option><option value="no_due">ยังไม่มีกำหนด</option></select>}
+          {activeView === 'pending' && <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'all' | 'IN_PROGRESS')} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"><option value="all">ทุกสถานะ</option><option value="IN_PROGRESS">กำลังดำเนินการ</option></select>}
           <button type="button" onClick={() => void loadData()} disabled={loading} title="รีเฟรชข้อมูล" className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white p-2.5 text-slate-500 hover:text-blue-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-950"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /></button>
         </div>
       </section>

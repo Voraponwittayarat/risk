@@ -70,6 +70,7 @@ export class CreateRiskReviewDto {
   is_escalated?: number;
   escalation_target?: string;
   reviewed_by?: string;
+  lifecycle_decision?: 'KEEP' | 'DECREASE' | 'ESCALATE' | 'CLOSE_MONITORING' | 'REOPEN';
 }
 
 @Injectable()
@@ -182,6 +183,14 @@ export class RiskAnalysisService {
       include: {
         reviews: {
           orderBy: { review_date: 'desc' },
+        },
+        standard_rca_cases: {
+          select: { id: true, topic: true, status: true, completed_at: true, review_outcome: true },
+          orderBy: { created_at: 'desc' },
+        },
+        capas: {
+          select: { id: true, action: true, status: true, effectiveness_status: true, due_date: true, effectiveness_due_date: true },
+          orderBy: { created_at: 'desc' },
         },
       },
     });
@@ -423,6 +432,10 @@ export class RiskAnalysisService {
     const curC = clampMatrixValue(dto.current_consequence);
     const curScore = curL * curC;
     const curLevel = this.calculateRiskLevel(curL, curC);
+    const lifecycleDecision = dto.lifecycle_decision || 'KEEP';
+    if (lifecycleDecision === 'CLOSE_MONITORING' && curLevel !== 'green') {
+      throw new BadRequestException('ปิดแบบเฝ้าระวังได้เมื่อ Residual Risk อยู่ระดับสีเขียว');
+    }
 
     const reviewDate = new Date(dto.review_date);
     const requestedPeriodStart = dto.period_start ? new Date(dto.period_start) : (risk.last_reviewed_date || new Date(reviewDate.getFullYear(), reviewDate.getMonth() - 3, reviewDate.getDate()));
@@ -466,7 +479,7 @@ export class RiskAnalysisService {
         current_risk_score: curScore,
         current_risk_level: curLevel,
         updated_prevention: dto.updated_prevention || '',
-        is_escalated: dto.is_escalated ? 1 : 0,
+        is_escalated: dto.is_escalated || lifecycleDecision === 'ESCALATE' ? 1 : 0,
         escalation_target: dto.escalation_target || '',
         reviewed_by: dto.reviewed_by || '',
         created_at: new Date(),
@@ -474,17 +487,32 @@ export class RiskAnalysisService {
     });
 
     // Update main risk profile
+    const nextStatus = lifecycleDecision === 'CLOSE_MONITORING'
+      ? 'closed'
+      : lifecycleDecision === 'REOPEN' || lifecycleDecision === 'ESCALATE'
+        ? 'open'
+        : curLevel === 'green' ? 'monitoring' : 'open';
     await this.prisma.riskanalysis.update({
       where: { id },
       data: {
         last_reviewed_date: reviewDate,
         next_review_date: nextReview,
         residual_risk_level: curLevel,
-        status: curLevel === 'green' ? 'monitoring' : 'open',
+        status: nextStatus,
         updated_at: new Date(),
         period_start: periodStart,
         period_end: periodEnd,
         last_calculated_at: new Date(),
+      },
+    });
+
+    await this.prisma.workflow_audit.create({
+      data: {
+        entity_type: 'RISK_ANALYSIS', entity_id: String(id), action: `LIFECYCLE_${lifecycleDecision}`,
+        old_value: JSON.stringify({ status: risk.status, residual_risk_level: risk.residual_risk_level }),
+        new_value: JSON.stringify({ status: nextStatus, residual_risk_level: curLevel, next_review_date: nextReview }),
+        reason: dto.result_of_review,
+        changed_by: Number(user?.id) || null,
       },
     });
 

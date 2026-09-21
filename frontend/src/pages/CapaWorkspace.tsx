@@ -52,6 +52,7 @@ type Capa = {
   escalation_level: number;
   is_overdue: boolean;
   overdue_hours: number;
+  repeat_context?: { window_days: number; incident_count: number; repeat_count: number };
   active_sla?: Sla | null;
   effectiveness_reviews?: EffectivenessReview[];
   incident?: {
@@ -280,10 +281,11 @@ export default function CapaWorkspace() {
               <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${statusClass[selected.status] || 'bg-slate-100'}`}>{statusLabel[selected.status] || selected.status}</span>
             </div>
 
-            <div className="grid gap-3 text-sm md:grid-cols-3">
+            <div className="grid gap-3 text-sm md:grid-cols-4">
               <div className="rounded-xl bg-slate-50 p-3"><div className="text-xs text-slate-500">Owner</div><div className="mt-1 font-bold">{selected.responsible_display_name || '-'}</div></div>
               <div className="rounded-xl bg-slate-50 p-3"><div className="text-xs text-slate-500">SLA ปัจจุบัน</div><div className={`mt-1 font-bold ${selected.is_overdue ? 'text-rose-600' : ''}`}>{selected.active_sla ? `${selected.active_sla.workflow_stage} · ${thaiDate(selected.active_sla.due_at)}` : 'ไม่มี SLA ที่เปิดอยู่'}</div></div>
               <div className="rounded-xl bg-slate-50 p-3"><div className="text-xs text-slate-500">Escalation</div><div className="mt-1 font-bold">ระดับ {selected.escalation_level || 0}</div></div>
+              <div className="rounded-xl bg-slate-50 p-3"><div className="text-xs text-slate-500">เหตุที่เกี่ยวข้อง 90 วัน</div><div className="mt-1 font-bold">{selected.repeat_context?.incident_count || 0} เหตุ • ระบุซ้ำ {selected.repeat_context?.repeat_count || 0}</div></div>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
