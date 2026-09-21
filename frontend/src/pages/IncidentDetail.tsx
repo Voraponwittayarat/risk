@@ -24,6 +24,7 @@ import {
 
 type DepartmentOutcome = 'IN_PROGRESS' | 'RESOLVED' | 'UNRESOLVED';
 type ForwardingPurpose = 'NONE' | 'INFORM' | 'CO_REVIEW' | 'ADDITIONAL_ACTION' | 'TRANSFER_OWNER';
+type ReviewResultOption = { id: number; reviewresults_name: string };
 type ReviewAttachment = {
   filename: string;
   originalname: string;
@@ -40,6 +41,7 @@ type ReviewSummary = {
   departmentOutcome: DepartmentOutcome | null;
   forwardingPurpose: ForwardingPurpose;
   forwardingDepartmentName?: string;
+  reviewResultName: string;
   requiresRca: boolean;
 };
 
@@ -96,6 +98,8 @@ export default function IncidentDetail() {
   // Action / Review State
   const [reviewDate, setReviewDate] = useState(new Date().toISOString().split('T')[0]);
   const [reviewNote, setReviewNote] = useState('');
+  const [reviewResultId, setReviewResultId] = useState('');
+  const [reviewResultsList, setReviewResultsList] = useState<ReviewResultOption[]>([]);
   const [causeProblem, setCauseProblem] = useState('');
   const [reviewContributingFactors, setReviewContributingFactors] = useState<ContributingFactorSelection[]>([]);
   const [forwardingPurpose, setForwardingPurpose] = useState<ForwardingPurpose>('NONE');
@@ -256,6 +260,9 @@ export default function IncidentDetail() {
         }
         if (res.data.risks && res.data.risks.length > 0) {
           setRisksList(res.data.risks);
+        }
+        if (Array.isArray(res.data.reviewresults)) {
+          setReviewResultsList(res.data.reviewresults);
         }
       })
       .catch(console.error);
@@ -467,6 +474,10 @@ export default function IncidentDetail() {
       alert('กรุณาระบุรายละเอียดการทบทวน หรือมาตรการแก้ไข');
       return;
     }
+    if (!reviewResultId) {
+      alert('กรุณาเลือกผลการทบทวนและการเปลี่ยนแปลงมาตรการ');
+      return;
+    }
     const lowSeverityReview = ['A', 'B', '1'].includes(String(incident.level_id || '').trim().toUpperCase());
     if (!lowSeverityReview && reviewContributingFactors.length === 0 && !causeProblem.trim()) {
       alert('กรุณาเลือกปัจจัยที่เกี่ยวข้อง หรือพิมพ์สาเหตุอื่น ๆ');
@@ -485,6 +496,7 @@ export default function IncidentDetail() {
       const token = localStorage.getItem('token');
       const selectedForwardingPurpose = forwardingPurpose;
       const selectedFactors = [...reviewContributingFactors];
+      const selectedReviewResult = reviewResultsList.find((item) => String(item.id) === reviewResultId);
       const forwardingDepartmentName = departmentsList.find(
         (department: any) => String(department.id) === coReviewDepartmentId,
       )?.depart_name;
@@ -494,7 +506,7 @@ export default function IncidentDetail() {
         notereview: finalNote,
         cause_problem: finalCause,
         contributing_factors: reviewContributingFactors,
-        learning_action: 'NO_NEW_MEASURE',
+        reviewresults_id: Number(reviewResultId),
         forwarding_purpose: forwardingPurpose,
         ...(forwardingPurpose !== 'NONE'
           ? { forwarded_department_id: coReviewDepartmentId }
@@ -516,6 +528,7 @@ export default function IncidentDetail() {
         });
       }
       setReviewNote('');
+      setReviewResultId('');
       setCauseProblem('');
       setReviewContributingFactors([]);
       setForwardingPurpose('NONE');
@@ -531,6 +544,7 @@ export default function IncidentDetail() {
         departmentOutcome: null,
         forwardingPurpose: selectedForwardingPurpose,
         forwardingDepartmentName,
+        reviewResultName: selectedReviewResult?.reviewresults_name || 'ไม่ระบุผลการเปลี่ยนแปลงมาตรการ',
         requiresRca: Boolean(incident.rca_required) && incident.rca_status !== 'COMPLETED',
       });
       setSaveSuccessMsg(selectedForwardingPurpose !== 'NONE'
@@ -1253,6 +1267,47 @@ export default function IncidentDetail() {
 
         {/* 4. ฟอร์มบันทึกข้อมูลหลัก (Main Review Inputs) */}
         <form onSubmit={handleAddReview} className="space-y-4">
+          <section className="space-y-3 rounded-2xl border-2 border-cyan-300 bg-cyan-50/40 p-4 dark:border-cyan-800 dark:bg-cyan-950/20">
+            <div>
+              <h3 className="text-sm font-black text-cyan-950 dark:text-cyan-200">
+                ผลการทบทวนและการเปลี่ยนแปลงมาตรการ <span className="text-rose-500">*</span>
+              </h3>
+              <p className="mt-1 text-xs text-cyan-700 dark:text-cyan-300">
+                เลือกผลที่ตรงกับรอบนี้ ข้อความที่เลือกจะแสดงในประวัติการทบทวน
+              </p>
+            </div>
+            {reviewResultsList.length > 0 ? (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {reviewResultsList.map((result) => {
+                  const selected = reviewResultId === String(result.id);
+                  return (
+                    <button
+                      key={result.id}
+                      type="button"
+                      onClick={() => setReviewResultId(String(result.id))}
+                      aria-pressed={selected}
+                      className={`rounded-xl border p-3 text-left text-xs font-bold transition-all ${selected
+                        ? 'border-cyan-600 bg-white text-cyan-950 shadow-sm ring-2 ring-cyan-500/20 dark:bg-cyan-950/60 dark:text-cyan-100'
+                        : 'border-cyan-100 bg-white/70 text-slate-700 hover:border-cyan-400 dark:border-cyan-900 dark:bg-slate-900/50 dark:text-slate-200'}`}
+                    >
+                      <span className="flex items-start gap-2">
+                        <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-cyan-600 bg-cyan-600 text-white' : 'border-slate-300'}`}>
+                          {selected && <Check className="h-3 w-3" />}
+                        </span>
+                        <span>{result.reviewresults_name}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                ไม่สามารถโหลดตัวเลือกผลการทบทวนได้ กรุณารีเฟรชหน้าแล้วลองใหม่
+              </div>
+            )}
+            {!reviewResultId && <p className="text-[11px] font-bold text-amber-700 dark:text-amber-300">กรุณาเลือก 1 รายการก่อนบันทึก</p>}
+          </section>
+
           {/* ช่องเพิ่มมาตรการใหม่ / รายละเอียดการทบทวน */}
           <div className={isLowSeverityReview ? 'rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900 dark:bg-emerald-950/20' : ''}>
             <label htmlFor="review-measure" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -1363,6 +1418,7 @@ export default function IncidentDetail() {
           {/* Action Command Center */}
           <div className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed dark:bg-slate-900" aria-live="polite">
             <strong>สรุปก่อนบันทึก</strong>
+            <p>ผลการทบทวน: {reviewResultsList.find((item) => String(item.id) === reviewResultId)?.reviewresults_name || 'ยังไม่ได้เลือก'}</p>
             <p>{FORWARDING_PURPOSE_LABELS[forwardingPurpose]}{coReviewDepartmentId ? ` • ${departmentsList.find(d => String(d.id) === coReviewDepartmentId)?.depart_name || ''}` : ''}</p>
             <p>หลังบันทึก ระบบจะแสดงรายละเอียดสำคัญและให้เลือกผลการดำเนินการระดับหน่วยงานก่อนเลือกจำหน่ายหรือส่งทำ RCA</p>
           </div>
@@ -1630,7 +1686,7 @@ export default function IncidentDetail() {
                 )}
 
                 <section className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
-                  <div className="text-xs font-black text-emerald-800 dark:text-emerald-300">มาตรการที่ได้ปรับปรุง</div>
+                  <div className="text-xs font-black text-emerald-800 dark:text-emerald-300">{reviewSummary.reviewResultName}</div>
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800 dark:text-slate-200">{reviewSummary.note}</p>
                 </section>
               </div>

@@ -40,6 +40,7 @@ describe('IncidentsService incident permissions', () => {
         count: jest.fn().mockResolvedValue(0),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
+      reviewresults: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       rca_case: { findFirst: jest.fn(), count: jest.fn().mockResolvedValue(0) },
       standard_rca_case: { findFirst: jest.fn(), create: jest.fn(), count: jest.fn().mockResolvedValue(0) },
       capa_action: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
@@ -269,6 +270,28 @@ describe('IncidentsService incident permissions', () => {
 
     expect(prisma.riskreview.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ contributing_factors: null, cause_problem: null }),
+    }));
+  });
+
+  it('stores the review result explicitly selected by the reviewer', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({
+      ...pendingIncident,
+      status_risk: 'ตรวจสอบ',
+      level_id: 'B',
+    });
+    prisma.reviewresults.findUnique.mockResolvedValue({ id: 2 });
+
+    await service.addReview(10, {
+      findings: 'หน่วยงานทบทวนและนำมาตรการหรือระบบใหม่ไปปฏิบัติแล้ว',
+      reviewresults_id: 2,
+    }, { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 });
+
+    expect(prisma.reviewresults.findUnique).toHaveBeenCalledWith({ where: { id: 2 }, select: { id: true } });
+    expect(prisma.riskreview.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ reviewresults_id: 2 }),
+    }));
+    expect(prisma.workflow_audit.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ new_value: expect.stringContaining('"reviewresults_id":2') }),
     }));
   });
 

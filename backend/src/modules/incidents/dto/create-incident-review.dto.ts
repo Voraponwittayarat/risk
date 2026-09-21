@@ -1,4 +1,5 @@
 import { IsDateString, IsIn, IsInt, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateIncidentReviewDto {
   @IsOptional()
@@ -63,6 +64,7 @@ export class CreateIncidentReviewDto {
   cause_problem?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   reviewresults_id?: number;
 

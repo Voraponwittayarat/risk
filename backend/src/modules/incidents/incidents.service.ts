@@ -2443,6 +2443,19 @@ export class IncidentsService {
       throw new BadRequestException('กรุณาเลือกปัจจัยที่เกี่ยวข้อง หรือพิมพ์สาเหตุอื่น ๆ');
     }
     const reviewAttachments = this.validateStoredReviewAttachments(reviewDto.files, user);
+    const reviewResultId = reviewDto.reviewresults_id ? Number(reviewDto.reviewresults_id) : 1;
+    if (!Number.isInteger(reviewResultId) || reviewResultId < 1) {
+      throw new BadRequestException('กรุณาเลือกผลการทบทวนและการเปลี่ยนแปลงมาตรการ');
+    }
+    if (reviewDto.reviewresults_id) {
+      const reviewResultExists = await this.prisma.reviewresults.findUnique({
+        where: { id: reviewResultId },
+        select: { id: true },
+      });
+      if (!reviewResultExists) {
+        throw new BadRequestException('ไม่พบผลการทบทวนที่เลือก กรุณารีเฟรชหน้าแล้วเลือกใหม่');
+      }
+    }
 
     let coReviewDepartmentId: string | null = null;
     if (forwardingPurpose !== 'NONE') {
@@ -2487,7 +2500,7 @@ export class IncidentsService {
           forwarding_purpose: forwardingPurpose,
           forwarded_department_id: coReviewDepartmentId,
           files: reviewAttachments.length ? JSON.stringify(reviewAttachments) : null,
-          reviewresults_id: reviewDto.reviewresults_id ? Number(reviewDto.reviewresults_id) : 1,
+          reviewresults_id: reviewResultId,
           status_risk: 'ทบทวน',
           created_by: actorId || 1,
           create_date: new Date(),
@@ -2593,6 +2606,7 @@ export class IncidentsService {
             review_role: reviewRole,
             review_status: reviewStatus,
             learning_action: learningAction,
+            reviewresults_id: reviewResultId,
             department_outcome: departmentOutcome,
             forwarding_purpose: forwardingPurpose,
             forwarded_department_id: coReviewDepartmentId,
