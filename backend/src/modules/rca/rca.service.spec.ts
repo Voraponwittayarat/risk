@@ -147,3 +147,102 @@ describe('RcaService Standard RCA incident source', () => {
     }));
   });
 });
+
+describe('RcaService Standard RCA completion', () => {
+  const completeCase = {
+    id: 'RCA-FULL-1',
+    incident_id: 13547,
+    status: 'IN_PROGRESS',
+    created_by: 7,
+    risk_analysis_id: null,
+    is_not_risk: false,
+    topic: 'ยาความเสี่ยงสูง',
+    rca_team: 'หน่วยงานเจ้าของเรื่อง',
+    what_happened: 'ผู้ป่วยได้รับยาผิดขนาด',
+    potential_impact: 'อาจเกิดอันตรายรุนแรง',
+    contributing_factors: JSON.stringify([{ code: 'P01', detail: 'ขั้นตอนตรวจสอบไม่ชัดเจน' }]),
+    timelines: [{ event_description: 'พบความคลาดเคลื่อนก่อนให้ยา' }],
+    cmps: [{ observation: 'ขั้นตอนตรวจสอบยาความเสี่ยงสูงไม่ครบถ้วน', hypothesis: 'ไม่มีจุดหยุดตรวจสอบ' }],
+    whys: [],
+    process_analyses: [],
+    capas: [{
+      action: 'จัดทำ independent double check',
+      responsible: 'หัวหน้าหอผู้ป่วย',
+      due_date: new Date('2026-10-01'),
+      effectiveness_criteria: 'อัตราการทำ double check ครบถ้วน',
+      baseline_value: '60%',
+      target_value: '95%',
+      effectiveness_due_date: new Date('2026-11-15'),
+    }],
+  };
+
+  it('completes RCA, creates a department Risk Register profile, and links CAPA monitoring', async () => {
+    const incident = {
+      id: 13547,
+      id_risk: 13573,
+      nrls_code: 'CPP101',
+      nrls_name_snapshot: 'ความคลาดเคลื่อนทางยา',
+      department_id: '15',
+      program_id: 2,
+      level_id: 'G',
+    };
+    const createdProfile = { id: 88, nrls_code: 'CPP101', scope_level: 'department', department_id: '15' };
+    const tx: any = {
+      riskanalysis: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(createdProfile),
+      },
+      department: { findUnique: jest.fn().mockResolvedValue({ depart_name: 'หอผู้ป่วย' }) },
+      standard_rca_case: {
+        update: jest.fn().mockResolvedValue({ ...completeCase, status: 'COMPLETED', risk_analysis_id: 88 }),
+      },
+      riskregister: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      capa_action: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      workflow_audit: { create: jest.fn().mockResolvedValue({ id: 1 }) },
+    };
+    const prisma: any = {
+      riskregister: { findFirst: jest.fn().mockResolvedValue(incident) },
+      riskanalysis: { findUnique: jest.fn() },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const service = new RcaService(prisma, {} as any, {} as any);
+    jest.spyOn(service, 'getStandardById').mockResolvedValue(completeCase as any);
+
+    const result = await service.completeStandard('RCA-FULL-1', {
+      risk_description: 'ความเสี่ยงจากการให้ยาความเสี่ยงสูงผิดขนาด',
+      risk_owner_name: 'หัวหน้าหอผู้ป่วย',
+      initial_likelihood: 3,
+      review_frequency_months: 3,
+    }, { id: 7, role: 'staff', departmentId: 15 });
+
+    expect(tx.riskanalysis.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        nrls_code: 'CPP101',
+        scope_level: 'department',
+        scope_identifier: '15',
+        source: 'RCA',
+        risk_owner_name: 'หัวหน้าหอผู้ป่วย',
+        initial_likelihood: 3,
+      }),
+    }));
+    expect(tx.standard_rca_case.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'COMPLETED', risk_analysis_id: 88 }),
+    }));
+    expect(tx.capa_action.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ risk_analysis_id: 88 }),
+    }));
+    expect(result.risk_profile_created).toBe(true);
+  });
+
+  it('does not complete RCA until every measure has an effectiveness plan', async () => {
+    const prisma: any = {};
+    const service = new RcaService(prisma, {} as any, {} as any);
+    jest.spyOn(service, 'getStandardById').mockResolvedValue({
+      ...completeCase,
+      capas: [{ ...completeCase.capas[0], effectiveness_criteria: '' }],
+    } as any);
+
+    await expect(service.completeStandard('RCA-FULL-1', {}, { id: 7, role: 'staff', departmentId: 15 }))
+      .rejects.toThrow('เกณฑ์ประเมินมาตรการที่ 1');
+  });
+});

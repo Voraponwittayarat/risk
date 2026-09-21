@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Request, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { RcaService, EvaluateCriteriaDto, CreateRcaCaseDto, CreateStandardRcaDto, AiAssistDto } from './rca.service';
+import { RcaService, EvaluateCriteriaDto, CreateRcaCaseDto, CreateStandardRcaDto, CompleteStandardRcaDto, AiAssistDto } from './rca.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @ApiTags('RCA')
@@ -105,6 +105,12 @@ export class RcaController {
   @ApiOperation({ summary: 'Update Standard Full RCA case' })
   updateStandard(@Param('id') id: string, @Body() data: Partial<CreateStandardRcaDto>, @Request() req: any) {
     return this.rcaService.updateStandard(id, data, req.user);
+  }
+
+  @Post('standard/:id/complete')
+  @ApiOperation({ summary: 'Complete Standard RCA and create or link its Risk Register profile' })
+  completeStandard(@Param('id') id: string, @Body() data: CompleteStandardRcaDto, @Request() req: any) {
+    return this.rcaService.completeStandard(id, data, req.user);
   }
 
   @Delete('standard/:id')

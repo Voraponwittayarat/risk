@@ -4,6 +4,7 @@ import { IncidentRcaPolicyService } from './incident-rca-policy.service';
 import { normalizeContributingFactors, serializeContributingFactors, toLegacyFishbone } from './contributing-factor.catalog';
 import { CapaService } from '../capa/capa.service';
 import { deidentifyIncidentText } from '../incidents/ai-incident-assistant.utils';
+import { clampMatrixValue, consequenceFromSeverity, riskLevelFor } from '../../common/risk-matrix-policy';
 
 export class EvaluateCriteriaDto {
   incident_id?: number;
@@ -149,6 +150,14 @@ export class CreateStandardRcaDto {
     notes?: string;
     sort_order?: number;
   }>;
+}
+
+export class CompleteStandardRcaDto {
+  risk_analysis_id?: number;
+  risk_description?: string;
+  risk_owner_name?: string;
+  initial_likelihood?: number;
+  review_frequency_months?: number;
 }
 
 @Injectable()
@@ -517,6 +526,7 @@ export class RcaService {
         process_analyses: { orderBy: { sort_order: 'asc' } },
         capas: { orderBy: { sort_order: 'asc' } },
         review_sessions: { orderBy: { sort_order: 'asc' } },
+        risk_analysis: true,
       },
       orderBy: { created_at: 'desc' },
     });
@@ -533,6 +543,7 @@ export class RcaService {
         process_analyses: { orderBy: { sort_order: 'asc' } },
         capas: { orderBy: { sort_order: 'asc' } },
         review_sessions: { orderBy: { sort_order: 'asc' } },
+        risk_analysis: true,
       },
     });
     if (!stdCase) throw new NotFoundException(`Standard RCA Case #${id} not found`);
@@ -677,6 +688,10 @@ export class RcaService {
                 due_date: c.due_date ? new Date(c.due_date) : null,
                 status: c.status || 'pending',
                 evidence: c.evidence,
+                effectiveness_criteria: c.effectiveness_criteria,
+                baseline_value: c.baseline_value,
+                target_value: c.target_value,
+                effectiveness_due_date: c.effectiveness_due_date ? new Date(c.effectiveness_due_date) : null,
                 sort_order: c.sort_order ?? idx + 1,
               })),
             }
@@ -743,7 +758,10 @@ export class RcaService {
   }
 
   async updateStandard(id: string, data: Partial<CreateStandardRcaDto>, user?: any) {
-    await this.getStandardById(id, user);
+    const existing = await this.getStandardById(id, user);
+    if (String(existing.status || '').toUpperCase() === 'COMPLETED') {
+      throw new BadRequestException('RCA ที่สรุปแล้วไม่สามารถแก้ไขผ่านแบบร่างได้');
+    }
 
     // Delete sub tables if replacement arrays are passed
     if (data.timelines) {
@@ -855,6 +873,10 @@ export class RcaService {
                 due_date: c.due_date ? new Date(c.due_date) : null,
                 status: c.status || 'pending',
                 evidence: c.evidence,
+                effectiveness_criteria: c.effectiveness_criteria,
+                baseline_value: c.baseline_value,
+                target_value: c.target_value,
+                effectiveness_due_date: c.effectiveness_due_date ? new Date(c.effectiveness_due_date) : null,
                 sort_order: c.sort_order ?? idx + 1,
               })),
             }
@@ -886,7 +908,168 @@ export class RcaService {
         data: { rca_status: updated.status === 'COMPLETED' && updated.completed_at ? 'COMPLETED' : 'IN_PROGRESS' },
       });
     }
+    if (data.capas && updated.incident_id) {
+      const incident = await this.prisma.riskregister.findFirst({ where: { id: updated.incident_id } });
+      if (incident?.nrls_code) {
+        const profile = await this.prisma.riskanalysis.findFirst({
+          where: { nrls_code: incident.nrls_code, scope_level: 'department', department_id: incident.department_id },
+          select: { id: true },
+        });
+        await this.prisma.capa_action.deleteMany({ where: { source_type: 'STANDARD_RCA', source_id: id } });
+        if (updated.capas.length) {
+          await this.prisma.capa_action.createMany({ data: updated.capas.map((c) => ({
+            source_type: 'STANDARD_RCA', source_id: id, source_item_id: c.id,
+            incident_id: incident.id, incident_id_risk: incident.id_risk,
+            nrls_code: incident.nrls_code!, risk_analysis_id: profile?.id, action: c.action,
+            action_type: String(c.type || 'CORRECTIVE').toUpperCase(),
+            responsible_display_name: c.responsible, responsible_department_id: incident.department_id,
+            due_date: c.due_date,
+            status: ['PENDING', 'IN_PROGRESS'].includes(String(c.status || 'PENDING').toUpperCase())
+              ? String(c.status || 'PENDING').toUpperCase()
+              : 'IN_PROGRESS',
+            evidence: c.evidence,
+            effectiveness_criteria: c.effectiveness_criteria,
+            baseline_value: c.baseline_value,
+            target_value: c.target_value,
+            effectiveness_due_date: c.effectiveness_due_date,
+            created_by: Number(user?.id) || data.created_by,
+          })) });
+          const capaRows = await this.prisma.capa_action.findMany({
+            where: { source_type: 'STANDARD_RCA', source_id: id },
+            select: { id: true },
+          });
+          await Promise.all(capaRows.map((capa) => this.capaService.initializeMonitoring(capa.id)));
+        }
+      }
+    }
     return updated;
+  }
+
+  async completeStandard(id: string, data: CompleteStandardRcaDto, user?: any) {
+    const standardCase = await this.getStandardById(id, user);
+    if (standardCase.is_not_risk) throw new BadRequestException('รายการที่ระบุว่าไม่ใช่ความเสี่ยงไม่สามารถสรุปเป็น RCA ได้');
+    if (!standardCase.incident_id) throw new BadRequestException('RCA ต้องเชื่อมกับรายงานอุบัติการณ์ต้นทาง');
+
+    const factors = normalizeContributingFactors(standardCase.contributing_factors);
+    const hasAnalysis = factors.length > 0
+      || standardCase.cmps.some((item) => item.observation?.trim() || item.hypothesis?.trim())
+      || standardCase.whys.some((item) => item.answer?.trim())
+      || standardCase.process_analyses.some((item) => item.problem?.trim() || item.corrective_action?.trim());
+    const missing: string[] = [];
+    if (!standardCase.what_happened?.trim()) missing.push('รายละเอียดเหตุการณ์');
+    if (!standardCase.timelines.some((item) => item.event_description?.trim())) missing.push('Timeline');
+    if (!hasAnalysis) missing.push('ผลการวิเคราะห์สาเหตุ');
+    if (!standardCase.capas.length) missing.push('มาตรการแก้ไขและป้องกัน');
+    standardCase.capas.forEach((capa, index) => {
+      if (!capa.responsible?.trim()) missing.push(`ผู้รับผิดชอบมาตรการที่ ${index + 1}`);
+      if (!capa.due_date) missing.push(`กำหนดเสร็จมาตรการที่ ${index + 1}`);
+      if (!capa.effectiveness_criteria?.trim()) missing.push(`เกณฑ์ประเมินมาตรการที่ ${index + 1}`);
+      if (!capa.baseline_value?.trim()) missing.push(`ข้อมูลก่อนปรับปรุงมาตรการที่ ${index + 1}`);
+      if (!capa.target_value?.trim()) missing.push(`เป้าหมายมาตรการที่ ${index + 1}`);
+      if (!capa.effectiveness_due_date) missing.push(`กำหนดประเมินผลมาตรการที่ ${index + 1}`);
+    });
+    if (missing.length) {
+      throw new BadRequestException(`ยังสรุป RCA ไม่ได้ กรุณากรอก: ${[...new Set(missing)].join(', ')}`);
+    }
+
+    const incident = await this.prisma.riskregister.findFirst({ where: { id: standardCase.incident_id } });
+    if (!incident?.nrls_code) throw new BadRequestException('อุบัติการณ์ต้นทางยังไม่มี NRLS ที่ถูกต้อง');
+    if (!incident.department_id) throw new BadRequestException('อุบัติการณ์ต้นทางยังไม่มีหน่วยงานเจ้าของเรื่อง');
+    const nrlsCode = incident.nrls_code;
+
+    let selectedProfile: any = null;
+    if (data.risk_analysis_id) {
+      selectedProfile = await this.prisma.riskanalysis.findUnique({ where: { id: Number(data.risk_analysis_id) } });
+      if (!selectedProfile) throw new NotFoundException('ไม่พบ Risk Register ที่เลือก');
+      if (selectedProfile.nrls_code !== incident.nrls_code) {
+        throw new BadRequestException('Risk Register ที่เลือกใช้รหัส NRLS ไม่ตรงกับ RCA');
+      }
+      if (selectedProfile.scope_level === 'hospital') {
+        if (!['admin', 'rm_committee'].includes(user?.role)) throw new ForbiddenException('ไม่มีสิทธิ์เชื่อม Risk Register ระดับโรงพยาบาล');
+      } else {
+        await this.assertDepartmentAccess(selectedProfile.department_id, user);
+      }
+    }
+
+    let profileCreated = false;
+    const actorId = Number(user?.id) || standardCase.created_by || 1;
+    const result = await this.prisma.$transaction(async (tx) => {
+      let profile = selectedProfile;
+      if (!profile) {
+        profile = await tx.riskanalysis.findFirst({
+          where: {
+            nrls_code: nrlsCode,
+            scope_level: 'department',
+            scope_identifier: String(incident.department_id),
+          },
+        });
+      }
+
+      if (!profile) {
+        const likelihood = clampMatrixValue(Number(data.initial_likelihood) || 1);
+        const consequence = consequenceFromSeverity(incident.level_id);
+        const score = likelihood * consequence;
+        const nextReview = new Date();
+        nextReview.setMonth(nextReview.getMonth() + Math.max(1, Number(data.review_frequency_months) || 3));
+        const department = await tx.department.findUnique({ where: { id: Number(incident.department_id) } });
+        profile = await tx.riskanalysis.create({
+          data: {
+            risk_code: nrlsCode,
+            nrls_code: nrlsCode,
+            nrls_name_snapshot: incident.nrls_name_snapshot || standardCase.topic,
+            risk_title: incident.nrls_name_snapshot || standardCase.topic,
+            risk_description: data.risk_description?.trim()
+              || [standardCase.what_happened, standardCase.potential_impact].filter(Boolean).join(' → '),
+            source: 'RCA',
+            scope_level: 'department',
+            department_id: String(incident.department_id),
+            scope_identifier: String(incident.department_id),
+            program_id: incident.program_id,
+            risk_owner_name: data.risk_owner_name?.trim() || department?.depart_name || standardCase.rca_team,
+            risk_owner_user_id: actorId,
+            initial_likelihood: likelihood,
+            initial_consequence: consequence,
+            initial_risk_score: score,
+            initial_risk_level: riskLevelFor(likelihood, consequence),
+            risk_prevention: standardCase.capas.map((capa) => capa.action).join('\n'),
+            review_frequency_months: Math.max(1, Number(data.review_frequency_months) || 3),
+            next_review_date: nextReview,
+            status: 'open',
+            created_by: actorId,
+          },
+        });
+        profileCreated = true;
+      }
+
+      const completedAt = new Date();
+      const completed = await tx.standard_rca_case.update({
+        where: { id },
+        data: { status: 'COMPLETED', completed_at: completedAt, risk_analysis_id: profile.id, updated_at: completedAt },
+        include: { risk_analysis: true },
+      });
+      await tx.riskregister.updateMany({
+        where: { id: incident.id, id_risk: incident.id_risk },
+        data: { rca_status: 'COMPLETED', rca_case_id: id, modify_date: completedAt, updated_by: actorId },
+      });
+      await tx.capa_action.updateMany({
+        where: { source_type: 'STANDARD_RCA', source_id: id },
+        data: { risk_analysis_id: profile.id, updated_at: completedAt },
+      });
+      await tx.workflow_audit.create({
+        data: {
+          entity_type: 'RCA',
+          entity_id: id,
+          action: 'COMPLETED_AND_REGISTERED',
+          old_value: JSON.stringify({ status: standardCase.status, risk_analysis_id: standardCase.risk_analysis_id || null }),
+          new_value: JSON.stringify({ status: 'COMPLETED', risk_analysis_id: profile.id }),
+          reason: profileCreated ? 'สรุป RCA และสร้าง Risk Register อัตโนมัติ' : 'สรุป RCA และเชื่อม Risk Register เดิม',
+          changed_by: actorId,
+        },
+      });
+      return { rca: completed, risk_analysis: profile };
+    });
+
+    return { ...result, risk_profile_created: profileCreated };
   }
 
   async deleteStandard(id: string, reason?: string, actorId?: number, user?: any) {

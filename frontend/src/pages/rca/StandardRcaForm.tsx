@@ -103,6 +103,10 @@ interface CapaItem {
   due_date: string;
   status: string;
   evidence?: string;
+  effectiveness_criteria?: string;
+  baseline_value?: string;
+  target_value?: string;
+  effectiveness_due_date?: string;
 }
 
 interface CmpItem {
@@ -153,6 +157,7 @@ export default function StandardRcaForm() {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [completing, setCompleting] = useState(false);
 
   // Modals & UI Toggles
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -166,10 +171,16 @@ export default function StandardRcaForm() {
   const [topic, setTopic] = useState('');
   const [severity, setSeverity] = useState('G');
   const [incidentDate, setIncidentDate] = useState(new Date().toISOString().slice(0, 10));
-  const [rcaTeam, setRcaTeam] = useState('คณะกรรมการบริหารความเสี่ยง รพ.วังเจ้า (RM Committee)');
-  const [customTeam, setCustomTeam] = useState('');
+  const [rcaTeam, setRcaTeam] = useState('other');
+  const [customTeam, setCustomTeam] = useState('หน่วยงานเจ้าของเรื่อง');
   const [isNotRisk, setIsNotRisk] = useState(false);
   const [status, setStatus] = useState('in_progress');
+  const [riskProfiles, setRiskProfiles] = useState<any[]>([]);
+  const [selectedRiskProfileId, setSelectedRiskProfileId] = useState('');
+  const [riskDescription, setRiskDescription] = useState('');
+  const [riskOwnerName, setRiskOwnerName] = useState('');
+  const [initialLikelihood, setInitialLikelihood] = useState(1);
+  const [reviewFrequencyMonths, setReviewFrequencyMonths] = useState(3);
   const [sourceTriggerReviewId, setSourceTriggerReviewId] = useState<number | undefined>(undefined);
   const [incidentId, setIncidentId] = useState<number | undefined>(undefined);
   const [sourceIncident, setSourceIncident] = useState<IncidentSource | null>(null);
@@ -229,9 +240,13 @@ export default function StandardRcaForm() {
     {
       action: '',
       type: 'preventive',
-      responsible: 'คณะกรรมการบริหารความเสี่ยง (RM)',
+      responsible: user?.name || 'หน่วยงานเจ้าของเรื่อง',
       due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
       status: 'pending',
+      effectiveness_criteria: '',
+      baseline_value: '',
+      target_value: '',
+      effectiveness_due_date: new Date(Date.now() + 45 * 86400000).toISOString().slice(0, 10),
     },
   ]);
 
@@ -265,6 +280,8 @@ export default function StandardRcaForm() {
     setTopic(nrlsTopic);
     setRmNo(sourceRmNo);
     setWhatHappened(description);
+    setRiskDescription((current) => current || description);
+    setRiskOwnerName((current) => current || user?.name || 'เจ้าของกระบวนการ');
     if (incident.level_id) setSeverity(incident.level_id);
     if (incident.date_report) setIncidentDate(incident.date_report.slice(0, 10));
   };
@@ -327,6 +344,27 @@ export default function StandardRcaForm() {
     return () => window.clearTimeout(timer);
   }, [id, incidentSearch]);
 
+  useEffect(() => {
+    const nrlsCode = sourceIncident?.nrls_code;
+    if (!nrlsCode || !sourceIncident?.department_id) {
+      setRiskProfiles([]);
+      return;
+    }
+    let active = true;
+    axios.get('/risk-analysis', {
+      params: { department_id: sourceIncident.department_id, search: nrlsCode },
+    }).then((response) => {
+      if (!active) return;
+      const matches = (Array.isArray(response.data) ? response.data : [])
+        .filter((profile: any) => profile.nrls_code === nrlsCode);
+      setRiskProfiles(matches);
+      setSelectedRiskProfileId((current) => current || (matches[0]?.id ? String(matches[0].id) : ''));
+    }).catch(() => {
+      if (active) setRiskProfiles([]);
+    });
+    return () => { active = false; };
+  }, [sourceIncident?.department_id, sourceIncident?.nrls_code]);
+
   const loadCaseData = async (caseIdToLoad: string) => {
     try {
       setLoading(true);
@@ -343,6 +381,7 @@ export default function StandardRcaForm() {
           nrls_name: data.nrls_name_snapshot,
           incident_topic: data.nrls_name_snapshot || data.topic,
           incident_description: data.incident_detail_raw || data.what_happened,
+          department_id: data.department_id,
         });
       }
       setRmNo(data.rm_no || '');
@@ -362,6 +401,9 @@ export default function StandardRcaForm() {
       setActualImpact(data.actual_impact || '');
       setPotentialImpact(data.potential_impact || '');
       setStatus(data.status || 'in_progress');
+      setSelectedRiskProfileId(data.risk_analysis_id ? String(data.risk_analysis_id) : '');
+      setRiskDescription(data.risk_analysis?.risk_description || data.what_happened || '');
+      setRiskOwnerName(data.risk_analysis?.risk_owner_name || user?.name || 'เจ้าของกระบวนการ');
       setSourceTriggerReviewId(data.source_trigger_review_id);
 
       setInfoInterview(data.info_interview ?? true);
@@ -589,6 +631,10 @@ export default function StandardRcaForm() {
         responsible: rcaTeam === 'other' ? customTeam : rcaTeam,
         due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
         status: 'pending',
+        effectiveness_criteria: '',
+        baseline_value: '',
+        target_value: '',
+        effectiveness_due_date: new Date(Date.now() + 45 * 86400000).toISOString().slice(0, 10),
       },
     ]);
   };
@@ -626,21 +672,9 @@ export default function StandardRcaForm() {
     setReviewSessions(updated);
   };
 
-  // Form Save
-  const handleSave = async (markAsNotRisk = isNotRisk) => {
-    if ((!id || id === 'new') && !incidentId) {
-      alert('กรุณาเลือกรายงานความเสี่ยงต้นทางก่อนสร้าง Standard RCA');
-      return;
-    }
-    if (!topic.trim()) {
-      alert('กรุณาระบุหัวข้อเรื่องการทำ RCA');
-      return;
-    }
-
-    setSaving(true);
+  const buildPayload = (markAsNotRisk = isNotRisk) => {
     const finalTeam = rcaTeam === 'other' ? customTeam : rcaTeam;
-
-    const payload = {
+    return {
       id: caseId || undefined,
       incident_id: incidentId,
       incident_id_risk: sourceIncident?.id_risk,
@@ -685,24 +719,75 @@ export default function StandardRcaForm() {
         notes: s.notes,
       })),
     };
+  };
+
+  const persistRca = async (markAsNotRisk = isNotRisk, navigateAfter = true) => {
+    if ((!id || id === 'new') && !incidentId) {
+      alert('กรุณาเลือกรายงานความเสี่ยงต้นทางก่อนสร้าง Standard RCA');
+      return null;
+    }
+    if (!topic.trim()) {
+      alert('กรุณาระบุหัวข้อเรื่องการทำ RCA');
+      return null;
+    }
+
+    setSaving(true);
+    const payload = buildPayload(markAsNotRisk);
 
     try {
+      let savedId = caseId;
       if (id && id !== 'new') {
         await axios.patch(`/rca/standard/${id}`, payload);
+        savedId = id;
       } else {
         const res = await axios.post('/rca/standard', payload);
-        setCaseId(res.data.id);
+        savedId = res.data.id;
+        setCaseId(savedId);
       }
-      alert('บันทึกข้อมูล Standard RCA รพ.วังเจ้า เรียบร้อยแล้ว!');
-      navigate('/rca/list');
+      if (navigateAfter) {
+        alert('บันทึกร่าง RCA เรียบร้อยแล้ว คุณสามารถกลับมาเติมข้อมูลต่อได้');
+        navigate('/rca/list');
+      }
+      return savedId;
     } catch (err) {
       console.error('Failed to save standard RCA', err);
       const message = axios.isAxiosError(err) && typeof err.response?.data?.message === 'string'
         ? err.response.data.message
         : 'เกิดข้อผิดพลาดในการบันทึก Standard RCA';
       alert(message);
+      return null;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSave = async (markAsNotRisk = isNotRisk) => persistRca(markAsNotRisk, true);
+
+  const handleCompleteRca = async () => {
+    if (!window.confirm('ยืนยันสรุป RCA และนำความเสี่ยงเข้าสู่ Risk Register ใช่หรือไม่?')) return;
+    setCompleting(true);
+    try {
+      const savedId = await persistRca(false, false);
+      if (!savedId) return;
+      const response = await axios.post(`/rca/standard/${savedId}/complete`, {
+        risk_analysis_id: selectedRiskProfileId ? Number(selectedRiskProfileId) : undefined,
+        risk_description: riskDescription.trim(),
+        risk_owner_name: riskOwnerName.trim(),
+        initial_likelihood: initialLikelihood,
+        review_frequency_months: reviewFrequencyMonths,
+      });
+      const profile = response.data?.risk_analysis;
+      alert(response.data?.risk_profile_created
+        ? `สรุป RCA และสร้าง Risk Register ${profile?.risk_code || ''} เรียบร้อยแล้ว`
+        : `สรุป RCA และเชื่อมกับ Risk Register ${profile?.risk_code || ''} เรียบร้อยแล้ว`);
+      navigate('/reports?tab=register');
+    } catch (err) {
+      const message = axios.isAxiosError(err) && typeof err.response?.data?.message === 'string'
+        ? err.response.data.message
+        : 'สรุป RCA และเชื่อม Risk Register ไม่สำเร็จ';
+      alert(message);
+    } finally {
+      setCompleting(false);
     }
   };
 
@@ -799,15 +884,15 @@ export default function StandardRcaForm() {
             <Printer className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             <span>พิมพ์รายงาน HA</span>
           </button>
-          <button
+          {status.toUpperCase() !== 'COMPLETED' && <button
             type="button"
             onClick={() => handleSave()}
-            disabled={saving}
+            disabled={saving || completing}
             className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
-            <span>{saving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</span>
-          </button>
+            <span>{saving ? 'กำลังบันทึก...' : 'บันทึกร่าง'}</span>
+          </button>}
         </div>
       </div>
 
@@ -873,8 +958,24 @@ export default function StandardRcaForm() {
 
       {/* Main 9 Sections Form Body (No nested <form> tags) */}
       <div className="space-y-8">
+        <nav className="sticky top-2 z-30 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 print:hidden" aria-label="ขั้นตอนการทำ RCA">
+          <div className="flex min-w-max gap-2">
+            {[
+              ['rca-facts', '1. ข้อเท็จจริง'],
+              ['rca-timeline', '2. Timeline'],
+              ['rca-analysis', '3. วิเคราะห์สาเหตุ'],
+              ['rca-actions', '4. มาตรการ'],
+              ['risk-register-link', '5. Risk Register'],
+            ].map(([target, label]) => (
+              <button key={target} type="button" onClick={() => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="rounded-xl px-3 py-2 text-xs font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-300 dark:hover:bg-indigo-950">
+                {label}
+              </button>
+            ))}
+          </div>
+        </nav>
+
         {/* ================= SECTION 1: GENERAL METADATA ================= */}
-        <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+        <section id="rca-facts" className="scroll-mt-24 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
@@ -1123,7 +1224,7 @@ export default function StandardRcaForm() {
         </section>
 
         {/* ================= SECTION 3: INCIDENT TIMELINE ================= */}
-        <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+        <section id="rca-timeline" className="scroll-mt-24 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
@@ -1206,7 +1307,7 @@ export default function StandardRcaForm() {
         </section>
 
         {/* ================= SECTION 4: QUICK STAKEHOLDER REVIEW & CMPS ================= */}
-        <section className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+        <section id="rca-analysis" className="scroll-mt-24 space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
           <div className="flex items-center gap-2.5 border-b border-slate-100 pb-4 dark:border-slate-800">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-sm font-black text-violet-600 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-400">4</span>
             <div>
@@ -1562,7 +1663,7 @@ export default function StandardRcaForm() {
         </section>
 
         {/* ================= SECTION 7: CAPA ACTION PLAN ================= */}
-        <section className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+        <section id="rca-actions" className="scroll-mt-24 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
@@ -1661,6 +1762,49 @@ export default function StandardRcaForm() {
                       className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
                     />
                   </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-900 dark:bg-emerald-950/20 md:grid-cols-12">
+                  <div className="md:col-span-12">
+                    <div className="text-[11px] font-black text-emerald-900 dark:text-emerald-200">กำหนดวิธีพิสูจน์ว่ามาตรการได้ผล</div>
+                    <div className="mt-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">ข้อมูลชุดนี้จะถูกส่งต่อไปยังศูนย์ติดตามมาตรการโดยอัตโนมัติ</div>
+                  </div>
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-4">
+                    เกณฑ์ประเมินประสิทธิผล
+                    <textarea
+                      rows={2}
+                      value={c.effectiveness_criteria || ''}
+                      onChange={(e) => handleCapaChange(idx, 'effectiveness_criteria', e.target.value)}
+                      placeholder="เช่น อัตราปฏิบัติตามขั้นตอน ≥ 95% และไม่เกิดเหตุซ้ำระดับ C ขึ้นไป"
+                      className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-normal dark:border-emerald-900 dark:bg-slate-900"
+                    />
+                  </label>
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-2">
+                    ข้อมูลก่อนปรับปรุง
+                    <input
+                      value={c.baseline_value || ''}
+                      onChange={(e) => handleCapaChange(idx, 'baseline_value', e.target.value)}
+                      placeholder="Baseline"
+                      className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-normal dark:border-emerald-900 dark:bg-slate-900"
+                    />
+                  </label>
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-2">
+                    เป้าหมาย
+                    <input
+                      value={c.target_value || ''}
+                      onChange={(e) => handleCapaChange(idx, 'target_value', e.target.value)}
+                      placeholder="Target"
+                      className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-normal dark:border-emerald-900 dark:bg-slate-900"
+                    />
+                  </label>
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 md:col-span-4">
+                    วันที่ประเมินประสิทธิผล
+                    <input
+                      type="date"
+                      value={c.effectiveness_due_date || ''}
+                      onChange={(e) => handleCapaChange(idx, 'effectiveness_due_date', e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-normal dark:border-emerald-900 dark:bg-slate-900"
+                    />
+                  </label>
                 </div>
               </div>
             ))}
@@ -1779,6 +1923,70 @@ export default function StandardRcaForm() {
           </div>
         </section>
 
+        <section id="risk-register-link" className="space-y-5 rounded-3xl border-2 border-indigo-300 bg-indigo-50/40 p-6 shadow-sm dark:border-indigo-800 dark:bg-indigo-950/20 sm:p-8">
+          <div className="flex flex-col gap-2 border-b border-indigo-200 pb-4 dark:border-indigo-900 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="text-xs font-black text-indigo-600">ขั้นตอนสุดท้ายก่อนสรุป RCA</div>
+              <h3 className="mt-1 text-lg font-black text-indigo-950 dark:text-indigo-100">นำความเสี่ยงเข้าสู่ Risk Register</h3>
+              <p className="mt-1 text-xs leading-5 text-indigo-700 dark:text-indigo-300">ระบบจะเชื่อมกับรายการเดิมที่ใช้ NRLS เดียวกัน หรือสร้างรายการใหม่ให้เจ้าของกระบวนการติดตามต่อ โดยไม่ต้องรอ RM เปิดเรื่องให้</p>
+            </div>
+            <span className="rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-bold text-indigo-700 dark:border-indigo-800 dark:bg-slate-900 dark:text-indigo-300">NRLS {sourceIncident?.nrls_code || '-'}</span>
+          </div>
+
+          {status.toUpperCase() === 'COMPLETED' ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+              RCA นี้สรุปแล้วและเชื่อมกับ Risk Register เรียบร้อย
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <label className="block text-xs font-black text-slate-700 dark:text-slate-200">
+                เลือก Risk Register ที่มีอยู่ หรือให้ระบบสร้างรายการใหม่
+                <select
+                  value={selectedRiskProfileId}
+                  onChange={(event) => setSelectedRiskProfileId(event.target.value)}
+                  className="mt-2 w-full rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-800 dark:border-indigo-800 dark:bg-slate-900 dark:text-white"
+                >
+                  <option value="">สร้าง Risk Register ใหม่จาก RCA นี้</option>
+                  {riskProfiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>[{profile.risk_code}] {profile.risk_title} · {profile.risk_owner_name || 'ยังไม่ระบุเจ้าของ'}</option>
+                  ))}
+                </select>
+              </label>
+
+              {!selectedRiskProfileId && (
+                <div className="grid gap-4 rounded-2xl border border-indigo-200 bg-white p-4 dark:border-indigo-900 dark:bg-slate-900 md:grid-cols-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-200 md:col-span-2">
+                    ข้อความความเสี่ยง: เหตุการณ์ที่อาจเกิดและผลกระทบ
+                    <textarea
+                      rows={3}
+                      value={riskDescription}
+                      onChange={(event) => setRiskDescription(event.target.value)}
+                      placeholder="เช่น การระบุตัวผู้ป่วยไม่ครบถ้วน อาจทำให้ให้การรักษาผิดคนและเกิดอันตรายต่อผู้ป่วย"
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-normal dark:border-slate-700 dark:bg-slate-950"
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                    เจ้าของความเสี่ยง/เจ้าของกระบวนการ
+                    <input value={riskOwnerName} onChange={(event) => setRiskOwnerName(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal dark:border-slate-700 dark:bg-slate-950" />
+                  </label>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                    โอกาสเกิดซ้ำเริ่มต้น
+                    <select value={initialLikelihood} onChange={(event) => setInitialLikelihood(Number(event.target.value))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal dark:border-slate-700 dark:bg-slate-950">
+                      {[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>ระดับ {value}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                    รอบทบทวน
+                    <select value={reviewFrequencyMonths} onChange={(event) => setReviewFrequencyMonths(Number(event.target.value))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal dark:border-slate-700 dark:bg-slate-950">
+                      <option value={1}>ทุก 1 เดือน</option><option value={3}>ทุก 3 เดือน</option><option value={6}>ทุก 6 เดือน</option><option value={12}>ทุก 12 เดือน</option>
+                    </select>
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
         {/* ================= BOTTOM ACTION BAR & NOT A RISK TOGGLE ================= */}
         <section className="p-6 rounded-3xl bg-slate-900 text-white shadow-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6 print:hidden">
           <div className="flex items-center gap-4">
@@ -1809,15 +2017,28 @@ export default function StandardRcaForm() {
             >
               ยกเลิก
             </button>
-            <button
-              type="button"
-              onClick={() => handleSave()}
-              disabled={saving}
-              className="px-8 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-sm shadow-lg shadow-emerald-500/30 flex items-center gap-2 transition disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-              <span>{saving ? 'กำลังบันทึกข้อมูล...' : '💾 บันทึกข้อมูล RCA'}</span>
-            </button>
+            {status.toUpperCase() !== 'COMPLETED' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleSave()}
+                  disabled={saving || completing}
+                  className="flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-700 disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{saving && !completing ? 'กำลังบันทึก...' : 'บันทึกร่าง'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCompleteRca()}
+                  disabled={saving || completing}
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/30 transition hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50"
+                >
+                  <Link2 className="w-4 h-4" />
+                  <span>{completing ? 'กำลังสรุปและเชื่อมทะเบียน...' : 'สรุป RCA และเข้า Risk Register'}</span>
+                </button>
+              </>
+            )}
           </div>
         </section>
       </div>

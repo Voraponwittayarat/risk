@@ -619,6 +619,7 @@ model riskanalysis {
   source                  String?               @default("มาตรฐานสำคัญ 9 ด้าน") @db.VarChar(100)
   reviews                 riskanalysis_review[]
   capas                   capa_action[]
+  standard_rca_cases      standard_rca_case[]
 
   @@unique([nrls_code, scope_level, scope_identifier], map: "uq_riskanalysis_nrls_scope")
   @@index([nrls_code, scope_level, department_id], map: "idx_riskanalysis_nrls_scope")
@@ -818,6 +819,7 @@ model standard_rca_case {
   department_id            String?                         @db.VarChar(10)
   assigned_team_id         Int?
   assigned_member_cid      String?                         @db.VarChar(13)
+  risk_analysis_id         Int?
   due_at                   DateTime?                       @db.DateTime(0)
   completed_at             DateTime?                       @db.DateTime(0)
   is_not_risk              Boolean?                        @default(false)
@@ -840,9 +842,11 @@ model standard_rca_case {
   process_analyses         standard_rca_process_analysis[]
   capas                    standard_rca_capa[]
   review_sessions          standard_rca_review_session[]
+  risk_analysis            riskanalysis?                   @relation(fields: [risk_analysis_id], references: [id], onDelete: SetNull)
 
   @@unique([incident_id], map: "uq_standard_rca_incident")
   @@index([nrls_code, status, due_at], map: "idx_standard_rca_nrls_status_due")
+  @@index([risk_analysis_id], map: "idx_standard_rca_risk_analysis")
 }
 
 model standard_rca_timeline {
@@ -926,6 +930,10 @@ model standard_rca_capa {
   due_date             DateTime?         @db.Date
   status               String?           @default("pending") @db.VarChar(50)
   evidence             String?           @db.Text
+  effectiveness_criteria String?         @db.Text
+  baseline_value       String?           @db.VarChar(255)
+  target_value         String?           @db.VarChar(255)
+  effectiveness_due_date DateTime?       @db.Date
   sort_order           Int?              @default(0)
   created_at           DateTime          @default(now()) @db.Timestamp(0)
   standard_rca_case    standard_rca_case @relation(fields: [standard_rca_case_id], references: [id], onDelete: Cascade)
