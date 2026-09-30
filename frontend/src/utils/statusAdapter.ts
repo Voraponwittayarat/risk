@@ -35,7 +35,7 @@ export const STATUS_MAP: Record<string, StatusInfo> = {
   },
   'ตรวจสอบ': {
     dbStatus: 'ตรวจสอบ',
-    label: 'ยืนยันแล้ว / รอแก้ไข',
+    label: 'รอทบทวน',
     badgeClass: 'bg-blue-100 text-blue-900 border-blue-400 dark:bg-blue-950/70 dark:text-blue-200 dark:border-blue-600',
     bgLight: 'bg-blue-50 dark:bg-blue-900/30',
     textColor: 'text-blue-800 dark:text-blue-300',

@@ -208,7 +208,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
     { id: 'all', label: 'ทั้งหมด', countKey: 'all' },
     ...(mode === 'dept' || mode === 'team' ? [] : [{ id: 'รายงาน', label: 'รอยืนยัน', countKey: 'pending' }]),
     { id: 'แก้ไข', label: 'ส่งกลับแก้ไข', countKey: 'returnedForEdit' },
-    { id: 'ตรวจสอบ', label: 'ยืนยันแล้ว / รอแก้ไข', countKey: 'verified' },
+    { id: 'ตรวจสอบ', label: 'รอทบทวน', countKey: 'verified' },
     { id: 'ทบทวน', label: 'อยู่ระหว่างทบทวน / RCA', countKey: 'reviewing' },
     { id: 'forwarded', label: '📤 ส่งต่อร่วมทบทวน (Co-Review)', countKey: 'forwarded' },
     { id: 'จำหน่าย', label: 'ปิดเคส / เสร็จสิ้น', countKey: 'closed' },
