@@ -29,8 +29,8 @@ export class RcaController {
 
   @Get('overview-stats')
   @ApiOperation({ summary: 'Get unified statistics for all RCA modes' })
-  getOverviewStats(@Request() req: any) {
-    return this.rcaService.getOverviewStats(req.user);
+  getOverviewStats(@Request() req: any, @Query('summary') summary?: string) {
+    return this.rcaService.getOverviewStats(req.user, summary === 'true');
   }
 
   @Get('incident-reviews')

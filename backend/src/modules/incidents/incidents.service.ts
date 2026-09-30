@@ -1256,7 +1256,7 @@ export class IncidentsService {
     return { success: true, action: dto.action, updated: incidents.length, team_id: teamId };
   }
 
-  async getMyReported(user: any, fiscalYearParam?: string) {
+  async getMyReported(user: any, fiscalYearParam?: string, summaryOnly = false) {
     const userId = Number(user?.id || user?.userId || user?.sub);
     if (!userId) {
       return {
@@ -1275,6 +1275,9 @@ export class IncidentsService {
     const defaultFiscalYear = currentMonth >= 9 ? currentYear + 1 : currentYear;
 
     const selectedFiscalYear = fiscalYearParam ? Number(fiscalYearParam) : defaultFiscalYear;
+    if (!Number.isInteger(selectedFiscalYear) || selectedFiscalYear < 2020 || selectedFiscalYear > defaultFiscalYear + 1) {
+      throw new BadRequestException('ปีงบประมาณไม่ถูกต้อง');
+    }
 
     // Calculate start and end dates for selected fiscal year (e.g. FY 2026: 2025-10-01 to 2026-09-30)
     const startOfYear = new Date(`${selectedFiscalYear - 1}-10-01T00:00:00.000Z`);
@@ -1295,36 +1298,38 @@ export class IncidentsService {
       }
     });
 
-    // Query all incidents reported by this user in the selected fiscal year
+    const yearWhere = { created_by: userId, register_date: { gte: startOfYear, lte: endOfYear } };
+    const [totalReported, returnedForEdit] = await Promise.all([
+      this.prisma.riskregister.count({ where: yearWhere }),
+      this.prisma.riskregister.count({ where: { ...yearWhere, status_risk: 'แก้ไข' } }),
+    ]);
+    // The dashboard only displays five recent rows. Keep the full-year view for its dedicated page.
     const incidents = await this.prisma.riskregister.findMany({
-      where: {
-        created_by: userId,
-        register_date: {
-          gte: startOfYear,
-          lte: endOfYear
-        }
-      },
-      orderBy: {
-        id: 'desc'
-      }
+      where: yearWhere,
+      select: { id: true, id_risk: true, riskstore_id: true, department_id: true,
+        sendto_department_id: true, detail: true, nrls_code: true, date_report: true,
+        register_date: true, status_risk: true, level_id: true, rca_required: true,
+        improvement_status: true },
+      orderBy: { id: 'desc' },
+      ...(summaryOnly ? { take: 5 } : {}),
     });
 
-    // Enrich incidents with riskstore name and department name
-    const enrichedIncidents = await Promise.all(
-      incidents.map(async (inc) => {
-        const [rStore, dept, targetDept] = await Promise.all([
-          inc.riskstore_id ? this.prisma.riskstore.findFirst({ where: { riskstore_id: inc.riskstore_id } }) : null,
-          this.prisma.department.findUnique({ where: { id: Number(inc.department_id) } }),
-          inc.sendto_department_id ? this.prisma.department.findUnique({ where: { id: Number(inc.sendto_department_id) } }) : null
-        ]);
-        return {
-          ...inc,
-          riskstore_name: rStore ? rStore.riskstore_name : 'ไม่พบข้อมูลหัวข้อ',
-          department_name: dept ? dept.depart_name : 'ไม่พบข้อมูลแผนก',
-          sendto_department_name: targetDept ? targetDept.depart_name : 'ไม่มีระบุ'
-        };
-      })
-    );
+    // Two lookups replace up to three queries per incident.
+    const riskIds = [...new Set(incidents.map((inc) => inc.riskstore_id).filter((id): id is number => id != null))];
+    const departmentIds = [...new Set(incidents.flatMap((inc) => [inc.department_id, inc.sendto_department_id])
+      .filter((id): id is string => !!id).map(Number).filter(Number.isFinite))];
+    const [riskNames, departmentNames] = await Promise.all([
+      riskIds.length ? this.prisma.riskstore.findMany({ where: { riskstore_id: { in: riskIds } }, select: { riskstore_id: true, riskstore_name: true } }) : [],
+      departmentIds.length ? this.prisma.department.findMany({ where: { id: { in: departmentIds } }, select: { id: true, depart_name: true } }) : [],
+    ]);
+    const riskNameById = new Map<number, string>(riskNames.map((row) => [row.riskstore_id, row.riskstore_name] as [number, string]));
+    const departmentNameById = new Map<number, string>(departmentNames.map((row) => [row.id, row.depart_name] as [number, string]));
+    const enrichedIncidents = incidents.map((inc) => ({
+      ...inc,
+      riskstore_name: riskNameById.get(inc.riskstore_id || -1) || 'ไม่พบข้อมูลหัวข้อ',
+      department_name: departmentNameById.get(Number(inc.department_id)) || 'ไม่พบข้อมูลแผนก',
+      sendto_department_name: departmentNameById.get(Number(inc.sendto_department_id)) || 'ไม่มีระบุ',
+    }));
 
     // Generate dynamic list of fiscal years from DB to choose from
     const earliestRecord = await this.prisma.riskregister.findFirst({
@@ -1354,6 +1359,8 @@ export class IncidentsService {
 
     return {
       reportedThisMonth,
+      totalReported,
+      returnedForEdit,
       incidents: enrichedIncidents,
       fiscalYearsList: yearsList,
       currentFiscalYear: defaultFiscalYear,

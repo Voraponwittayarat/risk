@@ -123,7 +123,7 @@ export default function RcaList() {
     setLoading(true);
     setLoadError('');
     const responses = await Promise.allSettled([
-      axios.get('/rca/overview-stats'),
+      axios.get('/rca/overview-stats', { params: { summary: 'true' } }),
       axios.get('/rca/standard'),
       axios.get('/rca/cases'),
       axios.get('/rca/incident-reviews'),

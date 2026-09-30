@@ -170,8 +170,8 @@ export class IncidentsController {
 
   @Get('my-reported')
   @ApiOperation({ summary: 'Retrieve incidents reported by the current user with fiscal year filter' })
-  getMyReported(@Request() req, @Query('fiscalYear') fiscalYear?: string) {
-    return this.incidentsService.getMyReported(req.user, fiscalYear);
+  getMyReported(@Request() req, @Query('fiscalYear') fiscalYear?: string, @Query('summary') summary?: string) {
+    return this.incidentsService.getMyReported(req.user, fiscalYear, summary === 'true');
   }
 
   @Get('tab-counts')

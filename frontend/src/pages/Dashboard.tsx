@@ -171,7 +171,7 @@ export default function Dashboard() {
       setMyReportedError(false);
       try {
         const token = localStorage.getItem('token');
-        const params: any = {};
+        const params: any = { summary: 'true' };
         if (selectedFiscalYear) params.fiscalYear = selectedFiscalYear;
         const response = await axios.get('/incidents/my-reported', {
           signal: controller.signal,
@@ -265,7 +265,7 @@ export default function Dashboard() {
       </div>
 
       <DashboardTasks personal={{
-        returned: loadingMyReported || myReportedError ? undefined : myReportedData.incidents.filter((incident: { status_risk: string }) => incident.status_risk === 'แก้ไข').length,
+        returned: loadingMyReported || myReportedError ? undefined : myReportedData.returnedForEdit || 0,
         fiscalYear: selectedFiscalYear,
         failed: myReportedError,
         retry: () => setMyReportedAttempt(value => value + 1),
@@ -728,10 +728,10 @@ export default function Dashboard() {
                     })}
                   </tbody>
                 </table>
-                {myReportedData.incidents.length > 5 && (
+                {myReportedData.totalReported > 5 && (
                   <div className="p-2 bg-slate-50/30 dark:bg-slate-900/10 text-center border-t border-slate-100 dark:border-slate-700">
                     <span className="text-[10px] text-slate-400">
-                      แสดง 5 รายการล่าสุดจากทั้งหมด {myReportedData.incidents.length} รายการของปีงบนี้
+                      แสดง 5 รายการล่าสุดจากทั้งหมด {myReportedData.totalReported} รายการของปีงบนี้
                     </span>
                   </div>
                 )}

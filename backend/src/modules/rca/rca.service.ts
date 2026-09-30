@@ -1377,7 +1377,14 @@ export class RcaService {
   }
 
   // ================= 4. Unified RCA Dashboard / Stats =================
-  async getOverviewStats(user?: any) {
+  async getOverviewStats(user?: any, summaryOnly = false) {
+    if (summaryOnly) {
+      const departments = await this.allowedDepartments(user);
+      return { pending_capas: await this.prisma.capa_action.count({ where: {
+        ...(departments ? { responsible_department_id: { in: departments } } : {}),
+        status: { notIn: ['CLOSED', 'CANCELLED'] },
+      } }) };
+    }
     const [miniRows, conciseRows, standardRows, reviewRows] = await Promise.all([
       this.getMiniConciseList('mini', user), this.getMiniConciseList('concise', user), this.getStandardList(user), this.getIncidentReviews(user),
     ]);

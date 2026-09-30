@@ -72,6 +72,28 @@ describe('IncidentsService incident permissions', () => {
     service = module.get<IncidentsService>(IncidentsService);
   });
 
+  it('loads five dashboard reports with bulk name lookups and exact yearly counts', async () => {
+    prisma.riskregister.count = jest.fn().mockResolvedValueOnce(3).mockResolvedValueOnce(12).mockResolvedValueOnce(2);
+    prisma.riskregister.findMany.mockResolvedValue([
+      { id: 21, riskstore_id: 4, department_id: '1', sendto_department_id: '2' },
+      { id: 20, riskstore_id: 4, department_id: '1', sendto_department_id: null },
+    ]);
+    prisma.riskregister.findFirst = jest.fn().mockResolvedValue({ register_date: new Date('2025-10-01') });
+    prisma.riskstore.findMany.mockResolvedValue([{ riskstore_id: 4, riskstore_name: 'หัวข้อทดสอบ' }]);
+    prisma.department.findMany.mockResolvedValue([{ id: 1, depart_name: 'หน่วยหนึ่ง' }, { id: 2, depart_name: 'หน่วยสอง' }]);
+
+    const result = await service.getMyReported({ id: 7 }, '2026', true);
+
+    expect(result).toMatchObject({ totalReported: 12, returnedForEdit: 2, reportedThisMonth: 3 });
+    expect(result.incidents).toHaveLength(2);
+    expect(result.incidents[0]).toMatchObject({ riskstore_name: 'หัวข้อทดสอบ', department_name: 'หน่วยหนึ่ง', sendto_department_name: 'หน่วยสอง' });
+    expect(prisma.riskregister.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 5 }));
+    expect(prisma.riskstore.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.department.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.riskstore.findUnique).not.toHaveBeenCalled();
+    expect(prisma.department.findUnique).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['clinical_ef', ['E', 'F']],
     ['clinical_ghi', ['G', 'H', 'I']],

@@ -2,6 +2,18 @@ import { BadRequestException, ConflictException, ForbiddenException } from '@nes
 import { RcaService } from './rca.service';
 
 describe('RcaService incident review queue', () => {
+  it('uses a database count for the RCA page summary without loading every RCA and CAPA', async () => {
+    const prisma: any = { capa_action: { count: jest.fn().mockResolvedValue(9) } };
+    const service = new RcaService(prisma, {} as any, {} as any);
+    jest.spyOn(service as any, 'allowedDepartments').mockResolvedValue(['15']);
+    const fullList = jest.spyOn(service, 'getStandardList');
+    const result = await service.getOverviewStats({ role: 'rm_committee', rmScope: 'department', departmentId: 15 }, true);
+    expect(result).toEqual({ pending_capas: 9 });
+    expect(prisma.capa_action.count).toHaveBeenCalledWith({ where: {
+      responsible_department_id: { in: ['15'] }, status: { notIn: ['CLOSED', 'CANCELLED'] },
+    } });
+    expect(fullList).not.toHaveBeenCalled();
+  });
   it('shows a co-review to its destination department and links the real incident id', async () => {
     const incident = {
       id: 13547,
