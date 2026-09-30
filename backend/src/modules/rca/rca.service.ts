@@ -1372,6 +1372,16 @@ export class RcaService {
   }
 
   async getIncidentReviews(user?: any) {
+    // The FY2570 RCA queue starts fresh while older incident reviews remain
+    // available in the incident record. MySQL stores review_date as DATE.
+    const reviewStart = new Date('2026-10-01T00:00:00.000Z');
+    const bangkokToday = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    const reviewEnd = new Date(Date.UTC(
+      bangkokToday.getUTCFullYear(),
+      bangkokToday.getUTCMonth(),
+      bangkokToday.getUTCDate() + 1,
+    ));
+    const reviewDateFilter = { review_date: { gte: reviewStart, lt: reviewEnd } };
     const allowed = await this.allowedDepartments(user);
     const scopedIncidents = allowed
       ? await this.prisma.riskregister.findMany({
@@ -1408,6 +1418,7 @@ export class RcaService {
         ? {
             AND: [
               reviewContentFilter,
+              reviewDateFilter,
               {
                 OR: [
                   { riskregister_id: { in: scopedIncidentIds } },
@@ -1416,7 +1427,7 @@ export class RcaService {
               },
             ],
           }
-        : reviewContentFilter,
+        : { AND: [reviewContentFilter, reviewDateFilter] },
       // Legacy riskreview rows can contain MySQL zero dates in unused timestamp
       // columns. Selecting only the fields used by this queue avoids Prisma P2020
       // while preserving the historical rows unchanged.

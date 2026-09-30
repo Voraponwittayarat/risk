@@ -285,7 +285,7 @@ export default function RcaList() {
             <div className="max-w-3xl">
               <div className="mb-3 flex items-center gap-2 text-xs font-bold text-blue-200"><Activity className="h-4 w-4" /> RCA COMMAND CENTER</div>
               <h1 className="text-2xl font-black tracking-tight sm:text-3xl">ศูนย์งานทบทวน RCA</h1>
-              <p className="mt-2 text-sm leading-relaxed text-slate-300">เห็นงานที่ยังต้องทบทวนก่อนเป็นลำดับแรก รวม Standard, Concise และ Mini RCA ในคิวเดียว พร้อมติดตามงานเกินกำหนดและดูผลทบทวนย้อนหลัง</p>
+              <p className="mt-2 text-sm leading-relaxed text-slate-300">เริ่มรายการ RCA ใหม่สำหรับปีงบ 2570 ตั้งแต่ 1 ต.ค. 2569 ผลทบทวนอุบัติการณ์ก่อนหน้านั้นยังดูได้ในรายละเอียดเหตุการณ์</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => navigate('/trigger-tool')} className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-bold text-white backdrop-blur hover:bg-white/20"><FileSearch className="h-4 w-4" /> Trigger Tool</button>
@@ -356,7 +356,7 @@ export default function RcaList() {
           </div>
         )}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div><div className={`mb-1 flex items-center gap-2 text-xs font-black ${activeView === 'pending' ? 'text-blue-600' : 'text-emerald-600'}`}>{activeView === 'pending' ? <ListTodo className="h-4 w-4" /> : <BarChart3 className="h-4 w-4" />}{activeView === 'pending' ? 'UNFINISHED REVIEW QUEUE' : 'COMPLETED REVIEW SUMMARY'}</div><h2 className="text-xl font-black text-slate-900 dark:text-white">{activeView === 'pending' ? 'รายการงานที่ยังต้องทบทวน' : 'รายการที่ทบทวนแล้ว'}</h2><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{activeView === 'pending' ? 'เรียงงานเกินกำหนดและใกล้ครบกำหนดขึ้นก่อน โดยรวม RCA ทั้ง 3 แบบในรายการเดียว' : 'รวมผล Standard, Concise, Mini RCA และบันทึกผลทบทวนอุบัติการณ์ เรียงจากล่าสุด'}</p></div>
+          <div><div className={`mb-1 flex items-center gap-2 text-xs font-black ${activeView === 'pending' ? 'text-blue-600' : 'text-emerald-600'}`}>{activeView === 'pending' ? <ListTodo className="h-4 w-4" /> : <BarChart3 className="h-4 w-4" />}{activeView === 'pending' ? 'UNFINISHED REVIEW QUEUE' : 'COMPLETED REVIEW SUMMARY'}</div><h2 className="text-xl font-black text-slate-900 dark:text-white">{activeView === 'pending' ? 'รายการงานที่ยังต้องทบทวน' : 'รายการที่ทบทวนแล้ว'}</h2><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{activeView === 'pending' ? 'เรียงงานเกินกำหนดและใกล้ครบกำหนดขึ้นก่อน โดยรวม RCA ทั้ง 3 แบบในรายการเดียว' : 'รวมผล Standard, Concise, Mini RCA และบันทึกผลทบทวนอุบัติการณ์ตั้งแต่ 1 ต.ค. 2569 เรียงจากล่าสุด'}</p></div>
           <span className="text-xs font-bold text-slate-500">แสดง {visibleItems.length} จาก {currentItems.length} รายการ</span>
         </div>
 
