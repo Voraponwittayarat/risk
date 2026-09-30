@@ -544,7 +544,7 @@ export class IncidentsService {
       return STATUS_PRIORITY_ORDER[item.status_risk] || 99;
     };
 
-    if (!query.sortBy || query.sortBy === 'default' || query.sortBy === 'id') {
+    if (!query.sortBy || query.sortBy === 'default') {
       // Default Status Priority Sorting for "ทั้งหมด" tab
       const allMatching = await this.prisma.riskregister.findMany({
         where,

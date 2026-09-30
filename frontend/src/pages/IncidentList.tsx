@@ -1,5 +1,5 @@
 import RiskWorkflowNav from '../components/RiskWorkflowNav';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { 
@@ -24,6 +24,8 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
   const [incidents, setIncidents] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const requestController = useRef<AbortController | null>(null);
   
   // Multi-select State for Concise / Batch RCA
   const [selectedIncidents, setSelectedIncidents] = useState<any[]>([]);
@@ -122,7 +124,10 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
   }, [mode, scopeType]);
 
   const fetchIncidents = () => {
+    requestController.current?.abort();
+    const controller = new AbortController();
     setLoading(true);
+    setLoadError('');
     const token = localStorage.getItem('token');
     const params: any = {
       page,
@@ -158,22 +163,26 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
 
     axios.get('/incidents', {
       params,
+      signal: controller.signal,
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
       .then(res => {
+        if (controller.signal.aborted) return;
         setIncidents(res.data.data || []);
         setTotalPages(res.data.meta?.totalPages || 1);
         setTotalCount(res.data.meta?.total || 0);
         setLoading(false);
       })
       .catch(err => {
-        console.error(err);
+        if (controller.signal.aborted || axios.isCancel(err)) return;
+        setLoadError('โหลดรายการไม่สำเร็จ กรุณากดลองใหม่');
         setLoading(false);
       });
   };
 
   useEffect(() => {
     fetchIncidents();
+    return () => requestController.current?.abort();
   }, [page, activeTab, selectedDept, selectedLevel, selectedProgram, selectedNrlsType, selectedClassification, scopeType, mode, sortBy, sortOrder]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -288,7 +297,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
             {mode === 'pending'
-              ? `รายการอุบัติการณ์ความเสี่ยงใหม่ที่รอหัวหน้างาน/ผู้รับผิดชอบตรวจสอบและยืนยันข้อเท็จจริง (พบ ${totalCount.toLocaleString()} รายการ)`
+              ? `รายการอุบัติการณ์ความเสี่ยงใหม่ที่รอหัวหน้างาน/ผู้รับผิดชอบตรวจสอบและยืนยันข้อเท็จจริง (พบ ${loading || loadError ? '—' : totalCount.toLocaleString()} รายการ)`
               : mode === 'team'
                 ? `เฝ้าระวังและร่วมทบทวนอุบัติการณ์สำหรับ${teamName || 'ทีมประสานงาน'} (พบ ${totalCount.toLocaleString()} รายการ)`
                 : `บริหารจัดการความเสี่ยงและขั้นตอนติดตามงานระดับหน่วยงาน (พบ ${totalCount.toLocaleString()} รายการ)`}
@@ -318,6 +327,13 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {loadError && !loading && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+          <span>{loadError} ข้อมูลที่แสดงอาจไม่ใช่สถานะล่าสุด</span>
+          <button type="button" onClick={fetchIncidents} className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800">ลองโหลดอีกครั้ง</button>
         </div>
       )}
 
@@ -384,7 +400,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
             </span>
           </div>
           <span className="px-3.5 py-1.5 bg-amber-200/70 dark:bg-amber-900/70 text-amber-900 dark:text-amber-200 rounded-xl font-extrabold text-xs">
-            {totalCount.toLocaleString()} รายการรอยืนยัน
+            {loading || loadError ? '—' : totalCount.toLocaleString()} รายการรอยืนยัน
           </span>
         </div>
       ) : (
@@ -530,6 +546,8 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
         <div className="xl:hidden divide-y divide-slate-100 dark:divide-slate-700/60">
           {loading ? (
             <div className="px-5 py-14 text-center text-sm text-slate-400">กำลังโหลดรายการข้อมูล...</div>
+          ) : loadError ? (
+            <div className="px-5 py-14 text-center text-sm text-red-700">ยังยืนยันจำนวนรายการไม่ได้</div>
           ) : incidents.length === 0 ? (
             <div className="px-5 py-14 text-center text-sm text-slate-400">ไม่พบรายการอุบัติการณ์ที่ตรงกับเงื่อนไข</div>
           ) : incidents.map((inc) => {
@@ -645,6 +663,8 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
                     </div>
                   </td>
                 </tr>
+              ) : loadError ? (
+                <tr><td colSpan={8} className="px-6 py-16 text-center text-red-700">ยังยืนยันจำนวนรายการไม่ได้</td></tr>
               ) : incidents.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-16 text-center text-slate-400">
