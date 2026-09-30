@@ -803,6 +803,8 @@ model rca_reviewer {
 }
 
 model standard_rca_case {
+  draft_register           String?                         @db.LongText
+  version                  Int                             @default(0)
   id                       String                          @id @db.VarChar(50)
   rm_no                    String?                         @db.VarChar(50)
   rca_type                 String?                         @default("full") @db.VarChar(20)
@@ -930,6 +932,7 @@ model standard_rca_cmp {
 }
 
 model standard_rca_capa {
+  client_key           String?           @db.VarChar(50)
   id                   Int               @id @default(autoincrement())
   standard_rca_case_id String            @db.VarChar(50)
   action               String            @db.Text

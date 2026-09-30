@@ -1,3 +1,4 @@
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { RcaService } from './rca.service';
 
 describe('RcaService incident review queue', () => {
@@ -113,6 +114,7 @@ describe('RcaService Standard RCA incident source', () => {
         create: jest.fn().mockResolvedValue({ id: 'RCA-FULL-1', status: 'IN_PROGRESS', completed_at: null, capas: [] }),
       },
     };
+    prisma.$transaction = jest.fn(async (callback) => callback(prisma));
     const service = new RcaService(prisma, {} as any, {} as any);
 
     await service.createStandard({
@@ -151,6 +153,8 @@ describe('RcaService Standard RCA incident source', () => {
 describe('RcaService Standard RCA completion', () => {
   const completeCase = {
     id: 'RCA-FULL-1',
+    version: 0,
+    department_id: '15',
     incident_id: 13547,
     status: 'IN_PROGRESS',
     created_by: 7,
@@ -197,14 +201,15 @@ describe('RcaService Standard RCA completion', () => {
     const tx: any = {
       riskanalysis: {
         findFirst: jest.fn().mockResolvedValue(null),
-        upsert: jest.fn().mockResolvedValue(createdProfile),
+        create: jest.fn().mockResolvedValue(createdProfile),
       },
       department: { findUnique: jest.fn().mockResolvedValue({ depart_name: 'หอผู้ป่วย' }) },
       standard_rca_case: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         update: jest.fn().mockResolvedValue({ ...completeCase, status: 'COMPLETED', risk_analysis_id: 88 }),
       },
       riskregister: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
-      capa_action: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      capa_action: { findFirst: jest.fn().mockResolvedValue({ id: 9 }), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       workflow_audit: { create: jest.fn().mockResolvedValue({ id: 1 }) },
     };
     const prisma: any = {
@@ -222,8 +227,8 @@ describe('RcaService Standard RCA completion', () => {
       review_frequency_months: 3,
     }, { id: 7, role: 'staff', departmentId: 15 });
 
-    expect(tx.riskanalysis.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      create: expect.objectContaining({
+    expect(tx.riskanalysis.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
         nrls_code: 'CPP101',
         scope_level: 'department',
         scope_identifier: '15',
@@ -241,16 +246,19 @@ describe('RcaService Standard RCA completion', () => {
     expect(result.risk_profile_created).toBe(true);
   });
 
-  it('does not complete RCA until every measure has an effectiveness plan', async () => {
+  it.each([
+    ['effectiveness_criteria', 'เกณฑ์ประเมินมาตรการที่ 1'],
+    ['action', 'รายละเอียดมาตรการที่ 1'],
+  ])('does not complete RCA with an empty %s', async (field, message) => {
     const prisma: any = {};
     const service = new RcaService(prisma, {} as any, {} as any);
     jest.spyOn(service, 'getStandardById').mockResolvedValue({
       ...completeCase,
-      capas: [{ ...completeCase.capas[0], effectiveness_criteria: '' }],
+      capas: [{ ...completeCase.capas[0], [field]: '' }],
     } as any);
 
     await expect(service.completeStandard('RCA-FULL-1', {}, { id: 7, role: 'staff', departmentId: 15 }))
-      .rejects.toThrow('เกณฑ์ประเมินมาตรการที่ 1');
+      .rejects.toThrow(message);
   });
 
   it('requires the department owner and review route before completion', async () => {
@@ -277,5 +285,58 @@ describe('RcaService Standard RCA completion', () => {
 
     expect(result).toMatchObject({ already_completed: true, risk_profile_created: false, risk_analysis: { id: 88 } });
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('Standard RCA safe draft persistence', () => {
+  const actor = { id: 7, role: 'staff', departmentId: 15 };
+  const draft = { id: 'RCA-TEST', department_id: '15', created_by: 7, status: 'IN_PROGRESS', version: 3,
+    participants: [], voice_of_staff_entries: [], capas: [], can_manage_team: true, can_view_voice: true };
+  it('rejects a stale draft before deleting or changing any data', async () => {
+    const prisma: any = { $transaction: jest.fn() };
+    const service = new RcaService(prisma, {} as any, {} as any);
+    jest.spyOn(service, 'getStandardById').mockResolvedValue(draft as any);
+    await expect(service.updateStandard(draft.id, { expected_version: 2, timelines: [] }, actor)).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+  it('does not allow completion through the draft endpoint', async () => {
+    const prisma: any = { $transaction: jest.fn() };
+    const service = new RcaService(prisma, {} as any, {} as any);
+    jest.spyOn(service, 'getStandardById').mockResolvedValue(draft as any);
+    await expect(service.updateStandard(draft.id, { expected_version: 3, status: 'COMPLETED' }, actor)).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    await expect(service.createStandard({ topic: 'Test', status: 'COMPLETED' }, actor)).rejects.toBeInstanceOf(BadRequestException);
+  });
+  it('stops a concurrent writer at the version lock before replacing sections', async () => {
+    const tx = { standard_rca_case: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) }, standard_rca_timeline: { deleteMany: jest.fn() } };
+    const prisma: any = { $transaction: jest.fn(cb => cb(tx)) };
+    const service = new RcaService(prisma, {} as any, {} as any);
+    jest.spyOn(service, 'getStandardById').mockResolvedValue(draft as any);
+    await expect(service.updateStandard(draft.id, { expected_version: 3, timelines: [] }, actor)).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.standard_rca_timeline.deleteMany).not.toHaveBeenCalled();
+  });
+  it('keeps the same CAPA and its monitoring history when autosaving an unchanged measure', async () => {
+    const measure = { id: 4, client_key: 'stable', action: 'Test action', type: 'preventive', responsible: 'Unit', status: 'pending', due_date: null, evidence: null, effectiveness_criteria: null, baseline_value: null, target_value: null, effectiveness_due_date: null };
+    const tx: any = {
+      standard_rca_capa: { update: jest.fn().mockResolvedValue(measure), create: jest.fn(), delete: jest.fn() },
+      capa_action: { findFirst: jest.fn().mockResolvedValue({ id: 8, status: 'AWAITING_EFFECTIVENESS' }), update: jest.fn(), deleteMany: jest.fn() },
+    };
+    const service = new RcaService({} as any, {} as any, {} as any);
+    await (service as any).saveDraftMeasures(tx, draft.id, { ...draft, capas: [measure] }, [measure], actor);
+    expect(tx.standard_rca_capa.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 4 } }));
+    expect(tx.capa_action.deleteMany).not.toHaveBeenCalled();
+    expect(tx.capa_action.update).not.toHaveBeenCalled();
+    expect(tx.standard_rca_capa.create).not.toHaveBeenCalled();
+  });
+  it('prevents removing a measure with monitoring history', async () => {
+    const tx: any = { capa_action: { findFirst: jest.fn().mockResolvedValue({ id: 8 }) }, standard_rca_capa: { delete: jest.fn() } };
+    const service = new RcaService({} as any, {} as any, {} as any);
+    await expect((service as any).saveDraftMeasures(tx, draft.id, { ...draft, capas: [{ id: 4 }] }, [], actor)).rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.standard_rca_capa.delete).not.toHaveBeenCalled();
+  });
+  it('does not give an informant write access across departments', async () => {
+    const service = new RcaService({} as any, {} as any, {} as any);
+    await expect((service as any).assertStandardWriter({ ...draft, participants: [{ user_id: 9, role: 'INFORMANT' }] }, { id: 9, role: 'staff', departmentId: 99 })).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

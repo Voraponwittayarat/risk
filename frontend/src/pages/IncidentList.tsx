@@ -1,3 +1,4 @@
+import RiskWorkflowNav from '../components/RiskWorkflowNav';
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { format } from 'date-fns';
@@ -270,6 +271,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-28 min-w-0">
+      <RiskWorkflowNav current={mode === 'pending' ? 'confirm' : 'review'} />
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -312,7 +314,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
               <div className="mt-2 grid gap-2 text-xs text-blue-800 dark:text-blue-200 sm:grid-cols-3">
                 <div className="rounded-xl border border-blue-100 bg-white/70 p-3 dark:border-blue-900 dark:bg-slate-900/40"><strong>1. ยืนยันข้อมูล</strong><span className="mt-1 block text-[11px] opacity-80">ตรวจ NRLS ระดับความรุนแรง และหน่วยงานรับผิดชอบ</span></div>
                 <div className="rounded-xl border border-blue-100 bg-white/70 p-3 dark:border-blue-900 dark:bg-slate-900/40"><strong>2. บันทึกการทบทวนหน่วยงาน</strong><span className="mt-1 block text-[11px] opacity-80">ระบุสาเหตุ การแก้ไขเบื้องต้น และมาตรการที่ทำแล้ว</span></div>
-                <div className="rounded-xl border border-blue-100 bg-white/70 p-3 dark:border-blue-900 dark:bg-slate-900/40"><strong>3. ส่งให้ทีมนำ</strong><span className="mt-1 block text-[11px] opacity-80">ส่งได้เมื่อเหตุการณ์อยู่สถานะ “ทบทวน” แล้วเท่านั้น</span></div>
+                <div className="rounded-xl border border-blue-100 bg-white/70 p-3 dark:border-blue-900 dark:bg-slate-900/40"><strong>3. เลือกเส้นทางต่อ</strong><span className="mt-1 block text-[11px] opacity-80">จบที่หน่วยงาน ติดตามมาตรการ หรือขอทีมช่วยตามความจำเป็น</span></div>
               </div>
             </div>
           </div>

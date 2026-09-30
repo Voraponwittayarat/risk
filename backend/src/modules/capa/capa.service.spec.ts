@@ -68,8 +68,35 @@ describe('CapaService closed-loop policy', () => {
     service = new CapaService(prisma);
   });
 
+  it('allows team and department users to open their scoped monitoring workspace', async () => {
+    const scoped = jest.spyOn(service, 'findAll').mockResolvedValue([]);
+    const user = { id: 7, role: 'rm_committee', rmScope: 'department', departmentId: 1, teamId: 7 };
+    await service.findMonitoringActions(user, {});
+    expect(scoped).toHaveBeenCalledWith(user, {});
+  });
+
   it('keeps system administrators out of clinical CAPA creation', async () => {
     await expect(service.create({ incident_id: 10 } as any, { id: 1, role: 'admin' }))
+      .rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('filters unrelated department records from the monitoring endpoint', async () => {
+    prisma.capa_action.findMany.mockResolvedValue([capa]);
+    const rows = await service.findMonitoringActions({ id: 77, role: 'staff', departmentId: 8 }, {});
+    expect(rows).toEqual([]);
+  });
+
+  it('allows an independent department head to close effective low-severity work', async () => {
+    incident.level_id = 'B';
+    capa = { ...capa, status: 'AWAITING_APPROVAL', effectiveness_status: 'EFFECTIVE', approval_status: 'PENDING' };
+    const result = await service.decideClosure(5, { decision: 'APPROVE' }, { id: 30, role: 'head', departmentId: 1 });
+    expect(result.status).toBe('CLOSED');
+  });
+
+  it('denies self approval even for low-severity work', async () => {
+    incident.level_id = 'B';
+    capa = { ...capa, status: 'AWAITING_APPROVAL', effectiveness_status: 'EFFECTIVE', approval_status: 'PENDING' };
+    await expect(service.decideClosure(5, { decision: 'APPROVE' }, { id: 20, role: 'head', departmentId: 1 }))
       .rejects.toBeInstanceOf(ForbiddenException);
   });
 

@@ -17,9 +17,8 @@ describe('Hospital RM response monitoring', () => {
 
   it.each([{}, { role: 'admin' }, { role: 'head', rmScope: 'hospital' }, { role: 'user' },
     { role: 'rm_committee', rmScope: 'department' }, { role: 'rm_committee', rmScope: 'group' }, { role: 'rm_committee' }])(
-    'denies monitoring API access for %j before querying data', async (user) => {
+    'denies hospital-wide response statistics for %j before querying data', async (user) => {
       await expect(service.departmentResponse(user)).rejects.toBeInstanceOf(ForbiddenException);
-      await expect(service.findMonitoringActions(user, {})).rejects.toBeInstanceOf(ForbiddenException);
       expect(db.department.findMany).not.toHaveBeenCalled();
     },
   );

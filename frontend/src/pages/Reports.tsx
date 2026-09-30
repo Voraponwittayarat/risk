@@ -1,3 +1,4 @@
+import RiskWorkflowNav from '../components/RiskWorkflowNav';
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { 
@@ -103,7 +104,8 @@ const RISK_PRESET_TEMPLATES = [
 ];
 
 export default function Reports() {
-  const [activeTab, setActiveTab] = useState<'hospital' | 'department' | 'matrix' | 'due' | 'standards'>('hospital');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'hospital' | 'department' | 'matrix' | 'due' | 'standards'>(user?.role === 'admin' || user?.rmScope === 'hospital' ? 'hospital' : 'department');
 
   // Data States
   const [risks, setRisks] = useState<any[]>([]);
@@ -142,7 +144,6 @@ export default function Reports() {
   const [selectedRiskItem, setSelectedRiskItem] = useState<any>(null);
   const [selectedCell, setSelectedCell] = useState<{ y: number; x: number; count: number; items: any[] } | null>(null);
 
-  const { user } = useAuth();
   const userRole = (user?.role || '').toLowerCase();
   const isAdminOrRm = ['admin', 'rm_committee'].includes(userRole);
 
@@ -212,6 +213,7 @@ export default function Reports() {
     escalation_target: 'ทีมนำ/ทีมคร่อมสายงานที่เกี่ยวข้อง',
     reviewed_by: '',
     lifecycle_decision: 'KEEP',
+    effectiveness_evidence: '',
   });
 
   useEffect(() => {
@@ -721,6 +723,7 @@ export default function Reports() {
         }
       `}</style>
 
+      <RiskWorkflowNav current="register" />
       <OfficialPrintHeader
         title={printReportTitle[activeTab]}
         subtitle="Hospital Risk Register & Risk Analysis Report"
@@ -2237,6 +2240,8 @@ export default function Reports() {
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">สถานะ</label>
                   <select
+                    disabled
+                    title="เปลี่ยนสถานะผ่านการทบทวนพร้อมหลักฐาน"
                     value={formData.status}
                     onChange={e => setFormData({ ...formData, status: e.target.value })}
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300"
@@ -2398,7 +2403,7 @@ export default function Reports() {
                   <option value="ESCALATE">ยกระดับให้ทีมนำ/องค์กรสนับสนุน</option>
                   <option value="CLOSE_MONITORING">ปิดแบบเฝ้าระวัง (เฉพาะ Residual Risk สีเขียว)</option>
                   <option value="REOPEN">เปิดความเสี่ยงกลับมาติดตามเข้มข้น</option>
-                </select>
+                </select><label className="mt-3 block text-sm">หลักฐานว่ามาตรการทำงานจริง (จำเป็นเมื่อปิดแบบเฝ้าระวัง)<textarea rows={3} value={reviewFormData.effectiveness_evidence || ''} onChange={e => setReviewFormData({ ...reviewFormData, effectiveness_evidence: e.target.value })} placeholder="ผลการตรวจติดตาม ตัวชี้วัด ช่วงเวลาประเมิน และแหล่งหลักฐาน" className="mt-2 w-full rounded-lg border p-3" /></label>
                 <p className="mt-1 text-[11px] text-cyan-700">แม้ไม่มี Incident ใหม่ ระบบยังคงนัดทบทวนตามรอบได้ การปิดแบบเฝ้าระวังสามารถเปิดกลับมาใหม่เมื่อเกิดเหตุซ้ำหรือระดับเพิ่มขึ้น</p>
               </div>
 

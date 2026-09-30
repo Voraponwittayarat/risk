@@ -84,6 +84,11 @@ describe('Risk profile destination scope authorization', () => {
     expect(prisma.riskanalysis.update).not.toHaveBeenCalled();
   });
 
+  it('rejects direct closure through profile editing', async () => {
+    await expect(service.update(1, { status: 'closed' }, { role: 'staff', departmentId: 1 })).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.riskanalysis.update).not.toHaveBeenCalled();
+  });
+
   it('keeps ordinary in-scope edits working', async () => {
     const result = await service.update(1, { risk_prevention: 'Updated plan' }, { role: 'staff', departmentId: 1 });
     expect(result.risk_prevention).toBe('Updated plan');

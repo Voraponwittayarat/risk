@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IncidentRcaPolicyService } from './incident-rca-policy.service';
@@ -79,6 +80,8 @@ export class CreateStandardRcaDto {
   incident_id?: number;
   incident_id_risk?: number;
   source_trigger_review_id?: number;
+  expected_version?: number;
+  draft_register?: { risk_analysis_id?: number; risk_description?: string; risk_owner_name?: string; initial_likelihood?: number; review_frequency_months?: number };
   topic: string;
   incident_date?: string;
   rca_team?: string;
@@ -136,6 +139,8 @@ export class CreateStandardRcaDto {
     sort_order?: number;
   }>;
   capas?: Array<{
+    id?: number;
+    client_key?: string;
     action: string;
     type: string;
     responsible: string;
@@ -199,7 +204,7 @@ export class RcaService {
 
   private async allowedDepartments(user: any): Promise<string[] | null> {
     if (user?.role === 'admin' || (user?.role === 'rm_committee' && user?.rmScope === 'hospital')) return null;
-    if ((user?.role === 'rm_committee' && user?.rmScope === 'group') || user?.role === 'head') {
+    if (['rm_committee', 'head'].includes(user?.role) && user?.rmScope === 'group' && user?.departmentGroup) {
       const rows = await this.prisma.department.findMany({ where: { depart_group_id: Number(user?.departmentGroup) }, select: { id: true } });
       return rows.map((r) => String(r.id));
     }
@@ -235,7 +240,7 @@ export class RcaService {
   // ================= 2. Mini & Concise RCA =================
   async getMiniConciseList(type?: 'mini' | 'concise', user?: any) {
     const allowed = await this.allowedDepartments(user);
-    const where: any = { ...(type ? { rca_type: type } : {}), ...(allowed ? { OR: [{ department_id: { in: allowed } }, { assigned_member_cid: user?.cid }] } : {}) };
+    const where: any = { ...(type ? { rca_type: type } : {}), ...(allowed ? { OR: [{ department_id: { in: allowed } }, { assigned_member_cid: user?.cid || '__unassigned__' }] } : {}) };
     return this.prisma.rca_case.findMany({
       where,
       include: {
@@ -549,7 +554,7 @@ export class RcaService {
       where: allowed ? {
         OR: [
           { department_id: { in: allowed } },
-          { assigned_member_cid: user?.cid },
+          { assigned_member_cid: user?.cid || '__unassigned__' },
           { participants: { some: { OR: [
             { user_id: Number(user?.id) || -1 },
             { member_cid: user?.cid || '__none__' },
@@ -567,7 +572,6 @@ export class RcaService {
         capas: { orderBy: { sort_order: 'asc' } },
         review_sessions: { orderBy: { sort_order: 'asc' } },
         participants: { orderBy: [{ is_owner: 'desc' }, { sort_order: 'asc' }] },
-        voice_of_staff_entries: { orderBy: { sort_order: 'asc' } },
         risk_analysis: true,
       },
       orderBy: { created_at: 'desc' },
@@ -633,25 +637,37 @@ export class RcaService {
       }
     }
 
+    let canEdit = false, canComplete = false;
+    try { await this.assertStandardWriter(stdCase, user); canEdit = true; } catch (error) { if (!(error instanceof ForbiddenException)) throw error; }
+    try { await this.assertStandardWriter(stdCase, user, true); canComplete = true; } catch (error) { if (!(error instanceof ForbiddenException)) throw error; }
+    const scope = await this.allowedDepartments(user);
+    const canManageTeam = scope === null || Boolean(scope?.includes(String(stdCase.department_id)));
+    const canViewVoice = canComplete || stdCase.participants.some(p => p.role === 'FACILITATOR'
+      && ((p.user_id && Number(p.user_id) === Number(user?.id)) || (p.team_id && Number(p.team_id) === Number(user?.teamId))));
     return {
       ...stdCase,
+      can_edit: canEdit, can_complete: canComplete, can_manage_team: canManageTeam, can_view_voice: canViewVoice,
+      voice_of_staff_entries: canViewVoice ? stdCase.voice_of_staff_entries : [],
       what_happened: stdCase.what_happened || incidentDetail,
       incident_detail_raw: incidentDetail,
     };
   }
 
   async createStandard(data: CreateStandardRcaDto, user?: any) {
+    this.assertDraftStatus(data);
     if (!data.incident_id) throw new BadRequestException('ต้องสร้าง Standard RCA จาก incident_id');
     const incident = await this.prisma.riskregister.findFirst({ where: { id: data.incident_id } });
     if (!incident?.nrls_code) throw new BadRequestException('อุบัติการณ์ยังไม่มี NRLS ที่ถูกต้อง');
     await this.assertDepartmentAccess(incident.department_id, user);
     const duplicate = await this.prisma.standard_rca_case.findFirst({ where: { incident_id: incident.id } });
     if (duplicate) throw new ConflictException('มี Standard RCA สำหรับอุบัติการณ์นี้แล้ว');
-    const caseId = data.id || `RCA-FULL-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-4)}`;
+    const caseId = `RCA-${randomUUID()}`;
 
-    const created = await this.prisma.standard_rca_case.create({
+    return this.prisma.$transaction(async (tx) => {
+    const created = await tx.standard_rca_case.create({
       data: {
         id: caseId,
+        draft_register: data.draft_register ? JSON.stringify(data.draft_register) : null,
         rm_no: data.rm_no || String(incident.id_risk || incident.id),
         incident_id: incident.id,
         incident_id_risk: incident.id_risk,
@@ -743,6 +759,7 @@ export class RcaService {
         capas: data.capas?.length
           ? {
               create: data.capas.map((c, idx) => ({
+                client_key: c.client_key,
                 action: c.action,
                 type: c.type,
                 responsible: c.responsible,
@@ -818,7 +835,7 @@ export class RcaService {
     const createdParticipants = created.participants || [];
     const createdVoices = created.voice_of_staff_entries || [];
     if (createdParticipants.length || createdVoices.length) {
-      await this.prisma.workflow_audit.create({
+      await tx.workflow_audit.create({
         data: {
           entity_type: 'RCA',
           entity_id: caseId,
@@ -832,7 +849,7 @@ export class RcaService {
         },
       });
       await Promise.all(createdParticipants.filter((item) => !item.is_owner && item.response_status === 'PENDING').map((item) =>
-        this.prisma.notification_log.upsert({
+        tx.notification_log.upsert({
           where: { notification_key: `RCA:${caseId}:PARTICIPANT:${item.sort_order}` },
           create: {
             notification_key: `RCA:${caseId}:PARTICIPANT:${item.sort_order}`,
@@ -844,43 +861,102 @@ export class RcaService {
       ));
     }
 
-    await this.prisma.riskregister.updateMany({
+    await tx.riskregister.updateMany({
       where: { id: incident.id, id_risk: incident.id_risk },
       data: { rca_status: created.status === 'COMPLETED' && created.completed_at ? 'COMPLETED' : 'IN_PROGRESS', rca_case_id: caseId },
     });
 
-    if (created.capas.length) {
-      const profile = await this.prisma.riskanalysis.findFirst({
-        where: { nrls_code: incident.nrls_code, scope_level: 'department', department_id: incident.department_id },
-        select: { id: true },
-      });
-      await this.prisma.capa_action.createMany({ data: created.capas.map((c, index) => ({
-        source_type: 'STANDARD_RCA', source_id: caseId, source_item_id: c.id,
-        incident_id: incident.id, incident_id_risk: incident.id_risk,
-        nrls_code: incident.nrls_code!, risk_analysis_id: profile?.id, action: c.action,
-        action_type: String(c.type || 'CORRECTIVE').toUpperCase(),
-        responsible_display_name: c.responsible, responsible_department_id: incident.department_id,
-        due_date: c.due_date,
-        status: ['PENDING', 'IN_PROGRESS'].includes(String(c.status || 'PENDING').toUpperCase())
-          ? String(c.status || 'PENDING').toUpperCase()
-          : 'IN_PROGRESS',
-        evidence: c.evidence,
-        effectiveness_criteria: data.capas?.[index]?.effectiveness_criteria || null,
-        baseline_value: data.capas?.[index]?.baseline_value || null,
-        target_value: data.capas?.[index]?.target_value || null,
-        effectiveness_due_date: data.capas?.[index]?.effectiveness_due_date
-          ? new Date(data.capas[index].effectiveness_due_date!)
-          : null,
-        created_by: data.created_by,
-      })) });
-      const capaRows = await this.prisma.capa_action.findMany({
-        where: { source_type: 'STANDARD_RCA', source_id: caseId },
-        select: { id: true },
-      });
-      await Promise.all(capaRows.map((capa) => this.capaService.initializeMonitoring(capa.id)));
-    }
-
     return created;
+    });
+  }
+
+  private assertDraftStatus(data: Partial<CreateStandardRcaDto>) {
+    const status = String(data.status || 'IN_PROGRESS').toUpperCase();
+    if (!['DRAFT', 'IN_PROGRESS'].includes(status) && !(status === 'CLOSED' && data.is_not_risk === true)) {
+      throw new BadRequestException('กรุณาสรุป RCA ผ่านขั้นตอนตรวจความครบถ้วน หรือยกเลิกพร้อมเหตุผล');
+    }
+  }
+
+  private async assertStandardWriter(record: any, user: any, completing = false) {
+    const departments = await this.allowedDepartments(user);
+    const owner = departments === null || departments.includes(String(record.department_id || ''))
+      || (record.assigned_member_cid && record.assigned_member_cid === user?.cid);
+    const delegated = (record.participants || []).some((p: any) =>
+      p.response_status !== 'DECLINED' && (completing ? ['OWNER', 'APPROVER'] : ['OWNER', 'FACILITATOR', 'ANALYST', 'APPROVER']).includes(p.role)
+      && ((p.user_id && Number(p.user_id) === Number(user?.id))
+        || (p.member_cid && p.member_cid === user?.cid)
+        || (p.team_id && Number(p.team_id) === Number(user?.teamId))
+        || (p.department_id && departments?.includes(String(p.department_id)))));
+    const accountableOwner = owner && (!completing || ['admin', 'head', 'rm_committee'].includes(user?.role) || Number(record.created_by) === Number(user?.id) || (record.assigned_member_cid && record.assigned_member_cid === user?.cid));
+    if (!accountableOwner && !delegated) throw new ForbiddenException('บทบาทนี้ดูหรือให้ข้อมูลได้ แต่ไม่มีสิทธิ์แก้ไขหรือสรุป RCA');
+  }
+
+  private async saveDraftMeasures(tx: any, id: string, existing: any, measures: NonNullable<CreateStandardRcaDto['capas']>, user: any) {
+    const kept: number[] = [];
+    const seenKeys = new Set<string>();
+    for (const [index, item] of measures.entries()) {
+      if (item.client_key && seenKeys.has(item.client_key)) throw new BadRequestException('รหัสมาตรการซ้ำในแบบร่าง');
+      if (item.client_key) seenKeys.add(item.client_key);
+      const old = existing.capas.find((c: any) => item.id ? c.id === item.id : item.client_key && c.client_key === item.client_key);
+      if (item.id && !old) throw new BadRequestException('มาตรการไม่อยู่ใน RCA นี้');
+      if (old && kept.includes(old.id)) throw new BadRequestException('รหัสมาตรการซ้ำในแบบร่าง');
+      const fields = {
+        client_key: item.client_key || old?.client_key || null,
+        action: item.action, type: item.type, responsible: item.responsible,
+        due_date: item.due_date ? new Date(item.due_date) : null,
+        evidence: item.evidence || null, effectiveness_criteria: item.effectiveness_criteria || null,
+        baseline_value: item.baseline_value || null, target_value: item.target_value || null,
+        effectiveness_due_date: item.effectiveness_due_date ? new Date(item.effectiveness_due_date) : null,
+        sort_order: index + 1,
+      };
+      const monitoring = old && await tx.capa_action.findFirst({ where: { source_type: 'STANDARD_RCA', source_id: id, source_item_id: old.id } });
+      if (monitoring && ['due_date', 'effectiveness_due_date'].some((key) => {
+        const date = (value: any) => value ? new Date(value).toISOString().slice(0, 10) : '';
+        return date(fields[key]) !== date(old[key]);
+      })) throw new BadRequestException('มาตรการเข้าระบบติดตามแล้ว กรุณาปรับกำหนดเวลาผ่านศูนย์ติดตามมาตรการ');
+      if (monitoring && !['PENDING', 'IN_PROGRESS'].includes(monitoring.status)) {
+        const changed = Object.entries(fields).some(([key, value]) => !['sort_order', 'client_key'].includes(key)
+          && String(value instanceof Date ? value.toISOString().slice(0, 10) : value || '') !== String(old[key] instanceof Date ? old[key].toISOString().slice(0, 10) : old[key] || ''));
+        if (changed) throw new BadRequestException('มาตรการเริ่มประเมินผลแล้ว กรุณาแก้ผ่านศูนย์ติดตามมาตรการเพื่อรักษาประวัติ');
+      }
+      const row = old
+        ? await tx.standard_rca_capa.update({ where: { id: old.id }, data: fields })
+        : await tx.standard_rca_capa.create({ data: { ...fields, standard_rca_case_id: id, status: 'pending' } });
+      kept.push(row.id);
+      if (monitoring && ['PENDING', 'IN_PROGRESS'].includes(monitoring.status)) {
+        const plan = { action: fields.action, action_type: fields.type.toUpperCase(), responsible_display_name: fields.responsible,
+          due_date: fields.due_date, effectiveness_criteria: fields.effectiveness_criteria, baseline_value: fields.baseline_value,
+          target_value: fields.target_value, effectiveness_due_date: fields.effectiveness_due_date };
+        const changed = Object.entries(plan).some(([key, value]) => String(value instanceof Date ? value.toISOString() : value || '') !== String(monitoring[key] instanceof Date ? monitoring[key].toISOString() : monitoring[key] || ''));
+        if (changed) {
+          await tx.capa_action.update({ where: { id: monitoring.id }, data: { ...plan, revision: { increment: 1 } } });
+          await tx.workflow_audit.create({ data: { entity_type: 'CAPA', entity_id: String(monitoring.id), action: 'PLAN_REVISED_FROM_RCA',
+            old_value: JSON.stringify(monitoring), new_value: JSON.stringify(plan), changed_by: Number(user?.id), reason: 'ปรับแผนโดยเก็บ ID และประวัติเดิม' } });
+        }
+      }
+    }
+    for (const old of existing.capas.filter((c: any) => !kept.includes(c.id))) {
+      const monitoring = await tx.capa_action.findFirst({ where: { source_type: 'STANDARD_RCA', source_id: id, source_item_id: old.id } });
+      if (monitoring) throw new BadRequestException('มาตรการที่เข้าระบบติดตามแล้วลบจากแบบร่างไม่ได้ กรุณาปรับมาตรการพร้อมเหตุผลในศูนย์ติดตาม');
+      await tx.standard_rca_capa.delete({ where: { id: old.id } });
+    }
+  }
+
+  private async ensureMonitoringMeasures(tx: any, record: any, incident: any, actorId: number) {
+    for (const c of record.capas) {
+      const existing = await tx.capa_action.findFirst({ where: { source_type: 'STANDARD_RCA', source_id: record.id, source_item_id: c.id } });
+      if (existing) continue;
+      const row = await tx.capa_action.create({ data: {
+        source_type: 'STANDARD_RCA', source_id: record.id, source_item_id: c.id,
+        incident_id: incident.id, incident_id_risk: incident.id_risk, nrls_code: incident.nrls_code,
+        action: c.action, action_type: String(c.type || 'CORRECTIVE').toUpperCase(),
+        responsible_display_name: c.responsible, responsible_department_id: incident.department_id,
+        due_date: c.due_date, status: 'PENDING', evidence: c.evidence,
+        effectiveness_criteria: c.effectiveness_criteria, baseline_value: c.baseline_value,
+        target_value: c.target_value, effectiveness_due_date: c.effectiveness_due_date, created_by: actorId,
+      } });
+      await this.capaService.initializeMonitoring(row.id, tx);
+    }
   }
 
   async updateStandard(id: string, data: Partial<CreateStandardRcaDto>, user?: any) {
@@ -889,38 +965,51 @@ export class RcaService {
       throw new BadRequestException('RCA ที่สรุปแล้วไม่สามารถแก้ไขผ่านแบบร่างได้');
     }
 
-    // Delete sub tables if replacement arrays are passed
+    await this.assertStandardWriter(existing, user);
+    if (data.participants !== undefined && !existing.can_manage_team) throw new ForbiddenException('เฉพาะหน่วยงานเจ้าของเรื่องจัดทีมทบทวนได้');
+    if (data.voice_of_staff_entries !== undefined && !existing.can_view_voice) throw new ForbiddenException('ไม่มีสิทธิ์แก้ข้อมูลสัมภาษณ์');
+    this.assertDraftStatus(data);
+    if (!Number.isInteger(data.expected_version) || data.expected_version !== existing.version) {
+      throw new ConflictException('ข้อมูลมีการเปลี่ยนแปลงหรือเป็นหน้าจอรุ่นเก่า กรุณาเปิด RCA ใหม่ก่อนบันทึก');
+    }
+    const result = await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.standard_rca_case.updateMany({
+        where: { id, version: data.expected_version, status: { not: 'COMPLETED' } },
+        data: { version: { increment: 1 } },
+      });
+      if (locked.count !== 1) throw new ConflictException('มีผู้บันทึกหรือสรุป RCA นี้แล้ว กรุณาโหลดข้อมูลใหม่');
+    // Replace draft sections atomically; preserve CAPA identities and monitoring history.
+
     if (data.timelines) {
-      await this.prisma.standard_rca_timeline.deleteMany({ where: { standard_rca_case_id: id } });
+      await tx.standard_rca_timeline.deleteMany({ where: { standard_rca_case_id: id } });
     }
     if (data.whys) {
-      await this.prisma.standard_rca_why.deleteMany({ where: { standard_rca_case_id: id } });
+      await tx.standard_rca_why.deleteMany({ where: { standard_rca_case_id: id } });
     }
     if (data.fishbones) {
-      await this.prisma.standard_rca_fishbone.deleteMany({ where: { standard_rca_case_id: id } });
+      await tx.standard_rca_fishbone.deleteMany({ where: { standard_rca_case_id: id } });
     }
     if (data.cmps) {
-      await this.prisma.standard_rca_cmp.deleteMany({ where: { standard_rca_case_id: id } });
+      await tx.standard_rca_cmp.deleteMany({ where: { standard_rca_case_id: id } });
     }
     if (data.process_analyses) {
-      await this.prisma.standard_rca_process_analysis.deleteMany({ where: { standard_rca_case_id: id } });
+      await tx.standard_rca_process_analysis.deleteMany({ where: { standard_rca_case_id: id } });
     }
-    if (data.capas) {
-      await this.prisma.standard_rca_capa.deleteMany({ where: { standard_rca_case_id: id } });
-    }
+    if (data.capas) await this.saveDraftMeasures(tx, id, existing, data.capas, user);
     if (data.review_sessions) {
-      await this.prisma.standard_rca_review_session.deleteMany({ where: { standard_rca_case_id: id } });
+      await tx.standard_rca_review_session.deleteMany({ where: { standard_rca_case_id: id } });
     }
     if (data.participants) {
-      await this.prisma.standard_rca_participant.deleteMany({ where: { standard_rca_case_id: id } });
+      await tx.standard_rca_participant.deleteMany({ where: { standard_rca_case_id: id } });
     }
     if (data.voice_of_staff_entries) {
-      await this.prisma.standard_rca_voice_of_staff.deleteMany({ where: { standard_rca_case_id: id } });
+      await tx.standard_rca_voice_of_staff.deleteMany({ where: { standard_rca_case_id: id } });
     }
 
-    const updated = await this.prisma.standard_rca_case.update({
+    const updated = await tx.standard_rca_case.update({
       where: { id },
       data: {
+        draft_register: data.draft_register === undefined ? undefined : JSON.stringify(data.draft_register),
         rm_no: data.rm_no,
         topic: data.topic,
         incident_date: data.incident_date ? new Date(data.incident_date) : undefined,
@@ -1002,23 +1091,6 @@ export class RcaService {
               })),
             }
           : undefined,
-        capas: data.capas?.length
-          ? {
-              create: data.capas.map((c, idx) => ({
-                action: c.action,
-                type: c.type,
-                responsible: c.responsible,
-                due_date: c.due_date ? new Date(c.due_date) : null,
-                status: c.status || 'pending',
-                evidence: c.evidence,
-                effectiveness_criteria: c.effectiveness_criteria,
-                baseline_value: c.baseline_value,
-                target_value: c.target_value,
-                effectiveness_due_date: c.effectiveness_due_date ? new Date(c.effectiveness_due_date) : null,
-                sort_order: c.sort_order ?? idx + 1,
-              })),
-            }
-          : undefined,
         review_sessions: data.review_sessions?.length
           ? {
               create: data.review_sessions.map((s, idx) => ({
@@ -1077,56 +1149,22 @@ export class RcaService {
       },
     });
     if (updated.incident_id) {
-      await this.prisma.riskregister.updateMany({
+      await tx.riskregister.updateMany({
         where: { id: updated.incident_id },
         data: { rca_status: updated.status === 'COMPLETED' && updated.completed_at ? 'COMPLETED' : 'IN_PROGRESS' },
       });
     }
-    if (data.capas && updated.incident_id) {
-      const incident = await this.prisma.riskregister.findFirst({ where: { id: updated.incident_id } });
-      if (incident?.nrls_code) {
-        const profile = await this.prisma.riskanalysis.findFirst({
-          where: { nrls_code: incident.nrls_code, scope_level: 'department', department_id: incident.department_id },
-          select: { id: true },
-        });
-        await this.prisma.capa_action.deleteMany({ where: { source_type: 'STANDARD_RCA', source_id: id } });
-        if (updated.capas.length) {
-          await this.prisma.capa_action.createMany({ data: updated.capas.map((c) => ({
-            source_type: 'STANDARD_RCA', source_id: id, source_item_id: c.id,
-            incident_id: incident.id, incident_id_risk: incident.id_risk,
-            nrls_code: incident.nrls_code!, risk_analysis_id: profile?.id, action: c.action,
-            action_type: String(c.type || 'CORRECTIVE').toUpperCase(),
-            responsible_display_name: c.responsible, responsible_department_id: incident.department_id,
-            due_date: c.due_date,
-            status: ['PENDING', 'IN_PROGRESS'].includes(String(c.status || 'PENDING').toUpperCase())
-              ? String(c.status || 'PENDING').toUpperCase()
-              : 'IN_PROGRESS',
-            evidence: c.evidence,
-            effectiveness_criteria: c.effectiveness_criteria,
-            baseline_value: c.baseline_value,
-            target_value: c.target_value,
-            effectiveness_due_date: c.effectiveness_due_date,
-            created_by: Number(user?.id) || data.created_by,
-          })) });
-          const capaRows = await this.prisma.capa_action.findMany({
-            where: { source_type: 'STANDARD_RCA', source_id: id },
-            select: { id: true },
-          });
-          await Promise.all(capaRows.map((capa) => this.capaService.initializeMonitoring(capa.id)));
-        }
-      }
-    }
     if (data.participants || data.voice_of_staff_entries) {
       const previousCollaboration = {
         participants: existing.participants.map((item) => ({ type: item.participant_type, name: item.display_name, role: item.role, status: item.response_status, owner: item.is_owner })),
-        voice_of_staff_count: existing.voice_of_staff_entries.length,
+        voice_of_staff_entries: data.voice_of_staff_entries === undefined ? undefined : existing.voice_of_staff_entries,
       };
       const nextCollaboration = {
         participants: updated.participants.map((item) => ({ type: item.participant_type, name: item.display_name, role: item.role, status: item.response_status, owner: item.is_owner })),
-        voice_of_staff_count: updated.voice_of_staff_entries.length,
+        voice_of_staff_entries: data.voice_of_staff_entries === undefined ? undefined : updated.voice_of_staff_entries,
       };
       if (JSON.stringify(previousCollaboration) !== JSON.stringify(nextCollaboration)) {
-        await this.prisma.workflow_audit.create({
+        await tx.workflow_audit.create({
           data: {
             entity_type: 'RCA', entity_id: id, action: 'COLLABORATION_UPDATED',
             old_value: JSON.stringify(previousCollaboration),
@@ -1136,7 +1174,7 @@ export class RcaService {
           },
         });
         await Promise.all(updated.participants.filter((item) => !item.is_owner && item.response_status === 'PENDING').map((item) =>
-          this.prisma.notification_log.upsert({
+          tx.notification_log.upsert({
             where: { notification_key: `RCA:${id}:PARTICIPANT:${item.sort_order}` },
             create: {
               notification_key: `RCA:${id}:PARTICIPANT:${item.sort_order}`,
@@ -1149,7 +1187,7 @@ export class RcaService {
       }
     }
     if (data.review_outcome && data.review_outcome !== existing.review_outcome) {
-      await this.prisma.workflow_audit.create({
+      await tx.workflow_audit.create({
         data: {
           entity_type: 'RCA', entity_id: id, action: 'REVIEW_ROUTE_DECIDED',
           old_value: JSON.stringify({ outcome: existing.review_outcome }),
@@ -1164,6 +1202,8 @@ export class RcaService {
       });
     }
     return updated;
+    });
+    return result;
   }
 
   async getCollaborationOptions() {
@@ -1179,6 +1219,7 @@ export class RcaService {
     if (String(standardCase.status || '').toUpperCase() === 'COMPLETED' && standardCase.risk_analysis) {
       return { rca: standardCase, risk_analysis: standardCase.risk_analysis, risk_profile_created: false, already_completed: true };
     }
+    await this.assertStandardWriter(standardCase, user, true);
     if (standardCase.is_not_risk) throw new BadRequestException('รายการที่ระบุว่าไม่ใช่ความเสี่ยงไม่สามารถสรุปเป็น RCA ได้');
     if (!standardCase.incident_id) throw new BadRequestException('RCA ต้องเชื่อมกับรายงานอุบัติการณ์ต้นทาง');
 
@@ -1204,6 +1245,7 @@ export class RcaService {
     }
     if (!standardCase.capas.length) missing.push('มาตรการแก้ไขและป้องกัน');
     standardCase.capas.forEach((capa, index) => {
+      if (!capa.action?.trim()) missing.push(`รายละเอียดมาตรการที่ ${index + 1}`);
       if (!capa.responsible?.trim()) missing.push(`ผู้รับผิดชอบมาตรการที่ ${index + 1}`);
       if (!capa.due_date) missing.push(`กำหนดเสร็จมาตรการที่ ${index + 1}`);
       if (!capa.effectiveness_criteria?.trim()) missing.push(`เกณฑ์ประเมินมาตรการที่ ${index + 1}`);
@@ -1228,7 +1270,7 @@ export class RcaService {
         throw new BadRequestException('Risk Register ที่เลือกใช้รหัส NRLS ไม่ตรงกับ RCA');
       }
       if (selectedProfile.scope_level === 'hospital') {
-        if (!['admin', 'rm_committee'].includes(user?.role)) throw new ForbiddenException('ไม่มีสิทธิ์เชื่อม Risk Register ระดับโรงพยาบาล');
+        if (!(user?.role === 'admin' || (user?.role === 'rm_committee' && user?.rmScope === 'hospital'))) throw new ForbiddenException('ไม่มีสิทธิ์เชื่อม Risk Register ระดับโรงพยาบาล');
       } else {
         await this.assertDepartmentAccess(selectedProfile.department_id, user);
       }
@@ -1248,6 +1290,12 @@ export class RcaService {
         });
       }
 
+      if (profile && !selectedProfile) throw new ConflictException('มีทะเบียนความเสี่ยง NRLS และขอบเขตนี้แล้ว กรุณาเลือกรายการเดิมและยืนยันการเชื่อม');
+      const locked = await tx.standard_rca_case.updateMany({
+        where: { id, version: standardCase.version, status: { not: 'COMPLETED' } },
+        data: { version: { increment: 1 } },
+      });
+      if (locked.count !== 1) throw new ConflictException('มีผู้บันทึกหรือสรุป RCA นี้แล้ว กรุณาเปิดข้อมูลใหม่');
       if (!profile) {
         const likelihood = clampMatrixValue(Number(data.initial_likelihood) || 1);
         const consequence = consequenceFromSeverity(incident.level_id);
@@ -1255,16 +1303,8 @@ export class RcaService {
         const nextReview = new Date();
         nextReview.setMonth(nextReview.getMonth() + Math.max(1, Number(data.review_frequency_months) || 3));
         const department = await tx.department.findUnique({ where: { id: Number(incident.department_id) } });
-        profile = await tx.riskanalysis.upsert({
-          where: {
-            nrls_code_scope_level_scope_identifier: {
-              nrls_code: nrlsCode,
-              scope_level: 'department',
-              scope_identifier: String(incident.department_id),
-            },
-          },
-          update: { updated_at: new Date() },
-          create: {
+        profile = await tx.riskanalysis.create({
+          data: {
             risk_code: nrlsCode,
             nrls_code: nrlsCode,
             nrls_name_snapshot: incident.nrls_name_snapshot || standardCase.topic,
@@ -1292,6 +1332,7 @@ export class RcaService {
         profileCreated = true;
       }
 
+      await this.ensureMonitoringMeasures(tx, standardCase, incident, actorId);
       const completedAt = new Date();
       const completed = await tx.standard_rca_case.update({
         where: { id },
@@ -1318,6 +1359,9 @@ export class RcaService {
         },
       });
       return { rca: completed, risk_analysis: profile };
+    }).catch((error) => {
+      if (error?.code === 'P2002') throw new ConflictException('มีผู้สร้างทะเบียนความเสี่ยงนี้แล้ว กรุณาโหลดรายการและยืนยันการเชื่อมอีกครั้ง');
+      throw error;
     });
 
     return { ...result, risk_profile_created: profileCreated };

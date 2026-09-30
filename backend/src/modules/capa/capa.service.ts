@@ -47,7 +47,6 @@ export class CapaService {
   }
 
   async findMonitoringActions(user: any, query: Parameters<CapaService['findAll']>[1]) {
-    this.assertHospitalRm(user);
     return this.findAll(user, query);
   }
 
@@ -430,18 +429,21 @@ export class CapaService {
     return (await this.enrich([{ ...created, effectiveness_reviews: [] }]))[0];
   }
 
-  async initializeMonitoring(capaId: number): Promise<void> {
-    const capa = await this.db.capa_action.findUnique({ where: { id: capaId } });
+  async initializeMonitoring(capaId: number, transaction?: any): Promise<void> {
+    const db = transaction || this.prisma;
+    const capa = await db.capa_action.findUnique({ where: { id: capaId } });
     if (!capa) throw new NotFoundException('ไม่พบมาตรการที่ต้องเริ่มติดตาม');
-    const incident = await this.prisma.riskregister.findFirst({ where: { id: capa.incident_id } });
+    const incident = await db.riskregister.findFirst({ where: { id: capa.incident_id } });
     if (!incident) throw new NotFoundException('ไม่พบอุบัติการณ์ต้นทางของมาตรการ');
-    await this.prisma.$transaction(async (tx) => {
+    const initialize = async (tx: any) => {
       await this.createOrRestartSla(tx, capa, incident, 'CAPA_IMPLEMENTATION', capa.due_date);
       await (tx as any).riskregister.updateMany({
         where: { id: incident.id, id_risk: incident.id_risk },
         data: { improvement_status: 'MONITORING', effectiveness_closed_at: null },
       });
-    });
+    };
+    if (transaction) await initialize(transaction);
+    else await this.prisma.$transaction(initialize);
   }
 
   async update(id: number, dto: UpdateCapaDto, user: any) {
@@ -585,9 +587,13 @@ export class CapaService {
 
   async decideClosure(id: number, dto: DecideCapaClosureDto, user: any) {
     const { capa, incident } = await this.requireCapa(id, user);
-    if (!this.isRm(user)) throw new ForbiddenException('เฉพาะคณะกรรมการ RM ในขอบเขตที่รับผิดชอบเท่านั้นที่อนุมัติปิดการติดตามมาตรการได้');
+    const departments = await this.scopeDepartments(user);
+    const departmentHead = user?.role === 'head' && departments?.includes(String(capa.responsible_department_id))
+      && ['LOW', 'MEDIUM'].includes(this.severityGroup(incident.level_id));
+    if (!this.isRm(user) && !departmentHead) throw new ForbiddenException('ให้หัวหน้าหน่วยงานปิดเรื่องระดับต่ำ/ปานกลางในขอบเขต หรือ RM ปิดเรื่องที่ต้องกำกับ');
+    if (Number(capa.implementation_verified_by) === Number(user?.id) || Number(capa.responsible_user_id) === Number(user?.id) || (capa.responsible_member_cid && capa.responsible_member_cid === user?.cid)) throw new ForbiddenException('ผู้ดำเนินมาตรการไม่สามารถอนุมัติปิดมาตรการของตนเอง');
     if (String(capa.status).toUpperCase() !== 'AWAITING_APPROVAL' || capa.effectiveness_status !== 'EFFECTIVE') {
-      throw new BadRequestException('ปิดการติดตามมาตรการได้เมื่อผลประเมินอยู่ในระดับได้ผล และอยู่ระหว่างรอ RM อนุมัติ');
+      throw new BadRequestException('ปิดการติดตามมาตรการได้เมื่อผลประเมินอยู่ในระดับได้ผล และอยู่ระหว่างรอผู้มีสิทธิ์อนุมัติ');
     }
     if (dto.decision === 'RETURN' && String(dto.note || '').trim().length < 10) {
       throw new BadRequestException('กรุณาระบุเหตุผลส่งกลับอย่างน้อย 10 ตัวอักษร');

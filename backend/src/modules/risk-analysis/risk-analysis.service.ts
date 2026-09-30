@@ -70,6 +70,7 @@ export class CreateRiskReviewDto {
   is_escalated?: number;
   escalation_target?: string;
   reviewed_by?: string;
+  effectiveness_evidence?: string;
   lifecycle_decision?: 'KEEP' | 'DECREASE' | 'ESCALATE' | 'CLOSE_MONITORING' | 'REOPEN';
 }
 
@@ -298,6 +299,7 @@ export class RiskAnalysisService {
   }
 
   async create(dto: CreateRiskAnalysisDto, user?: any) {
+    if (dto.status === 'closed') throw new BadRequestException('รายการใหม่ต้องเริ่มติดตามก่อนปิดผ่านการประเมินผล');
     if (!dto.nrls_code) throw new BadRequestException('Risk Profile ใหม่ต้องระบุ nrls_code');
     if (dto.scope_level === 'hospital' && !['admin', 'rm_committee'].includes(user?.role)) {
       throw new ForbiddenException('Risk Profile ระดับโรงพยาบาลสร้างได้เฉพาะ RM/Admin');
@@ -357,6 +359,9 @@ export class RiskAnalysisService {
       throw new NotFoundException(`Risk profile with ID ${id} not found`);
     }
     await this.assertProfileScope(existing, user);
+    if ((dto.status !== undefined && dto.status !== existing.status) || (dto.residual_risk_level !== undefined && dto.residual_risk_level !== existing.residual_risk_level)) {
+      throw new BadRequestException('เปลี่ยนสถานะหรือความเสี่ยงคงเหลือผ่านการทบทวนพร้อมเหตุผลและหลักฐานเท่านั้น');
+    }
 
     // Authorize the destination as well as the record being edited.
     const destination = {
@@ -433,6 +438,8 @@ export class RiskAnalysisService {
     const curScore = curL * curC;
     const curLevel = this.calculateRiskLevel(curL, curC);
     const lifecycleDecision = dto.lifecycle_decision || 'KEEP';
+    if (!['KEEP', 'DECREASE', 'ESCALATE', 'CLOSE_MONITORING', 'REOPEN'].includes(lifecycleDecision)) throw new BadRequestException('ผลการทบทวนไม่ถูกต้อง');
+    if (!dto.result_of_review?.trim()) throw new BadRequestException('กรุณาระบุเหตุผลและผลการทบทวน');
     if (lifecycleDecision === 'CLOSE_MONITORING' && curLevel !== 'green') {
       throw new BadRequestException('ปิดแบบเฝ้าระวังได้เมื่อ Residual Risk อยู่ระดับสีเขียว');
     }
@@ -448,7 +455,12 @@ export class RiskAnalysisService {
       select: { id: true, level_id: true, rca_required: true, rca_status: true, date_report: true, department_id: true, repeat_code: true },
     });
     const capas = await this.prisma.capa_action.findMany({ where: { nrls_code: risk.nrls_code, risk_analysis_id: id } });
+    if (lifecycleDecision === 'CLOSE_MONITORING') {
+      if (!dto.effectiveness_evidence?.trim()) throw new BadRequestException('ต้องมีหลักฐานว่ามาตรการได้ผลก่อนปิดแบบเฝ้าระวัง');
+      if (capas.some(c => c.status !== 'CANCELLED' && (c.status !== 'CLOSED' || c.effectiveness_status !== 'EFFECTIVE'))) throw new BadRequestException('ยังมีมาตรการที่ไม่ผ่านประเมินผลหรือยังไม่ปิดการติดตาม');
+    }
     const snapshot = {
+      effectiveness_evidence: dto.effectiveness_evidence?.trim() || null,
       nrls_cutover_date: NRLS_CUTOVER_DATE,
       requested_period_start: requestedPeriodStart.toISOString(),
       effective_period_start: periodStart.toISOString(),
@@ -462,9 +474,10 @@ export class RiskAnalysisService {
     const nextReview = new Date(reviewDate);
     nextReview.setMonth(nextReview.getMonth() + (risk.review_frequency_months || 3));
 
+    return this.prisma.$transaction(async (tx) => {
     // Create review cycle log
     const cycleNo = risk.reviews.length + 1;
-    const review = await this.prisma.riskanalysis_review.create({
+    const review = await tx.riskanalysis_review.create({
       data: {
         risk_analysis_id: id,
         review_date: reviewDate,
@@ -492,7 +505,7 @@ export class RiskAnalysisService {
       : lifecycleDecision === 'REOPEN' || lifecycleDecision === 'ESCALATE'
         ? 'open'
         : curLevel === 'green' ? 'monitoring' : 'open';
-    await this.prisma.riskanalysis.update({
+    await tx.riskanalysis.update({
       where: { id },
       data: {
         last_reviewed_date: reviewDate,
@@ -506,7 +519,7 @@ export class RiskAnalysisService {
       },
     });
 
-    await this.prisma.workflow_audit.create({
+    await tx.workflow_audit.create({
       data: {
         entity_type: 'RISK_ANALYSIS', entity_id: String(id), action: `LIFECYCLE_${lifecycleDecision}`,
         old_value: JSON.stringify({ status: risk.status, residual_risk_level: risk.residual_risk_level }),
@@ -517,6 +530,7 @@ export class RiskAnalysisService {
     });
 
     return review;
+    });
   }
 
   async getNineStandards(query: { department_id?: string } = {}, user?: any) {

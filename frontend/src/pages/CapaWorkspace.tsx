@@ -1,3 +1,4 @@
+import RiskWorkflowNav from '../components/RiskWorkflowNav';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import {
@@ -69,7 +70,7 @@ const statusLabel: Record<string, string> = {
   IN_PROGRESS: 'กำลังดำเนินการ',
   IMPLEMENTED: 'ดำเนินมาตรการแล้ว',
   AWAITING_EFFECTIVENESS: 'รอประเมินประสิทธิผล',
-  AWAITING_APPROVAL: 'รอ RM อนุมัติปิด',
+  AWAITING_APPROVAL: 'รอผู้มีสิทธิ์อนุมัติปิด',
   REWORK: 'ส่งกลับแก้ไข',
   CLOSED: 'ปิดวงจรแล้ว',
   CANCELLED: 'ยกเลิก',
@@ -223,10 +224,11 @@ export default function CapaWorkspace() {
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-5 p-4 md:p-6">
+      <RiskWorkflowNav current="capa" />
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="flex items-center gap-2"><ClipboardCheck className="text-violet-600" /><h1 className="text-2xl font-black text-slate-900">ศูนย์ติดตามมาตรการแก้ไขและป้องกัน</h1></div>
-          <p className="mt-1 text-sm text-slate-500">สำหรับ RM โรงพยาบาล • ติดตามการทบทวนความเสี่ยงและมาตรการแก้ไข</p>
+          <p className="mt-1 text-sm text-slate-500">มาตรการในขอบเขตที่คุณรับผิดชอบ • แยกการดำเนินการออกจากการประเมินผล</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => void load()} className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-600 hover:bg-slate-50"><RefreshCw size={18} /></button>
@@ -234,7 +236,7 @@ export default function CapaWorkspace() {
         </div>
       </div>
 
-      <DepartmentResponseMonitor />
+      {user?.role === 'rm_committee' && user?.rmScope === 'hospital' && <DepartmentResponseMonitor />}
 
       <h2 className="text-lg font-bold text-slate-900">ติดตามมาตรการแก้ไขและป้องกัน</h2>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -321,8 +323,8 @@ export default function CapaWorkspace() {
 
             {selected.status === 'AWAITING_APPROVAL' && (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                <h3 className="font-black text-amber-900">ผลประเมินมีประสิทธิผล — รอ RM อนุมัติปิด</h3>
-                {user?.role === 'rm_committee' && <div className="mt-3 flex gap-2"><button onClick={() => void decideClosure('APPROVE')} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white">อนุมัติปิดการติดตาม</button><button onClick={() => void decideClosure('RETURN')} className="rounded-xl border border-rose-300 px-4 py-2 text-sm font-bold text-rose-700">ส่งกลับแก้ไข</button></div>}
+                <h3 className="font-black text-amber-900">ผลประเมินมีประสิทธิผล — รอผู้มีสิทธิ์อนุมัติปิด</h3>
+                {(user?.role === 'rm_committee' || user?.role === 'head') && <div className="mt-3 flex gap-2"><button onClick={() => void decideClosure('APPROVE')} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white">อนุมัติปิดการติดตาม</button><button onClick={() => void decideClosure('RETURN')} className="rounded-xl border border-rose-300 px-4 py-2 text-sm font-bold text-rose-700">ส่งกลับแก้ไข</button></div>}
               </div>
             )}
 
