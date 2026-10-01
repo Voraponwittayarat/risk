@@ -2,6 +2,30 @@ import { BadRequestException, ConflictException, ForbiddenException } from '@nes
 import { RcaService } from './rca.service';
 
 describe('RcaService incident review queue', () => {
+  it('starts the FY2570 queue on 1 October Bangkok time and excludes future reviews', async () => {
+    const prisma: any = {
+      riskreview: { findMany: jest.fn().mockResolvedValue([]) },
+      riskregister: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const service = new RcaService(prisma, {} as any, {} as any);
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('2026-09-30T18:00:00.000Z')); // 1 Oct, 01:00 Bangkok
+      await service.getIncidentReviews({ role: 'admin' });
+      expect(prisma.riskreview.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { AND: [
+          { OR: [{ cause_problem: { not: null } }, { contributing_factors: { not: null } }] },
+          { review_date: {
+            gte: new Date('2026-10-01T00:00:00.000Z'),
+            lt: new Date('2026-10-02T00:00:00.000Z'),
+          } },
+        ] },
+      }));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('uses a database count for the RCA page summary without loading every RCA and CAPA', async () => {
     const prisma: any = { capa_action: { count: jest.fn().mockResolvedValue(9) } };
     const service = new RcaService(prisma, {} as any, {} as any);
