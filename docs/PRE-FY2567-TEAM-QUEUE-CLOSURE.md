@@ -10,3 +10,5 @@
 - ตรวจ production แบบ aggregate ก่อนดำเนินการ: 2 รายการ; running commit `7ffeda5b`, health HTTP 200
 
 การนำขึ้นจริงผ่าน migration `20261001160000_close_pre_fy2567_team_review_queue` และ updater ตาม runbook เท่านั้น ต้องสำรองและตรวจ checksum ก่อนอัปเดต ติดตามยอดคงเหลือ/ผลการทบทวน/audit หลัง migration โดยไม่แสดงข้อมูลผู้ป่วย
+
+ตรวจ frontend/backend build และ git diff ผ่าน สำรองก่อน release ที่ `/var/backups/riskhrms/riskhrms-db-20261001T063326Z.sql` และตรวจ SHA-256 ตรงกับ manifest แล้ว ตาราง legacy เป็น MyISAM จึงไม่อ้างว่า transaction สามารถ rollback ทุกตารางได้ การเพิ่มบันทึกและ audit ป้องกันรายการซ้ำด้วย marker ประจำ migration
