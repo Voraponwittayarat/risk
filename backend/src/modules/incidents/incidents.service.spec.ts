@@ -27,9 +27,11 @@ describe('IncidentsService incident permissions', () => {
       riskgroup: { findMany: jest.fn().mockResolvedValue([]) },
       risk: { create: jest.fn() },
       riskregister: {
+        fields: { department_id: 'department_id_field_ref' },
         findFirst: jest.fn(),
         findMany: jest.fn(),
         groupBy: jest.fn(),
+        count: jest.fn().mockResolvedValue(0),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
         create: jest.fn(),
@@ -317,6 +319,45 @@ describe('IncidentsService incident permissions', () => {
     expect(prisma.workflow_audit.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ new_value: expect.stringContaining('"reviewresults_id":2') }),
     }));
+  });
+
+  it('shows only open cross-department or lead-team incidents in the forwarded co-review queue', async () => {
+    prisma.riskregister.findMany.mockResolvedValue([]);
+
+    await service.findAll(
+      { page: 1, limit: 15, is_forwarded: true } as any,
+      { id: 40, role: 'rm_committee', rmScope: 'hospital', departmentId: 1 },
+    );
+
+    const forwardedFilter = {
+      AND: [
+        {
+          OR: [
+            { sendto_team_id: { not: null } },
+            {
+              AND: [
+                { sendto_department_id: { not: null } },
+                { sendto_department_id: { not: 'department_id_field_ref' } },
+              ],
+            },
+          ],
+        },
+        { status_risk: { notIn: ['จำหน่าย', 'ไม่ใช่ความเสี่ยง'] } },
+      ],
+    };
+
+    expect(prisma.riskregister.findMany.mock.calls[0][0].where.AND)
+      .toEqual(expect.arrayContaining([forwardedFilter]));
+
+    prisma.riskregister.count.mockClear();
+    await service.getTabCounts(
+      { id: 40, role: 'rm_committee', rmScope: 'hospital', departmentId: 1 },
+      'primary',
+    );
+
+    expect(prisma.riskregister.count).toHaveBeenCalledWith({
+      where: forwardedFilter,
+    });
   });
 
   it('loads only the two active review result choices in the review form', async () => {

@@ -177,6 +177,29 @@ export class IncidentsService {
     };
   }
 
+  private getForwardedOpenFilter() {
+    return {
+      AND: [
+        {
+          OR: [
+            { sendto_team_id: { not: null } },
+            {
+              AND: [
+                { sendto_department_id: { not: null } },
+                {
+                  sendto_department_id: {
+                    not: this.prisma.riskregister.fields.department_id,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        { status_risk: { notIn: ['จำหน่าย', 'ไม่ใช่ความเสี่ยง'] } },
+      ],
+    };
+  }
+
   private assertPermission(allowed: boolean, message: string): void {
     if (!allowed) throw new ForbiddenException(message);
   }
@@ -419,12 +442,7 @@ export class IncidentsService {
     if (sendto_team_id) {
       where.sendto_team_id = Number(sendto_team_id);
     } else if (is_forwarded === 'true' || is_forwarded === true) {
-      where.AND.push({
-        OR: [
-          { sendto_team_id: { not: null } },
-          { sendto_department_id: { not: null } },
-        ],
-      });
+      where.AND.push(this.getForwardedOpenFilter());
     }
 
     // Date filtering
@@ -792,13 +810,7 @@ export class IncidentsService {
       where: Object.keys(scope).length > 0 ? { AND: [scope, extra] } : extra,
     });
 
-    // For "forwarded" tab: OR filter for sendto being set
-    const forwardedExtra = {
-      OR: [
-        { sendto_team_id: { not: null } },
-        { sendto_department_id: { not: null } },
-      ],
-    };
+    const forwardedExtra = this.getForwardedOpenFilter();
 
     // For sentinel: level_id G/H/I or special riskstore
     const sentinelExtra = {
