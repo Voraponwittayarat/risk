@@ -730,7 +730,7 @@ export default function IncidentDetail() {
   const steps = [
     { key: 'รายงาน', label: '1. บันทึกรายงาน' },
     { key: 'ตรวจสอบ', label: '2. ยืนยันความเสี่ยง' },
-    { key: 'ทบทวน', label: '3. ดำเนินการ / RCA' },
+    { key: 'ทบทวน', label: '3. รอทำ RCA หน่วยงาน' },
     { key: 'จำหน่าย', label: '4. ปิดเคสเสร็จสิ้น' },
   ];
 

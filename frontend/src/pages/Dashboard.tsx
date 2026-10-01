@@ -320,7 +320,7 @@ export default function Dashboard() {
               <DetailRow label="อุบัติการณ์ทั้งหมดในขอบเขต" count={stats.total} colorClass="bg-slate-500" to="/incidents/dept?tab=all" />
               <DetailRow label="อุบัติการณ์รอยืนยัน" count={stats.pending} colorClass="bg-blue-500" to="/incidents/pending" />
               <DetailRow label="ยืนยันแล้ว / รอดำเนินการ" count={stats.confirmed} colorClass="bg-emerald-500" to="/incidents/dept?tab=ตรวจสอบ" />
-              <DetailRow label="อยู่ระหว่างทบทวน / RCA" count={stats.reviewing} colorClass="bg-amber-500" to="/incidents/dept?tab=ทบทวน" />
+              <DetailRow label="รอทำ RCA หน่วยงาน" count={stats.reviewing} colorClass="bg-amber-500" to="/incidents/dept?tab=ทบทวน" />
               <DetailRow label="ปิดเคสเรียบร้อยแล้ว" count={stats.closed} colorClass="bg-indigo-500" to="/incidents/dept?tab=จำหน่าย" />
             </div>
           </div>

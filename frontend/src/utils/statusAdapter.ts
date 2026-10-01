@@ -46,14 +46,14 @@ export const STATUS_MAP: Record<string, StatusInfo> = {
   },
   'ทบทวน': {
     dbStatus: 'ทบทวน',
-    label: 'อยู่ระหว่างทบทวน / RCA',
+    label: 'รอทำ RCA หน่วยงาน',
     badgeClass: 'bg-indigo-100 text-indigo-900 border-indigo-400 dark:bg-indigo-950/70 dark:text-indigo-200 dark:border-indigo-600',
     bgLight: 'bg-indigo-50 dark:bg-indigo-900/30',
     textColor: 'text-indigo-800 dark:text-indigo-300',
     borderColor: 'border-indigo-300 dark:border-indigo-700',
     dotClass: 'bg-indigo-500 animate-pulse',
     stepIndex: 3,
-    description: 'อยู่ระหว่างดำเนินการทบทวน RCA หรือปรับปรุงกระบวนการ',
+    description: 'หน่วยงานบันทึกผลทบทวนแล้ว และอยู่ในขั้นตอนจัดทำ RCA ระดับหน่วยงาน',
   },
   'จำหน่าย': {
     dbStatus: 'จำหน่าย',
