@@ -337,7 +337,7 @@ describe('IncidentsService incident permissions', () => {
             {
               AND: [
                 { sendto_department_id: { not: null } },
-                { sendto_department_id: { not: 'department_id_field_ref' } },
+                { NOT: { sendto_department_id: { equals: 'department_id_field_ref' } } },
               ],
             },
           ],

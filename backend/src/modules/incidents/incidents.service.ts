@@ -187,8 +187,10 @@ export class IncidentsService {
               AND: [
                 { sendto_department_id: { not: null } },
                 {
-                  sendto_department_id: {
-                    not: this.prisma.riskregister.fields.department_id,
+                  NOT: {
+                    sendto_department_id: {
+                      equals: this.prisma.riskregister.fields.department_id,
+                    },
                   },
                 },
               ],
