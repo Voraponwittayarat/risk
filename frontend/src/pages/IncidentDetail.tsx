@@ -40,6 +40,7 @@ type ReviewSummary = {
   cause: string;
   contributingFactors: ContributingFactorSelection[];
   departmentOutcome: DepartmentOutcome | null;
+  outcomeSaved: boolean;
   forwardingPurpose: ForwardingPurpose;
   forwardingDepartmentName?: string;
   reviewResultName: string;
@@ -550,6 +551,7 @@ export default function IncidentDetail() {
         cause: finalCause,
         contributingFactors: selectedFactors,
         departmentOutcome: null,
+        outcomeSaved: false,
         forwardingPurpose: selectedForwardingPurpose,
         forwardingDepartmentName,
         reviewResultName: selectedReviewResult?.reviewresults_name || 'ไม่ระบุผลการเปลี่ยนแปลงมาตรการ',
@@ -575,8 +577,8 @@ export default function IncidentDetail() {
     }
   };
 
-  const handleSelectReviewOutcome = async (value: DepartmentOutcome) => {
-    if (!incident || !reviewSummary) return;
+  const saveReviewOutcome = async (value: DepartmentOutcome): Promise<boolean> => {
+    if (!incident || !reviewSummary) return false;
     setSavingReviewOutcome(true);
     try {
       const token = localStorage.getItem('token');
@@ -589,13 +591,29 @@ export default function IncidentDetail() {
         },
         { headers: token ? { Authorization: `Bearer ${token}` } : {} },
       );
-      setReviewSummary((current) => current ? { ...current, departmentOutcome: value } : current);
+      setReviewSummary((current) => current ? { ...current, departmentOutcome: value, outcomeSaved: true } : current);
       setIncident((current: any) => current ? { ...current, department_review_outcome: value } : current);
+      return true;
     } catch (err: any) {
       alert('บันทึกผลการดำเนินการไม่สำเร็จ: ' + (err.response?.data?.message || err.message));
+      return false;
     } finally {
       setSavingReviewOutcome(false);
     }
+  };
+
+  const handleSelectReviewOutcome = (value: DepartmentOutcome) => {
+    setReviewSummary((current) => current
+      ? { ...current, departmentOutcome: value, outcomeSaved: false }
+      : current);
+  };
+
+  const handleSaveReviewOutcome = async () => {
+    if (!reviewSummary?.departmentOutcome) {
+      alert('กรุณาเลือกผลการดำเนินการระดับหน่วยงาน');
+      return;
+    }
+    await saveReviewOutcome(reviewSummary.departmentOutcome);
   };
 
   const handleConfirmDischargeFromSummary = async () => {
@@ -603,6 +621,10 @@ export default function IncidentDetail() {
     if (reviewSummary.departmentOutcome !== 'RESOLVED') {
       alert('กรุณาเลือก “ยุติปัญหาได้” ก่อนยืนยันการจำหน่าย');
       return;
+    }
+    if (!reviewSummary.outcomeSaved) {
+      const outcomeSaved = await saveReviewOutcome('RESOLVED');
+      if (!outcomeSaved) return;
     }
     const succeeded = await handleStatusChange(
       'จำหน่าย',
@@ -616,6 +638,10 @@ export default function IncidentDetail() {
     if (!reviewSummary.departmentOutcome) {
       alert('กรุณาเลือกผลการดำเนินการระดับหน่วยงานก่อนส่งทำ RCA');
       return;
+    }
+    if (!reviewSummary.outcomeSaved) {
+      const outcomeSaved = await saveReviewOutcome(reviewSummary.departmentOutcome);
+      if (!outcomeSaved) return;
     }
     setSendingSummaryToRca(true);
     try {
@@ -1665,7 +1691,7 @@ export default function IncidentDetail() {
                   <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">บันทึกแล้ว กรุณาตรวจสอบสาระสำคัญก่อนเลือกขั้นตอนถัดไป</p>
                 </div>
               </div>
-              <button type="button" onClick={() => setReviewSummary(null)} disabled={savingReviewOutcome || !reviewSummary.departmentOutcome} className="rounded-xl p-2 text-slate-500 hover:bg-white hover:text-slate-800 disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="ปิดหน้าสรุป"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setReviewSummary(null)} disabled={savingReviewOutcome || !reviewSummary.outcomeSaved} className="rounded-xl p-2 text-slate-500 hover:bg-white hover:text-slate-800 disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="ปิดหน้าสรุป"><X className="h-5 w-5" /></button>
             </div>
 
             <div className="space-y-5 p-5 sm:p-7">
@@ -1703,7 +1729,7 @@ export default function IncidentDetail() {
               <section className="space-y-3 rounded-2xl border-2 border-emerald-300 bg-emerald-50/50 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
                 <div>
                   <div className="font-black text-emerald-950 dark:text-emerald-200">ผลการดำเนินการระดับหน่วยงาน <span className="text-rose-500">*</span></div>
-                  <p className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">เลือก 1 รายการ ระบบจะบันทึกให้อัตโนมัติโดยไม่ต้องกดปุ่มเพิ่ม</p>
+                  <p className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">เลือก 1 รายการ แล้วกดปุ่มบันทึกหรือจำหน่ายด้านล่าง</p>
                 </div>
                 <div className={`grid grid-cols-1 gap-3 ${isLowSeverityReview ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
                   {([
@@ -1714,7 +1740,7 @@ export default function IncidentDetail() {
                     <button
                       key={value}
                       type="button"
-                      onClick={() => void handleSelectReviewOutcome(value)}
+                      onClick={() => handleSelectReviewOutcome(value)}
                       disabled={savingReviewOutcome}
                       className={`rounded-xl border p-3 text-left transition-all disabled:cursor-wait disabled:opacity-60 ${reviewSummary.departmentOutcome === value
                         ? 'border-emerald-500 bg-white shadow-sm ring-2 ring-emerald-500/20 dark:bg-emerald-950/60'
@@ -1727,7 +1753,13 @@ export default function IncidentDetail() {
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
                   <span className={reviewSummary.departmentOutcome ? 'font-bold text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}>
-                    {savingReviewOutcome ? 'กำลังบันทึก...' : reviewSummary.departmentOutcome ? `บันทึกแล้ว: ${DEPARTMENT_OUTCOME_LABELS[reviewSummary.departmentOutcome]}` : 'กรุณาเลือกผลการดำเนินการก่อนทำขั้นตอนถัดไป'}
+                    {savingReviewOutcome
+                      ? 'กำลังบันทึก...'
+                      : reviewSummary.outcomeSaved && reviewSummary.departmentOutcome
+                        ? `บันทึกแล้ว: ${DEPARTMENT_OUTCOME_LABELS[reviewSummary.departmentOutcome]}`
+                        : reviewSummary.departmentOutcome
+                          ? `เลือกแล้ว: ${DEPARTMENT_OUTCOME_LABELS[reviewSummary.departmentOutcome]} — กรุณากดปุ่มบันทึก`
+                          : 'กรุณาเลือกผลการดำเนินการก่อนทำขั้นตอนถัดไป'}
                   </span>
                   <span className="text-slate-500 dark:text-slate-400">การส่งต่อ: {FORWARDING_PURPOSE_LABELS[reviewSummary.forwardingPurpose]}{reviewSummary.forwardingDepartmentName ? ` • ${reviewSummary.forwardingDepartmentName}` : ''}</span>
                 </div>
@@ -1740,16 +1772,45 @@ export default function IncidentDetail() {
               )}
 
               <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
-                <button type="button" onClick={() => setReviewSummary(null)} disabled={savingReviewOutcome || !reviewSummary.departmentOutcome} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">ปิดหน้าสรุป</button>
+                <button type="button" onClick={() => setReviewSummary(null)} disabled={savingReviewOutcome || !reviewSummary.outcomeSaved} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">ปิดหน้าสรุป</button>
                 <div className="flex flex-col gap-3 sm:flex-row">
+                  {reviewSummary.departmentOutcome && reviewSummary.departmentOutcome !== 'RESOLVED' && (
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveReviewOutcome()}
+                      disabled={savingReviewOutcome || reviewSummary.outcomeSaved}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-md hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Check className="h-4 w-4" />
+                      {savingReviewOutcome ? 'กำลังบันทึก...' : reviewSummary.outcomeSaved ? 'บันทึกแล้ว' : 'บันทึกผลการดำเนินการ'}
+                    </button>
+                  )}
                   {permissions.canClose
                     && incident.status_risk !== 'จำหน่าย'
                     && reviewSummary.departmentOutcome === 'RESOLVED'
                     && !['CO_REVIEW', 'ADDITIONAL_ACTION', 'TRANSFER_OWNER'].includes(reviewSummary.forwardingPurpose)
                     && !reviewSummary.requiresRca
                     && !rcaNeedsAction && (
-                      <button type="button" onClick={handleConfirmDischargeFromSummary} disabled={submittingAction} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-md hover:bg-emerald-700 disabled:opacity-50"><CheckCircle2 className="h-4 w-4" />{submittingAction ? 'กำลังจำหน่าย...' : 'ยืนยันการจำหน่าย'}</button>
+                      <button type="button" onClick={handleConfirmDischargeFromSummary} disabled={submittingAction || savingReviewOutcome} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-md hover:bg-emerald-700 disabled:opacity-50"><CheckCircle2 className="h-4 w-4" />{submittingAction || savingReviewOutcome ? 'กำลังจำหน่าย...' : 'จำหน่าย'}</button>
                     )}
+                  {reviewSummary.departmentOutcome === 'RESOLVED'
+                    && !(
+                      permissions.canClose
+                      && incident.status_risk !== 'จำหน่าย'
+                      && !['CO_REVIEW', 'ADDITIONAL_ACTION', 'TRANSFER_OWNER'].includes(reviewSummary.forwardingPurpose)
+                      && !reviewSummary.requiresRca
+                      && !rcaNeedsAction
+                    ) && (
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveReviewOutcome()}
+                      disabled={savingReviewOutcome || reviewSummary.outcomeSaved}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-md hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Check className="h-4 w-4" />
+                      {savingReviewOutcome ? 'กำลังบันทึก...' : reviewSummary.outcomeSaved ? 'บันทึกแล้ว — รอผู้มีสิทธิ์จำหน่าย' : 'บันทึกผลยุติปัญหาได้'}
+                    </button>
+                  )}
                   {permissions.canForward && (
                     <button
                       type="button"

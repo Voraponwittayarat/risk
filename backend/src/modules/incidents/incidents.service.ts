@@ -1383,6 +1383,7 @@ export class IncidentsService {
         orderBy: { program_name: 'asc' },
       }),
       this.prisma.reviewresults.findMany({
+        where: { id: { in: [1, 2] } },
         select: { id: true, reviewresults_name: true },
         orderBy: { id: 'asc' },
       }),
@@ -2451,7 +2452,7 @@ export class IncidentsService {
     }
     const reviewAttachments = this.validateStoredReviewAttachments(reviewDto.files, user);
     const reviewResultId = reviewDto.reviewresults_id ? Number(reviewDto.reviewresults_id) : 1;
-    if (!Number.isInteger(reviewResultId) || reviewResultId < 1) {
+    if (!Number.isInteger(reviewResultId) || ![1, 2].includes(reviewResultId)) {
       throw new BadRequestException('กรุณาเลือกผลการทบทวนและการเปลี่ยนแปลงมาตรการ');
     }
     if (reviewDto.reviewresults_id) {

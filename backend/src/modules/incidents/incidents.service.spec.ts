@@ -24,6 +24,7 @@ describe('IncidentsService incident permissions', () => {
       department: { findMany: jest.fn().mockResolvedValue([{ id: 1 }, { id: 2 }]), findUnique: jest.fn() },
       nRLS_riskstore: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       riskstore: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      riskgroup: { findMany: jest.fn().mockResolvedValue([]) },
       risk: { create: jest.fn() },
       riskregister: {
         findFirst: jest.fn(),
@@ -56,7 +57,8 @@ describe('IncidentsService incident permissions', () => {
       },
       workflow_audit: { create: jest.fn().mockResolvedValue({ id: 1 }) },
       incident_classification_audit: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
-      team: { findUnique: jest.fn().mockResolvedValue({ id: 7, team_name: 'ทีมคุณภาพ' }) },
+      team: { findUnique: jest.fn().mockResolvedValue({ id: 7, team_name: 'ทีมคุณภาพ' }), findMany: jest.fn().mockResolvedValue([]) },
+      location: { findMany: jest.fn().mockResolvedValue([]) },
       program: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn(async (callback: any) => callback(prisma)),
     };
@@ -315,6 +317,42 @@ describe('IncidentsService incident permissions', () => {
     expect(prisma.workflow_audit.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ new_value: expect.stringContaining('"reviewresults_id":2') }),
     }));
+  });
+
+  it('loads only the two active review result choices in the review form', async () => {
+    prisma.reviewresults.findMany.mockResolvedValue([
+      { id: 1, reviewresults_name: 'ทบทวนแล้ว ยังไม่เกิดมาตรการใหม่' },
+      { id: 2, reviewresults_name: 'มีมาตรการหรือระบบใหม่' },
+    ]);
+
+    const result = await service.getFormData();
+
+    expect(prisma.reviewresults.findMany).toHaveBeenCalledWith({
+      where: { id: { in: [1, 2] } },
+      select: { id: true, reviewresults_name: true },
+      orderBy: { id: 'asc' },
+    });
+    expect(result.reviewresults).toEqual([
+      { id: 1, reviewresults_name: 'ทบทวนแล้ว ยังไม่เกิดมาตรการใหม่' },
+      { id: 2, reviewresults_name: 'มีมาตรการหรือระบบใหม่' },
+    ]);
+  });
+
+  it('rejects historical review result choices that are no longer active', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({
+      ...pendingIncident,
+      status_risk: 'ตรวจสอบ',
+      level_id: 'B',
+    });
+
+    await expect(service.addReview(10, {
+      findings: 'หน่วยงานทบทวนผลและบันทึกรายละเอียดครบถ้วนแล้ว',
+      reviewresults_id: 3,
+    }, { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 }))
+      .rejects.toThrow('กรุณาเลือกผลการทบทวนและการเปลี่ยนแปลงมาตรการ');
+
+    expect(prisma.reviewresults.findUnique).not.toHaveBeenCalled();
+    expect(prisma.riskreview.create).not.toHaveBeenCalled();
   });
 
   it('records the department outcome selected from the review summary', async () => {
