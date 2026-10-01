@@ -1,5 +1,7 @@
 # TODO / Next Steps
 
+- [ ] ตรวจหน้าต่างยืนยันด้วยข้อมูลทดสอบ Clinical และ General รวมกรณีเปลี่ยนประเภท NRLS และระดับเดิมไม่ตรงประเภท หลัง deploy
+
 - [ ] Review และ merge branch นี้กับ `main` หลังผู้ดูแลตรวจผล RCA/performance
 - [ ] ก่อน deploy ให้รัน `deploy/ubuntu/backup-hrms.sh` และตรวจ SHA-256 ของ backup
 - [ ] ใช้ `prisma migrate deploy` สำหรับ migration RCA ในฐานข้อมูลทดสอบก่อน production

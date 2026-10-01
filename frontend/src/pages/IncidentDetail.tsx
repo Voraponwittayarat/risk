@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { getStatusInfo, getSeverityBadge } from '../utils/statusAdapter';
 import { StandardRiskSelector } from '../components/StandardRiskSelector';
+import { getNrlsRiskKind } from '../utils/nrlsClassification';
 import { ContributingFactorSelector } from '../components/rca/ContributingFactorSelector';
 import { OfficialPrintFooter, OfficialPrintHeader } from '../components/OfficialPrintLayout';
 import { printOfficialReport } from '../utils/officialPrint';
@@ -155,17 +156,23 @@ export default function IncidentDetail() {
   const [finalStatusReason, setFinalStatusReason] = useState('');
   const [finalStatusError, setFinalStatusError] = useState('');
 
+  const confirmRiskKind = getNrlsRiskKind(confirmNrlsCode);
+  const confirmLevels = confirmRiskKind === 'clinical'
+    ? ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']
+    : confirmRiskKind === 'general' ? ['1', '2', '3', '4', '5'] : [];
+  const confirmLevelIsValid = confirmLevels.includes(confirmLevelId);
+
   const handleConfirmSubmit = async (targetStatus: 'ตรวจสอบ' | 'แก้ไข') => {
     if (!incident) return;
-    if (targetStatus === 'ตรวจสอบ' && (!confirmNrlsCode || !confirmLevelId)) {
+    if (targetStatus === 'ตรวจสอบ' && (!confirmNrlsCode || !confirmLevelIsValid)) {
       alert('กรุณาตรวจสอบและเลือกมาตรฐานความเสี่ยง NRLS พร้อมระดับความรุนแรงก่อนยืนยัน');
       return;
     }
-    setSubmittingConfirm(true);
     if (targetStatus === 'แก้ไข' && confirmNote.trim().length < 10) {
       alert('กรุณาระบุข้อมูลที่ต้องแก้ไขและคำแนะนำอย่างน้อย 10 ตัวอักษร');
       return;
     }
+    setSubmittingConfirm(true);
     try {
       const token = localStorage.getItem('token');
       if (targetStatus === 'ตรวจสอบ') {
@@ -2194,6 +2201,13 @@ export default function IncidentDetail() {
                 <span className="font-bold text-slate-800 dark:text-slate-200 text-sm mt-0.5 block break-words">
                   #{incident.id} - {incident.risk_topic_name || incident.detail}
                 </span>
+                <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+                  <span className="text-slate-500 block font-medium">รายละเอียดเหตุการณ์ที่ผู้รายงานระบุ:</span>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-800 dark:text-slate-200">{incident.detail || 'ยังไม่ได้ระบุรายละเอียดเหตุการณ์'}</p>
+                </div>
+                <p className="mt-3 font-semibold text-slate-700 dark:text-slate-300">
+                  ระดับความรุนแรงที่ผู้รายงานประเมิน: {incident.level_id ? `ระดับ ${incident.level_id}` : 'ยังไม่ได้ระบุ'}
+                </p>
               </div>
 
               {/* Risk classification review */}
@@ -2210,12 +2224,16 @@ export default function IncidentDetail() {
                   onSelect={(nrlsCode, localRiskId) => {
                     setConfirmNrlsCode(nrlsCode || '');
                     setConfirmRiskstoreId(localRiskId);
-                    if (nrlsCode !== confirmNrlsCode) setConfirmLevelId('');
+                    const nextKind = getNrlsRiskKind(nrlsCode);
+                    const levelMatches = nextKind === 'clinical'
+                      ? /^[A-I]$/.test(confirmLevelId)
+                      : nextKind === 'general' && /^[1-5]$/.test(confirmLevelId);
+                    if (!levelMatches) setConfirmLevelId('');
                   }}
                 />
                 <div className="space-y-1.5">
                   <label className="block font-bold text-slate-700 dark:text-slate-300">
-                    ⚠️ ระดับความรุนแรงที่ตรวจสอบแล้ว:
+                    ⚠️ ระดับความรุนแรงที่ผู้ยืนยันตรวจสอบ ({confirmRiskKind === 'clinical' ? 'Clinical / คลินิก A–I' : confirmRiskKind === 'general' ? 'General / ทั่วไป 1–5' : 'กรุณาเลือก NRLS'}):
                   </label>
                   <select
                     value={confirmLevelId}
@@ -2223,16 +2241,10 @@ export default function IncidentDetail() {
                     className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 font-bold text-rose-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-rose-400"
                   >
                     <option value="">-- เลือกระดับความรุนแรง --</option>
-                    <optgroup label="Clinical (ทางคลินิก)">
-                      <option value="A">ระดับ A</option><option value="B">ระดับ B</option><option value="C">ระดับ C</option>
-                      <option value="D">ระดับ D</option><option value="E">ระดับ E</option><option value="F">ระดับ F</option>
-                      <option value="G">ระดับ G</option><option value="H">ระดับ H</option><option value="I">ระดับ I</option>
-                    </optgroup>
-                    <optgroup label="General (ทั่วไป)">
-                      <option value="1">ระดับ 1</option><option value="2">ระดับ 2</option><option value="3">ระดับ 3</option>
-                      <option value="4">ระดับ 4</option><option value="5">ระดับ 5</option>
-                    </optgroup>
+                    {confirmLevelId && !confirmLevelIsValid && <option value={confirmLevelId} disabled>ระดับ {confirmLevelId} (เดิม — กรุณาตรวจสอบประเภท NRLS และเลือกระดับ)</option>}
+                    {confirmLevels.map(level => <option key={level} value={level}>ระดับ {level}</option>)}
                   </select>
+                  <p className="text-[11px] text-slate-500">เริ่มต้นจากระดับที่ผู้รายงานประเมิน ผู้ยืนยันปรับได้หลังตรวจสอบเหตุการณ์</p>
                 </div>
               </div>
 
