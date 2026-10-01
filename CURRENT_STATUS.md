@@ -15,7 +15,7 @@
 - สาขางาน `codex/risk-register-overview`; แยก commit เฉพาะงานนี้จากงาน medication import และไฟล์เดิมที่ยังไม่ commit
 - ไม่มีการแก้ schema/migration/ฐานข้อมูล และไม่มีการ deploy; backup, running commit และ production health ไม่ได้ตรวจในรอบนี้
 - ตรวจผ่าน: `npm run build` ทั้ง frontend/backend; `node --test src/utils/riskReviewDue.test.mjs` 3 tests; `git diff --check` (frontend มีคำเตือน bundle ใหญ่)
-- commit งานแล้วใน feature branch `codex/risk-register-overview` แต่ยัง push ไม่สำเร็จ: network sandbox ติดต่อ GitHub ไม่ได้ และ auto-review ปฏิเสธ escalation เนื่องจากยังไม่ยืนยันเจ้าของ/ความเป็นส่วนตัวของ repository ปลายทาง `riskwangchao/HRMS2026`; เครื่องไม่มี `gh` สำหรับตรวจ metadata ต้องยืนยันปลายทางก่อนลองใหม่
+- อัปโหลด commit งาน `39757daf` ไป GitHub `riskwangchao/HRMS2026` branch `codex/risk-register-overview` สำเร็จแล้ว หลังผู้ใช้ยืนยันสิทธิ์และตรวจ AGENTS.md; งานเดิมที่ยังไม่ commit ไม่รวมในการอัปโหลดนี้
 - ยังไม่ merge main เพราะ main ทำให้ production deploy อัตโนมัติ
 - ยังไม่ได้ทดสอบ UI ผ่านเบราว์เซอร์หรือพิมพ์จริง: ก่อน release ให้ตรวจสลับภาพรวม/เต็ม, เปิดรายละเอียด/ทบทวนด้วยสิทธิ์หัวหน้างานและ RM, print preview และ CSV
 - ไฟล์งานนี้: `CURRENT_STATUS.md`, `frontend/src/pages/Reports.tsx`, `frontend/src/components/RiskRegisterOverview.tsx`, `frontend/src/utils/riskReviewDue.ts`, `frontend/src/utils/riskReviewDue.test.mjs`
