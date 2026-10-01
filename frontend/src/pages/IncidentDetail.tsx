@@ -151,6 +151,7 @@ export default function IncidentDetail() {
   const [confirmRiskstoreId, setConfirmRiskstoreId] = useState<number | null>(null);
   const [confirmLevelId, setConfirmLevelId] = useState('');
   const [confirmNote, setConfirmNote] = useState('');
+  const [isReturningForEdit, setIsReturningForEdit] = useState(false);
   const [submittingConfirm, setSubmittingConfirm] = useState(false);
   const [finalStatusAction, setFinalStatusAction] = useState<'จำหน่าย' | 'ไม่ใช่ความเสี่ยง' | null>(null);
   const [finalStatusReason, setFinalStatusReason] = useState('');
@@ -1012,6 +1013,7 @@ export default function IncidentDetail() {
                         setConfirmRiskstoreId(incident.riskstore_id ? Number(incident.riskstore_id) : null);
                         setConfirmLevelId(String(incident.level_id || ''));
                         setConfirmNote('');
+                        setIsReturningForEdit(false);
                         setIsConfirmModalOpen(true);
                       }}
                       disabled={submittingAction}
@@ -2255,34 +2257,41 @@ export default function IncidentDetail() {
                 <p className="text-[11px] text-slate-500">หน่วยงานต้นทางทบทวนเบื้องต้นก่อน หากต้องการความเห็นจากหน่วยงานอื่น ให้เลือก Co-review ท้ายแบบฟอร์มทบทวน</p>
               </div>
 
-              {/* Confirmation Note / Reason */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block">
-                  📝 ข้อความยืนยัน / หมายเหตุข้อสั่งการเพิ่มเติม:
+              {isReturningForEdit && <div className="space-y-1.5">
+                <label htmlFor="return-for-edit-note" className="font-bold text-slate-700 dark:text-slate-300 block">
+                  📝 เหตุผลและคำแนะนำในการส่งกลับให้แก้ไข:
                 </label>
                 <textarea
+                  id="return-for-edit-note"
+                  autoFocus
                   rows={2}
                   value={confirmNote}
                   onChange={e => setConfirmNote(e.target.value)}
-                  placeholder="ระบุข้อสังเกต คำแนะนำ หรือเหตุผลกรณีส่งกลับให้ผู้รายงานแก้ไข..."
+                  placeholder="ระบุสิ่งที่ต้องแก้ไขและคำแนะนำอย่างน้อย 10 ตัวอักษร..."
                   className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
-              </div>
+              </div>}
             </div>
 
             {/* Modal Actions */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-750">
               <button
                 type="button"
-                onClick={() => handleConfirmSubmit('แก้ไข')}
+                onClick={() => isReturningForEdit ? handleConfirmSubmit('แก้ไข') : setIsReturningForEdit(true)}
                 disabled={submittingConfirm}
                 className="w-full sm:w-auto px-4 py-2.5 bg-orange-50 hover:bg-orange-100 text-orange-700 dark:bg-orange-950/60 dark:hover:bg-orange-900 dark:text-orange-200 border border-orange-200 dark:border-orange-800 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <AlertTriangle className="w-3.5 h-3.5" />
-                ส่งกลับให้แก้ไข (สถานะ: แก้ไข)
+                {submittingConfirm && isReturningForEdit ? 'กำลังส่งกลับ...' : isReturningForEdit ? 'ยืนยันส่งกลับให้แก้ไข' : 'ส่งกลับให้แก้ไข'}
               </button>
 
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                {isReturningForEdit && <button
+                  type="button"
+                  disabled={submittingConfirm}
+                  onClick={() => { setIsReturningForEdit(false); setConfirmNote(''); }}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 cursor-pointer"
+                >กลับไปยืนยันความเสี่ยง</button>}
                 <button
                   type="button"
                   onClick={() => setIsConfirmModalOpen(false)}
@@ -2290,7 +2299,7 @@ export default function IncidentDetail() {
                 >
                   ยกเลิก
                 </button>
-                <button
+                {!isReturningForEdit && <button
                   type="button"
                   onClick={() => handleConfirmSubmit('ตรวจสอบ')}
                   disabled={submittingConfirm}
@@ -2298,7 +2307,7 @@ export default function IncidentDetail() {
                 >
                   <Check className="w-4 h-4" />
                     {submittingConfirm ? 'กำลังยืนยัน...' : 'ยืนยันและส่งให้หน่วยงานทบทวน'}
-                </button>
+                </button>}
               </div>
             </div>
           </div>
