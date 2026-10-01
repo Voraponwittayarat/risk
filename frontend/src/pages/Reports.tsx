@@ -1,4 +1,6 @@
 import RiskWorkflowNav from '../components/RiskWorkflowNav';
+import RiskRegisterOverview from '../components/RiskRegisterOverview';
+import { reviewDue } from '../utils/riskReviewDue';
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { 
@@ -106,6 +108,7 @@ const RISK_PRESET_TEMPLATES = [
 export default function Reports() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'hospital' | 'department' | 'matrix' | 'due' | 'standards'>(user?.role === 'admin' || user?.rmScope === 'hospital' ? 'hospital' : 'department');
+  const [registerView, setRegisterView] = useState<'overview' | 'full'>('overview');
 
   // Data States
   const [risks, setRisks] = useState<any[]>([]);
@@ -1124,6 +1127,8 @@ export default function Reports() {
             </div>
 
             <div className="no-print flex items-center gap-2">
+              <button type="button" aria-pressed={registerView === 'overview'} onClick={() => setRegisterView('overview')} className="rounded border px-3 py-1.5 text-sm aria-pressed:bg-indigo-100">ภาพรวม</button>
+              <button type="button" aria-pressed={registerView === 'full'} onClick={() => setRegisterView('full')} className="rounded border px-3 py-1.5 text-sm aria-pressed:bg-indigo-100">ตารางฉบับเต็ม</button>
               <button
                 onClick={handlePrintTable}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-sm transition"
@@ -1135,7 +1140,8 @@ export default function Reports() {
           </div>
 
           {/* TABLE */}
-          <div className="overflow-x-auto">
+          {registerView === 'overview' && <RiskRegisterOverview risks={filteredRisks} loading={loading} failed={loadErrors.includes('ทะเบียนความเสี่ยง')} badge={getRiskBadge} canEdit={canEditRisk} onDetail={handleOpenDetailModal} onReview={handleOpenReviewModal} />}
+          <div className={`overflow-x-auto ${registerView === 'overview' ? 'hidden print:block' : ''}`}>
             <table className="w-full text-left text-xs text-slate-700 print-table border-collapse">
               {/* TWO-TIER OFFICIAL SPREADSHEET HEADER */}
               <thead className="select-none font-bold border-b border-slate-300">
@@ -1181,7 +1187,7 @@ export default function Reports() {
                   {/* 3. Risk Analysis */}
                   <th className="py-2.5 px-1.5 w-10 border-r border-slate-200 text-center" title="Likelihood (โอกาสเกิด 1-5)">L</th>
                   <th className="py-2.5 px-1.5 w-10 border-r border-slate-200 text-center" title="Consequence (ความรุนแรง 1-5)">C</th>
-                  <th className="py-2.5 px-2 w-24 border-r border-slate-300 text-center" title="คะแนนความเสี่ยง Likelihood × Consequence">ระดับ (L×C)</th>
+                  <th className="py-2.5 px-2 w-24 border-r border-slate-300 text-center" title="คะแนนความเสี่ยงตั้งต้น Likelihood × Consequence">ตั้งต้น (L×C)</th>
 
                   {/* 4. Treatment Plan */}
                   <th className="py-2.5 px-3 min-w-[220px] text-left border-r border-slate-200">มาตรการป้องกัน / ถ่ายโอน</th>
@@ -1237,7 +1243,7 @@ export default function Reports() {
                           </td>
                         </tr>
                         {items.map((item: any, idx: number) => {
-                          const isDue = item.next_review_date && new Date(item.next_review_date) <= new Date(Date.now() + 30 * 86400000);
+                          const due = reviewDue(item.next_review_date);
                           return (
                             <tr key={item.id} className="hover:bg-slate-50/80 transition group print-table-row">
                               {/* 1. ลำดับ */}
@@ -1311,10 +1317,11 @@ export default function Reports() {
                             <span className="text-slate-400">ยังไม่ทบทวน</span>
                           )}
                           {item.next_review_date && (
-                            <div className={`mt-0.5 font-bold ${isDue ? 'text-red-600 font-black' : 'text-slate-500'}`}>
+                            <div className={`mt-0.5 font-bold ${due.className}`}>
                               นัด: {new Date(item.next_review_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'numeric', year: '2-digit' })}
                             </div>
                           )}
+                          <div className={`mt-1 ${due.className}`}>{due.label}</div>
                         </td>
 
                         {/* 9. ผลการทบทวน / RCA */}
@@ -1336,13 +1343,13 @@ export default function Reports() {
 
                         {/* 10. ความเสี่ยงคงเหลือ */}
                         <td className="py-2 px-2 text-center border-r border-slate-200 whitespace-nowrap">
-                          {item.latest_review ? (
+                          {item.latest_review?.current_risk_score != null ? (
                             <div>
                               {getRiskBadge(item.latest_review.current_risk_level, item.latest_review.current_risk_score)}
                               <div className="text-[9px] text-emerald-700 font-bold mt-0.5">รอบที่ {item.latest_review.review_cycle_no}</div>
                             </div>
                           ) : (
-                            <span className="text-[10px] text-slate-400">ตามคะแนนเดิม</span>
+                            <span className="text-[10px] text-slate-500">ยังไม่ประเมินความเสี่ยงคงเหลือ</span>
                           )}
                         </td>
 
