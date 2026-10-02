@@ -12,3 +12,12 @@ test('rejects invalid dates and wrong column counts', () => {
 test('preserves escaped quotes and relative time with unknown date', () => {
   assert.equal(parseTimelinePaste('\tก่อนเกิดเหตุ\t"กล่าวว่า ""หยุด"""')[0].event_description, 'กล่าวว่า "หยุด"');
 });
+
+test('imports two-column time/event and combined Buddhist date-time without losing multiline text', () => {
+  const rows = parseTimelinePaste('เวลา\tเหตุการณ์\n08:30\tเริ่มให้บริการ\n2/10/2569 09:15\t"ตรวจซ้ำ\nพบความคลาดเคลื่อน"');
+  assert.equal(rows[0].event_date, '');
+  assert.equal(rows[0].event_time, '08:30');
+  assert.equal(rows[1].event_date, '2026-10-02');
+  assert.equal(rows[1].event_time, '09:15');
+  assert.equal(rows[1].event_description, 'ตรวจซ้ำ\nพบความคลาดเคลื่อน');
+});

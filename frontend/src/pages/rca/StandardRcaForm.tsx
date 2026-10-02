@@ -25,7 +25,7 @@ import {
   MessageSquareText,
 } from 'lucide-react';
 import type { TimelineItem } from '../../components/rca/EventTimeline';
-import { parseTimelinePaste } from '../../utils/timelinePaste';
+import TimelineEditor from '../../components/rca/TimelineEditor';
 import { TierContributingFactorPicker } from '../../components/rca/TierContributingFactorPicker';
 import { AiRcaAssistantModal } from '../../components/rca/AiRcaAssistantModal';
 import { useAuth } from '../../contexts/AuthContext';
@@ -208,9 +208,6 @@ export default function StandardRcaForm() {
   const [canEdit, setCanEdit] = useState(true);
   const [canComplete, setCanComplete] = useState(true);
   const [dischargeReason, setDischargeReason] = useState<string | null>(null);
-  const [timelinePaste, setTimelinePaste] = useState('');
-  const [timelinePreview, setTimelinePreview] = useState<TimelineItem[]>([]);
-  const [timelinePasteError, setTimelinePasteError] = useState('');
   const [canManageTeam, setCanManageTeam] = useState(true);
   const [actualImpactNeedsReview, setActualImpactNeedsReview] = useState(false);
   const [canViewVoice, setCanViewVoice] = useState(true);
@@ -649,24 +646,6 @@ export default function StandardRcaForm() {
     setTopic(`[${item.code}] ${item.name}`);
     setSeverity(item.defaultSeverity);
     setIsTriggerModalOpen(false);
-  };
-
-  // Timeline Step Handlers
-  const handleAddTimelineStep = () => {
-    setTimelines([
-      ...timelines,
-      { event_time: '', event_description: '', is_critical_point: false },
-    ]);
-  };
-
-  const handleRemoveTimelineStep = (idx: number) => {
-    setTimelines(timelines.filter((_, i) => i !== idx));
-  };
-
-  const handleTimelineChange = (idx: number, field: keyof TimelineItem, val: any) => {
-    const updated = [...timelines];
-    updated[idx] = { ...updated[idx], [field]: val };
-    setTimelines(updated);
   };
 
   // CMP Handlers
@@ -1523,98 +1502,8 @@ export default function StandardRcaForm() {
         </section>
 
         {/* ================= SECTION 3: INCIDENT TIMELINE ================= */}
-        <section id="rca-timeline" className={`scroll-mt-24 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 ${guidedMode && activeStep !== 'rca-timeline' ? 'hidden print:block' : ''}`}>
-          <details className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:bg-blue-950/20">
-            <summary className="cursor-pointer font-semibold">วางตารางจาก Excel</summary>
-            <p className="my-2 text-sm">เรียงคอลัมน์: วันที่ | เวลา | เหตุการณ์ | จุดวิกฤต (คอลัมน์สุดท้ายไม่บังคับ ใช้ ใช่/ไม่) รองรับ 2/10/2569 หรือ 2026-10-02 เว้นวันที่ได้หากไม่ทราบ</p>
-            <textarea aria-label="ตาราง Timeline จาก Excel" rows={4} value={timelinePaste} onChange={e => { setTimelinePaste(e.target.value); setTimelinePreview([]); setTimelinePasteError(''); }} placeholder="คัดลอกเซลล์ใน Excel แล้ววางที่นี่" className="w-full rounded-xl border p-3 dark:bg-slate-900" />
-            <button type="button" onClick={() => { try { setTimelinePreview(parseTimelinePaste(timelinePaste)); setTimelinePasteError(''); } catch (err) { setTimelinePasteError((err as Error).message); } }} className="mt-2 rounded-lg bg-blue-600 px-4 py-2 text-white">ตรวจและดูตัวอย่าง</button>
-            {timelinePasteError && <p role="alert" className="mt-2 text-red-700">{timelinePasteError}</p>}
-            {timelinePreview.length > 0 && <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-sm"><thead><tr><th>วันที่</th><th>เวลา</th><th>เหตุการณ์</th><th>จุดวิกฤต</th></tr></thead><tbody>{timelinePreview.map((t, i) => <tr key={i}><td>{t.event_date || 'ไม่ระบุ'}</td><td>{t.event_time}</td><td className="whitespace-pre-wrap">{t.event_description}</td><td>{t.is_critical_point ? 'ใช่' : 'ไม่'}</td></tr>)}</tbody></table>
-              <button type="button" onClick={() => { setTimelines([...timelines.filter(t => t.event_description.trim() || t.event_time.trim() || t.event_date), ...timelinePreview]); setTimelinePreview([]); setTimelinePaste(''); }} className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-white">เพิ่ม {timelinePreview.length} แถวลง Timeline (เก็บรายการเดิมไว้)</button>
-            </div>}
-          </details>
-          <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
-                3
-              </span>
-              <div>
-                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
-                  เส้นเวลาของลำดับเหตุการณ์ (Incident Timeline)
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  บันทึกลำดับเหตุการณ์ตามช่วงเวลา พร้อมระบุจุดวิกฤต (Critical Point)
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleAddTimelineStep}
-              className="px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold flex items-center gap-1.5 transition"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>เพิ่มช่วงเวลา</span>
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {timelines.map((t, idx) => (
-              <div
-                key={idx}
-                className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center gap-3 ${
-                  t.is_critical_point
-                    ? 'bg-rose-50/50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-900/50'
-                    : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'
-                }`}
-              >
-                <div className="w-full sm:w-36 shrink-0">
-                  <label className="block text-xs">วันที่<input type="date" aria-label={`วันที่เหตุการณ์ ${idx + 1}`} value={t.event_date?.slice(0, 10) || ''} onChange={e => handleTimelineChange(idx, 'event_date', e.target.value)} className="mb-2 w-full rounded-xl border p-2 dark:bg-slate-900" /></label>
-                  <input
-                    type="text"
-                    value={t.event_time}
-                    onChange={(e) => handleTimelineChange(idx, 'event_time', e.target.value)}
-                    placeholder="เช่น 10:30 น."
-                    className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-slate-100 text-center"
-                  />
-                </div>
-
-                <div className="flex-1 w-full">
-                  <textarea
-                    rows={2}
-                    value={t.event_description}
-                    onChange={(e) =>
-                      handleTimelineChange(idx, 'event_description', e.target.value)
-                    }
-                    placeholder="ระบุสิ่งที่เกิดขึ้นในช่วงเวลานี้..."
-                    className="w-full px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
-                  />
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
-                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-rose-600 dark:text-rose-400">
-                    <input
-                      type="checkbox"
-                      checked={t.is_critical_point || false}
-                      onChange={(e) =>
-                        handleTimelineChange(idx, 'is_critical_point', e.target.checked)
-                      }
-                      className="rounded text-rose-600 focus:ring-rose-500 w-4 h-4"
-                    />
-                    <span>จุดวิกฤต</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTimelineStep(idx)}
-                    className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+        <section id="rca-timeline" className={`scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-4 ${guidedMode && activeStep !== 'rca-timeline' ? 'hidden print:block' : ''}`}>
+          <TimelineEditor items={timelines} onChange={setTimelines} defaultDate={incidentDate} />
         </section>
 
         {/* ================= SECTION 4: QUICK STAKEHOLDER REVIEW & CMPS ================= */}
