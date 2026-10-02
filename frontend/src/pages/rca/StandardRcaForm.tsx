@@ -1132,9 +1132,6 @@ export default function StandardRcaForm() {
             factors: contributingFactors, legacyFactors: legacyFishbones.map(v => ({ ...v })),
             barriers: useSwissCheese ? [swissCheeseOrg, swissCheeseSupervision, swissCheesePreconditions, swissCheeseUnsafeActs] : [],
           }} />
-          {canComplete && ['admin', 'head', 'rm_committee'].includes(user?.role || '') && !['COMPLETED', 'CANCELLED'].includes(status.toUpperCase()) && <button type="button" disabled={saving || completing} onClick={() => setDischargeReason('')} className="rounded-xl border border-orange-300 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-800">
-            ทบทวนแล้วไม่ต้องทำ RCA/จำหน่ายเคส
-          </button>}
           {status.toUpperCase() !== 'COMPLETED' && <button
             type="button"
             onClick={() => handleSave()}
@@ -2274,8 +2271,12 @@ export default function StandardRcaForm() {
           <button type="button" onClick={() => { setActiveStep(stepKeys[Math.min(stepKeys.length - 1, stepKeys.indexOf(activeStep) + 1)]); window.scrollTo({ top: 0, behavior: 'smooth' }); }} disabled={stepKeys.indexOf(activeStep) === stepKeys.length - 1} className="rounded-xl bg-blue-600 px-4 py-3 text-sm text-white disabled:opacity-40">ถัดไป</button>
         </div>}
         {/* ================= BOTTOM ACTION BAR & NOT A RISK TOGGLE ================= */}
-        <section className="p-6 rounded-3xl bg-slate-900 text-white shadow-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6 print:hidden">
-          <div className="flex items-center gap-4">
+        <section className="p-5 rounded-2xl bg-teal-50/60 text-slate-800 shadow-sm border border-teal-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 print:hidden">
+          <div className="flex flex-wrap items-center gap-3">
+          {canComplete && ['admin', 'head', 'rm_committee'].includes(user?.role || '') && !['COMPLETED', 'CANCELLED'].includes(status.toUpperCase()) && <button type="button" disabled={saving || completing} onClick={() => setDischargeReason('')} className="rounded-xl border border-orange-300 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-800">
+            ทบทวนแล้วไม่ต้องทำ RCA/จำหน่ายเคส
+          </button>}
+
             <button
               type="button"
               onClick={handleToggleNotRisk}
@@ -2283,24 +2284,24 @@ export default function StandardRcaForm() {
               className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all ${
                 isNotRisk
                   ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/40 ring-2 ring-rose-300'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                  : 'bg-white hover:bg-orange-50 text-orange-800 border border-orange-200'
               }`}
             >
-              <AlertTriangle className={`w-4 h-4 ${isNotRisk ? 'text-white' : 'text-amber-400'}`} />
+              <AlertTriangle className={`w-4 h-4 ${isNotRisk ? 'text-white' : 'text-orange-600'}`} />
               <span>{isNotRisk ? '✓ ทบทวนแล้ว: ไม่ใช่ความเสี่ยง (Not a Risk)' : 'ทบทวนแล้ว: ไม่ใช่ความเสี่ยง (Not a Risk)'}</span>
             </button>
             {isNotRisk && (
-              <span className="text-xs text-rose-300 font-medium">
+              <span className="text-xs text-rose-700 font-medium">
                 * เคสนี้จะถูกจัดเป็น Not a Risk และปิดสถานะการทบทวน
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <button
               type="button"
               onClick={() => { if (!hasUnsavedChanges || window.confirm('มีข้อมูลยังไม่บันทึก ต้องการออกจากหน้านี้หรือไม่?')) navigate('/rca/list'); }}
-              className="px-4 py-2.5 text-xs sm:text-sm font-medium text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition"
+              className="px-4 py-2.5 text-xs sm:text-sm font-medium text-slate-600 hover:text-teal-800 rounded-xl hover:bg-teal-100 transition"
             >
               ยกเลิก
             </button>
@@ -2310,7 +2311,7 @@ export default function StandardRcaForm() {
                   type="button"
                   onClick={() => handleSave()}
                   disabled={saving || completing || !canEdit}
-                  className="flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-700 disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-xl border border-teal-300 bg-white px-5 py-3 text-sm font-bold text-teal-800 transition hover:bg-teal-100 disabled:opacity-50"
                 >
                   <Save className="w-4 h-4" />
                   <span>{saving && !completing ? 'กำลังบันทึก...' : 'บันทึกร่าง'}</span>
