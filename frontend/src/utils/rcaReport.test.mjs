@@ -8,7 +8,7 @@ test('omits unused tools, blank rows and columns, preserves filled clinical fact
   d.cmps = [{ observation: '', hypothesis: '', comment: '' }];
   d.capas = [{ action: 'ตรวจซ้ำ', responsible: 'หน่วยงานทดสอบ' }];
   const sections = getRcaReportSections(d);
-  assert.deepEqual(sections.map(s => s.id), ['facts', 'timeline', 'actions']);
+  assert.deepEqual(sections.map(s => s.id), ['facts', 'timeline', 'timeline-chart', 'actions']);
   assert.ok(!sections[1].html.includes('<th>วันที่</th>'));
   const html = buildRcaReportHtml(sections, ['facts', 'actions']);
   assert.ok(html.includes('ตรวจซ้ำ')); assert.ok(!html.includes('08:00')); assert.ok(!html.includes('<details'));
@@ -48,4 +48,20 @@ test('embeds official logo in Word package and uses Sarabun 14pt in report', () 
   const body = Buffer.from(encoded.replace(/\s/g, ''), 'base64').toString('utf8');
   assert.ok(body.includes('src="file:///C:/RCA-report-assets/logo.png"'));
   assert.ok(body.includes('โรงพยาบาลวังเจ้า'));
+});
+
+test('prints prominent RCA heading and chronological chart without inventing causes', () => {
+  const d = draft(); d.timelines = [
+    { event_date: '2026-10-02', event_time: '08:00', event_description: 'เริ่มงาน' },
+    { event_date: '2026-10-02', event_time: '08:15', event_description: '<script>ทดสอบ</script>', is_critical_point: true },
+    { event_date: '2026-10-03', event_time: '09:00', event_description: 'ตรวจซ้ำ' },
+  ];
+  const sections = getRcaReportSections(d); const chart = sections.find(s => s.id === 'timeline-chart').html;
+  assert.equal((chart.match(/2 ต.ค. 2569/g) || []).length, 1);
+  assert.ok(chart.indexOf('เริ่มงาน') < chart.indexOf('ตรวจซ้ำ'));
+  assert.ok(chart.includes('จุดวิกฤต')); assert.ok(chart.includes('&lt;script&gt;'));
+  assert.ok(!chart.includes('<script>'));
+  const html = buildRcaReportHtml(sections, ['timeline-chart']);
+  assert.ok(html.includes('<h1>แบบบันทึกการวิเคราะห์ RCA</h1><div class="hospital">โรงพยาบาลวังเจ้า</div>'));
+  assert.ok(!html.includes('รายละเอียดเหตุการณ์ตามลำดับเวลา (Timeline)'));
 });
