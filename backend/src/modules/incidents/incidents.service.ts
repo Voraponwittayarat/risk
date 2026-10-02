@@ -1760,11 +1760,11 @@ export class IncidentsService {
   async create(
     data: any,
     user?: any,
-    internalSource?: { linkKey?: string; note?: string; referType?: string },
+    internalSource?: { linkKey?: string; note?: string; referType?: string; suppressNotification?: boolean; medicationImport?: boolean },
   ) {
     const requestedDepartmentId = String(data.department_id || user?.departmentId || '').trim();
     if (!requestedDepartmentId) throw new BadRequestException('กรุณาระบุหน่วยงานต้นทางของรายงาน');
-    if (!(this.isRmCommittee(user) && user?.rmScope === 'hospital')) {
+    if (!(this.isRmCommittee(user) && user?.rmScope === 'hospital') && !(this.isAdmin(user) && internalSource?.medicationImport === true)) {
       const allowedDepartmentIds = (this.isRmCommittee(user) || this.isHead(user)) && user?.rmScope === 'group'
         ? await this.getGroupDepartmentIds(user)
         : this.getUserDepartmentIds(user);
@@ -1857,7 +1857,7 @@ export class IncidentsService {
 
     // Trigger Telegram notification for high level risks
     try {
-      this.sendTelegramAlert(newIncident).catch(e => console.error('Telegram send error:', e));
+      if (!internalSource?.suppressNotification) this.sendTelegramAlert(newIncident).catch(e => console.error('Telegram send error:', e));
     } catch (e) {
       console.error('Error triggering Telegram alert:', e);
     }

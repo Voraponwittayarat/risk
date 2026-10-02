@@ -1251,6 +1251,17 @@ describe('IncidentsService incident permissions', () => {
     expect(prisma.riskregister.create).not.toHaveBeenCalled();
   });
 
+  it('allows cross-department admin import only through the trusted medication source', async () => {
+    prisma.nRLS_riskstore.findUnique.mockResolvedValue({ nrls_code: 'CPP405', name: 'Patient ID', group: 'คลินิก', program_id: 6 });
+    prisma.riskregister.findFirst.mockResolvedValue({ id_risk: 100 });
+    prisma.riskregister.create.mockImplementation(({ data }) => Promise.resolve({ id: 11, ...data }));
+    const data = { nrls_code: 'CPP405', level_id: 'D', date_report: '2026-08-23', time_report: '2026-08-23T10:00:00.000Z', department_id: '2', medicationImport: true };
+    await expect(service.create(data, { id: 1, role: 'admin', departmentId: 1 })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.create(data, { id: 1, role: 'staff', departmentId: 1 }, { medicationImport: true })).rejects.toBeInstanceOf(ForbiddenException);
+    const result = await service.create(data, { id: 1, role: 'admin', departmentId: 1 }, { medicationImport: true, suppressNotification: true });
+    expect(result).toMatchObject({ department_id: '2', created_by: 1 });
+  });
+
   it('rejects reusing an attachment filename owned by another account', async () => {
     await expect(service.create({
       nrls_code: 'CPP405', riskstore_id: null, level_id: 'D', date_report: '2026-08-23',

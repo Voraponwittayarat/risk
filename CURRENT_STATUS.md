@@ -90,3 +90,15 @@
 - ล็อกส่วนระบุความเสี่ยงและรายละเอียด ปรับสีตารางให้อ่อนและแยกกลุ่มชัดเจน ลบแถบข้อมูลผู้ใช้ซ้ำ
 - frontend/backend build ผ่าน ตรวจหน้าเดสก์ท็อปและจอแคบแล้ว ไม่มี schema migration หรือการแก้ข้อมูลจริง
 - เตรียม release ผ่าน GitHub main และ production poller; backup /var/backups/riskhrms/riskhrms-db-20261002T113111Z.sql
+
+## Medication import release — 2 ตุลาคม 2569
+
+- ผู้ใช้สั่ง Deploy ฟีเจอร์นำเข้า Medication CSV สำหรับ admin และ rm_committee ขอบเขต hospital
+- เตรียมใน codex/medication-import-release จาก origin/main (18496b08) เพื่อไม่รวมงาน RCA และ migration อื่นจาก workspace หลัก
+- API ตรวจสิทธิ์ context/preview/commit; Admin ข้ามหน่วยงานได้เฉพาะ trusted medication importer ส่วนรายงานทั่วไปยังจำกัดหน่วยงานเดิม
+- เพิ่ม Vite proxy /medication-import สำหรับ dev; production ใช้ same origin ตามเดิม
+- ไม่เปลี่ยน schema และไม่มี migration; ไม่ทดลองนำเข้ารายการจริง
+- ไฟล์: importer controller/service/parser และ tests, incidents module/service/test, App, Layout, MedicationImport, vite.config.ts, คู่มือนำเข้า และ CURRENT_STATUS.md
+- รอข้อมูล SSH production เพื่อรัน backup-hrms.sh และตรวจ dump/SHA-256 ก่อน push main; ยังไม่ deploy ไม่ทราบ running commit/health และยังไม่มี backup path ของรอบนี้
+- หลัง deploy ต้องตรวจ health, login, incident list แบบอ่านอย่างเดียว และหน้า/API นำเข้าตามบทบาท
+- Validation: frontend/backend builds passed; backend tests 27 suites / 223 tests passed; frontend bundle-size warning only.

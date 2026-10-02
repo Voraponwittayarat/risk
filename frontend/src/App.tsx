@@ -1,3 +1,4 @@
+import MedicationImport from './pages/MedicationImport';
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -132,6 +133,7 @@ function App() {
               }
             />
             <Route path="incidents/new" element={<IncidentForm />} />
+            <Route path="medication-import" element={<MedicationImport />} />
             <Route path="incidents/:id" element={<IncidentDetail />} />
             <Route
               path="incidents/:id/edit"

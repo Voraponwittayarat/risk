@@ -28,6 +28,7 @@ export default defineConfig({
       '/departments': { ...apiProxy },
       '/incidents': { ...apiProxy },
       '/members': { ...apiProxy },
+      '/medication-import': { ...apiProxy },
       '/nrls-riskstore': { ...apiProxy },
       '/programs': { ...apiProxy },
       '/rca': { ...apiProxy },

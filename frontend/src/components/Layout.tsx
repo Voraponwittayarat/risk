@@ -113,6 +113,7 @@ export default function Layout() {
     {
       groupTitle: "การบริหารจัดการ & RCA",
       items: [
+        ...((isAdmin || (user?.role === "rm_committee" && user?.rmScope === "hospital")) ? [{ name: "นำเข้าความเสี่ยงด้านยา", path: "/medication-import", icon: FileText, badge: null, badgeColor: "" }] : []),
         ...(canConfirmIncidents
           ? [
               {
