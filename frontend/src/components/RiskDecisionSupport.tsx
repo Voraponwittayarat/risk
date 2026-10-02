@@ -90,7 +90,7 @@ const date = (value: string | null) =>
       })
     : "ยังไม่กำหนด";
 const panel =
-  "rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800";
+  "rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800";
 const empty = (
   <p className="py-6 text-sm text-slate-500">
     ไม่พบรายการตามเงื่อนไขและสิทธิ์ที่เลือก
@@ -150,19 +150,19 @@ export default function RiskDecisionSupport({
     ) || [];
   return (
     <section
-      className="no-print space-y-5 text-slate-800 dark:text-slate-100"
+      className="no-print space-y-3 text-slate-800 dark:text-slate-100"
       aria-label="ประเด็นเพื่อการตัดสินใจ"
     >
-      <div className="rounded-2xl bg-slate-900 p-6 text-white">
-        <div className="flex flex-wrap items-start justify-between gap-5">
+      <div className="rounded-2xl bg-slate-900 p-3 text-white">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="mb-2 text-xs font-semibold tracking-widest text-teal-300">
+            <p className="mb-1 text-xs font-semibold tracking-widest text-teal-300">
               RISK ANALYTICS · DECISION SUPPORT
             </p>
-            <h2 className="text-2xl font-bold">
+            <h2 className="text-lg font-bold">
               ประเด็นที่ทีม RM ต้องตัดสินใจ
             </h2>
-            <p className="mt-2 text-sm text-slate-300">
+            <p className="mt-1 text-xs text-slate-300">
               จัดลำดับการทบทวน สนับสนุนหน่วยงาน และติดตามผลมาตรการ
             </p>
           </div>
@@ -175,7 +175,7 @@ export default function RiskDecisionSupport({
             <RefreshCw size={16} /> อัปเดตข้อมูล
           </button>
         </div>
-        <div className="mt-5 flex flex-wrap gap-4">
+        <div className="mt-3 flex flex-wrap gap-4">
           <label className="text-sm">
             ช่วงวิเคราะห์ Incident
             <select
@@ -205,7 +205,7 @@ export default function RiskDecisionSupport({
           </label>
         </div>
         {data && (
-          <p className="mt-4 text-xs leading-6 text-slate-300">
+          <p className="mt-2 text-xs leading-5 text-slate-300">
             {data.scope} · {date(data.period.start)} – {date(data.period.end)}{" "}
             เทียบ {date(data.period.previousStart)} –{" "}
             {date(data.period.previousEnd)}
@@ -259,7 +259,7 @@ export default function RiskDecisionSupport({
                   {card.title}
                   <card.icon size={18} />
                 </div>
-                <p className="my-3 text-3xl font-bold">
+                <p className="my-1 text-xl font-bold">
                   {card.value.toLocaleString("th-TH")}
                 </p>
                 <p className="text-xs leading-5 text-slate-500">
@@ -369,7 +369,7 @@ export default function RiskDecisionSupport({
               ไม่ได้ยืนยันว่าเกิดจากสาเหตุเดิม
             </p>
           </div>
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid gap-3 lg:grid-cols-2">
             <div className={panel}>
               <h3 className="font-bold">
                 02 · หน่วยงานที่ควรได้รับการสนับสนุน
@@ -428,7 +428,7 @@ export default function RiskDecisionSupport({
                   </dd>
                 </div>
               </dl>
-              <p className="mt-4 text-xs leading-6 text-slate-500">
+              <p className="mt-2 text-xs leading-5 text-slate-500">
                 ทะเบียนเชิงรุกนับเฉพาะแหล่งที่ระบุ FMEA, Safety Walkround หรือ
                 Proactive Risk Assessment ทุกช่วงเวลา
                 ข้อมูลแหล่งอื่นยังไม่ยืนยันว่าเป็นเชิงรุก จำนวน 0
@@ -436,7 +436,7 @@ export default function RiskDecisionSupport({
               </p>
             </div>
           </div>
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid gap-3 lg:grid-cols-2">
             <div className={panel}>
               <h3 className="font-bold">04 · RCA / มาตรการที่ยังค้าง</h3>
               <p className="mt-1 text-xs text-slate-500">
@@ -499,7 +499,7 @@ export default function RiskDecisionSupport({
                     className="rounded-xl bg-slate-50 p-3 dark:bg-slate-900"
                   >
                     <p className="text-xs text-slate-500">{label}</p>
-                    <p className="mt-1 text-2xl font-bold">{value}</p>
+                    <p className="mt-1 text-lg font-bold">{value}</p>
                   </div>
                 ))}
               </div>

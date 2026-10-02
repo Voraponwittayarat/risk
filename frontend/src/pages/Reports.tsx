@@ -10,7 +10,7 @@ import {
   AlertTriangle, Search, Eye, Activity,
   Target, RefreshCw, X, Clock, Edit3, Trash2,
   ShieldCheck, Flame, Layers, Sparkles,
-  Info, Check, BookmarkCheck, FileText, Lock, UserCheck
+  Info, Check, BookmarkCheck, FileText, Lock
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -109,6 +109,7 @@ const RISK_PRESET_TEMPLATES = [
 export default function Reports() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'hospital' | 'department' | 'matrix' | 'due' | 'standards'>(user?.role === 'admin' || user?.rmScope === 'hospital' ? 'hospital' : 'department');
+  const [workspaceView, setWorkspaceView] = useState<'insights' | 'register'>('insights');
   const [registerView, setRegisterView] = useState<'overview' | 'full'>('overview');
   const [reviewProcess, setReviewProcess] = useState('');
   const [reviewResults, setReviewResults] = useState('');
@@ -283,9 +284,9 @@ export default function Reports() {
   };
 
   useEffect(() => {
-    fetchRiskAnalysisData();
+    if (workspaceView === 'register') fetchRiskAnalysisData();
     return () => requestRef.current?.abort();
-  }, [activeTab, selectedDept, dataRevision]);
+  }, [activeTab, selectedDept, dataRevision, workspaceView]);
 
 
   // Open Create Modal with default scope matching tab
@@ -692,11 +693,39 @@ export default function Reports() {
   };
 
   return (
-    <div className="official-print-document official-print-report-wide space-y-6">
+    <div className="official-print-document official-print-report-wide space-y-3">
       {/* ========================================================================= */}
       {/* PRINT-SPECIFIC CSS STYLESHEET */}
       {/* ========================================================================= */}
       <style>{`
+        .risk-register-full-table { table-layout: fixed; width: 2322px; min-width: 2322px; }
+        .risk-register-full-table th, .risk-register-full-table td { overflow-wrap: anywhere; }
+        .risk-register-full-table thead tr:nth-child(2) th { background: #f1f5f9; }
+        .risk-register-full-table tbody tr.print-table-row td { background: #fff; }
+        .risk-register-full-table tbody tr.print-table-row:hover td { background: #f8fafc; }
+        .risk-register-full-table thead tr:nth-child(2) th:nth-child(4),
+        .risk-register-full-table tbody tr.print-table-row td:nth-child(4) { position: sticky; left: 0; z-index: 2; box-shadow: 2px 0 0 #c7d2fe; }
+        .risk-register-full-table thead tr:first-child th:first-child { position: sticky; left: 0; z-index: 4; }
+        .risk-register-full-table thead tr:nth-child(2) th:nth-child(5),
+        .risk-register-full-table tbody tr.print-table-row td:nth-child(5) { position: sticky; left: 190px; z-index: 2; box-shadow: 2px 0 0 #c7d2fe; }
+        @media (min-width: 1024px) {
+          .risk-register-full-table thead tr:first-child th:first-child { position: sticky; left: 0; z-index: 4; }
+          .risk-register-full-table thead tr:nth-child(2) th:nth-child(-n+5),
+          .risk-register-full-table tbody tr.print-table-row td:nth-child(-n+5) { position: sticky; z-index: 2; }
+          .risk-register-full-table tr > :nth-child(1) { left: 0; }
+          .risk-register-full-table tr > :nth-child(2) { left: 40px; }
+          .risk-register-full-table tr > :nth-child(3) { left: 120px; }
+          .risk-register-full-table tr > :nth-child(4) { left: 220px !important; box-shadow: none !important; }
+          .risk-register-full-table tr > :nth-child(5) { left: 410px !important; box-shadow: 2px 0 0 #c7d2fe; }
+        }
+        .dark .risk-register-full-table tbody tr.print-table-row td { background: #0f172a; }
+        .dark .risk-register-full-table tbody tr.print-table-row:hover td,
+        .dark .risk-register-full-table thead tr:nth-child(2) th { background: #1e293b; color: #e2e8f0; }
+        @media print {
+          .risk-register-full-table { min-width: 0 !important; table-layout: auto !important; }
+          .risk-register-full-table col { width: auto !important; }
+          .risk-register-full-table th, .risk-register-full-table td { position: static !important; box-shadow: none !important; }
+        }
         @media print {
           @page {
             size: A4 landscape;
@@ -762,28 +791,13 @@ export default function Reports() {
         ]}
       />
 
-      {/* Top Header Banner (Relaxing & Positive) */}
-      <div className="no-print bg-gradient-to-br from-indigo-50 via-white to-emerald-50 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900 rounded-3xl p-6 md:p-8 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all relative overflow-hidden border border-white/50 dark:border-slate-700/50">
-        <div className="absolute -top-12 -right-10 w-48 h-48 bg-emerald-100/40 dark:bg-emerald-900/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-indigo-100/40 dark:bg-indigo-900/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="space-y-2.5 relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/70 dark:bg-slate-700/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-600/50 text-indigo-600 dark:text-indigo-300 text-xs font-semibold tracking-wide shadow-sm">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
-            ทะเบียน • เมทริกซ์ • มาตรฐานความปลอดภัย
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-2.5">
-            ติดตามความเสี่ยง Risk register
-          </h1>
-          <p className="text-sm text-slate-600 dark:text-slate-400 max-w-lg leading-relaxed">
-            เชื่อมสัญญาณจากอุบัติการณ์กับทะเบียนความเสี่ยง งานทบทวน และผลของมาตรการ เพื่อวางแผนความปลอดภัยร่วมกัน
-          </p>
-        </div>
-
+      <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
+        <h1 className="text-lg font-bold text-slate-800 dark:text-white">ติดตามความเสี่ยง Risk register</h1>
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-3 relative z-10">
           <button
             onClick={handleOpenCreateModal}
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600/90 hover:bg-indigo-600 text-white font-medium text-xs sm:text-sm rounded-full shadow-sm hover:shadow-md transition-all cursor-pointer"
+            className="flex items-center gap-2 px-3 py-2 bg-indigo-600/90 hover:bg-indigo-600 text-white font-medium text-xs sm:text-sm rounded-full shadow-sm hover:shadow-md transition-all cursor-pointer"
           >
             <span className="text-lg leading-none">+</span>
             เพิ่มรายการใหม่
@@ -792,7 +806,7 @@ export default function Reports() {
           <button
             onClick={exportToCSV}
             disabled={!reportReady}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white/60 dark:bg-slate-700/60 backdrop-blur hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs sm:text-sm rounded-full border border-slate-200 dark:border-slate-600 shadow-sm transition-all cursor-pointer"
+            className="flex items-center gap-2 px-3 py-2 bg-white/60 dark:bg-slate-700/60 backdrop-blur hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs sm:text-sm rounded-full border border-slate-200 dark:border-slate-600 shadow-sm transition-all cursor-pointer"
             title="ส่งออกเป็นไฟล์ Excel / CSV"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -802,7 +816,7 @@ export default function Reports() {
           <button
             onClick={handlePrintTable}
             disabled={!reportReady}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white/60 dark:bg-slate-700/60 backdrop-blur hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs sm:text-sm rounded-full border border-slate-200 dark:border-slate-600 shadow-sm transition-all cursor-pointer"
+            className="flex items-center gap-2 px-3 py-2 bg-white/60 dark:bg-slate-700/60 backdrop-blur hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs sm:text-sm rounded-full border border-slate-200 dark:border-slate-600 shadow-sm transition-all cursor-pointer"
             title="พิมพ์ตารางรายงานออกทางเครื่องพิมพ์"
           >
             <Printer className="w-4 h-4 text-slate-600 dark:text-slate-400" />
@@ -811,10 +825,13 @@ export default function Reports() {
         </div>
       </div>
 
-      <details className="no-print rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-        <summary className="cursor-pointer text-sm font-semibold text-indigo-700 dark:text-indigo-300">ดูแนวโน้มและงานติดตามเพื่อวางแผนความปลอดภัย</summary>
-        <div className="mt-4"><RiskDecisionSupport departments={departments} department={selectedDept} onDepartmentChange={setSelectedDept} refreshKey={dataRevision} onOpenRisk={id => handleOpenDetailModal({ id })} /></div>
-      </details>
+      <div className="no-print flex flex-wrap gap-2" role="group" aria-label="มุมมองติดตามความเสี่ยง">
+        {([['insights', 'แนวโน้มและงานติดตาม'], ['register', 'ทะเบียนความเสี่ยง']] as const).map(([view, label]) =>
+          <button key={view} type="button" aria-pressed={workspaceView === view} onClick={() => setWorkspaceView(view)}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold ${workspaceView === view ? 'bg-indigo-600 text-white' : 'border border-slate-200 bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>{label}</button>)}
+      </div>
+      {workspaceView === 'insights' && <RiskDecisionSupport departments={departments} department={selectedDept} onDepartmentChange={setSelectedDept} refreshKey={dataRevision} onOpenRisk={id => handleOpenDetailModal({ id })} />}
+      <div className={`${workspaceView === 'register' ? 'space-y-3' : 'hidden'} print:block`}>
       <h2 className="no-print text-xl font-bold text-slate-800 dark:text-white">ทะเบียนความเสี่ยงและเครื่องมือทบทวน</h2>
       <div className="no-print flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600 dark:text-slate-300">
         <span>ขอบเขต: {currentDeptName} · {printReportTitle[activeTab]} · ข้อมูลสะสมตามสิทธิ์{loadedAt && ` · โหลดล่าสุด ${loadedAt.toLocaleString('th-TH')}`}</span>
@@ -833,86 +850,86 @@ export default function Reports() {
       {loadErrors.length > 0 && <div role="alert" className="no-print rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">โหลด {loadErrors.join(', ')} ไม่สำเร็จ กรุณากดโหลดข้อมูลใหม่ ข้อมูลส่วนที่โหลดไม่สำเร็จจะไม่แสดงเป็นยอดศูนย์</div>}
       {/* KPI Cards Overview */}
       {stats && (
-        <div className="no-print grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-          <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm transition hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600">
+        <div className="no-print grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          <div className="bg-white dark:bg-slate-800/90 rounded-xl p-3 border border-slate-100 dark:border-slate-700 shadow-sm transition hover:shadow-md hover:border-slate-200 dark:hover:border-slate-600">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400">รายการทั้งหมด</span>
               <div className="p-1.5 rounded-full bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-400">
                 <Layers className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="mt-2 flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold text-slate-800 dark:text-white">{stats.total}</span>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-xl font-bold text-slate-800 dark:text-white">{stats.total}</span>
               <span className="text-xs text-slate-400 font-medium">รายการ</span>
             </div>
             <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">ทะเบียนตามขอบเขตที่เลือก</div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-rose-100 dark:border-rose-900/30 shadow-sm transition hover:shadow-md hover:border-rose-200">
+          <div className="bg-white dark:bg-slate-800/90 rounded-xl p-3 border border-rose-100 dark:border-rose-900/30 shadow-sm transition hover:shadow-md hover:border-rose-200">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-rose-600 dark:text-rose-400">ต้องจัดการด่วน (Extreme)</span>
               <div className="p-1.5 rounded-full bg-rose-50/50 dark:bg-rose-950/30 text-rose-500 dark:text-rose-400">
                 <Flame className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="mt-2 flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold text-rose-600 dark:text-rose-400">{stats.extremeCount}</span>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-xl font-bold text-rose-600 dark:text-rose-400">{stats.extremeCount}</span>
               <span className="text-xs text-rose-400 font-medium">15-25 คะแนน</span>
             </div>
             <div className="mt-1 text-[11px] text-rose-500/80 dark:text-rose-400/80 font-medium">รอการแก้ไข</div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-amber-100 dark:border-amber-900/30 shadow-sm transition hover:shadow-md hover:border-amber-200">
+          <div className="bg-white dark:bg-slate-800/90 rounded-xl p-3 border border-amber-100 dark:border-amber-900/30 shadow-sm transition hover:shadow-md hover:border-amber-200">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-amber-600 dark:text-amber-400">ควรให้ความสนใจ (High)</span>
               <div className="p-1.5 rounded-full bg-amber-50/50 dark:bg-amber-950/30 text-amber-500 dark:text-amber-400">
                 <AlertTriangle className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="mt-2 flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.highCount}</span>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-xl font-bold text-amber-600 dark:text-amber-400">{stats.highCount}</span>
               <span className="text-xs text-amber-400 font-medium">9-14 คะแนน</span>
             </div>
             <div className="mt-1 text-[11px] text-amber-600/80 dark:text-amber-400/80 font-medium">เฝ้าระวัง</div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-emerald-100 dark:border-emerald-900/30 shadow-sm transition hover:shadow-md hover:border-emerald-200">
+          <div className="bg-white dark:bg-slate-800/90 rounded-xl p-3 border border-emerald-100 dark:border-emerald-900/30 shadow-sm transition hover:shadow-md hover:border-emerald-200">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">ความเสี่ยงปานกลาง (Medium)</span>
               <div className="p-1.5 rounded-full bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-500 dark:text-emerald-400">
                 <Activity className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="mt-2 flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.mediumCount}</span>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{stats.mediumCount}</span>
               <span className="text-xs text-emerald-400 font-medium">4-8 คะแนน</span>
             </div>
             <div className="mt-1 text-[11px] text-emerald-500/80 dark:text-emerald-400/80 font-medium">ติดตามตามแผนควบคุม</div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-purple-100 dark:border-purple-900/30 shadow-sm transition hover:shadow-md hover:border-purple-200">
+          <div className="bg-white dark:bg-slate-800/90 rounded-xl p-3 border border-purple-100 dark:border-purple-900/30 shadow-sm transition hover:shadow-md hover:border-purple-200">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-purple-600 dark:text-purple-400">ทะเบียน Never Events</span>
               <div className="p-1.5 rounded-full bg-purple-50/50 dark:bg-purple-950/30 text-purple-500 dark:text-purple-400">
                 <ShieldCheck className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="mt-2 flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.neverEventCount}</span>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-xl font-bold text-purple-600 dark:text-purple-400">{stats.neverEventCount}</span>
               <span className="text-xs text-purple-400 font-medium">ทะเบียน</span>
             </div>
             <div className="mt-1 text-[11px] text-purple-500/80 dark:text-purple-400/80 font-medium">ต้องติดตามมาตรการป้องกัน</div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-4 border border-blue-100 dark:border-blue-900/30 shadow-sm transition hover:shadow-md hover:border-blue-200">
+          <div className="bg-white dark:bg-slate-800/90 rounded-xl p-3 border border-blue-100 dark:border-blue-900/30 shadow-sm transition hover:shadow-md hover:border-blue-200">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-600 dark:text-blue-400">กำหนดทบทวน</span>
               <div className="p-1.5 rounded-full bg-blue-50/50 dark:bg-blue-950/30 text-blue-500 dark:text-blue-400">
                 <Clock className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="mt-2 flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.dueSoonCount}</span>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-xl font-bold text-blue-600 dark:text-blue-400">{stats.dueSoonCount}</span>
               <span className="text-xs text-blue-400 font-medium">ใน 30 วัน</span>
             </div>
             <div className="mt-1 text-[11px] text-blue-500/80 dark:text-blue-400/80 font-medium">จัดสรรเวลาได้</div>
@@ -988,55 +1005,6 @@ export default function Reports() {
         </button>
       </div>
 
-      {/* User Permission & Department Scope Info Bar (Hidden on Print) */}
-      {(activeTab === 'hospital' || activeTab === 'department' || activeTab === 'due') && (
-        <div className="no-print bg-slate-900 text-slate-100 border border-slate-800 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-md">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-              <UserCheck className="w-4 h-4 shrink-0" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-slate-300">เข้าสู่ระบบ:</span>
-                <span className="text-white font-bold">{user?.name || 'ผู้ใช้งานระบบ (ทั่วไป)'}</span>
-                {user?.department_id && (
-                  <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 font-bold text-[11px]">
-                    🏢 {departments.find(d => String(d.id) === String(user.department_id))?.depart_name || `แผนกรหัส ${user.department_id}`}
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                ข้อมูลแสดงตามหน่วยงานที่เลือกและสิทธิ์ของบัญชี · การลบทะเบียนสงวนสำหรับ Admin
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            {user?.department_id && (
-              <button
-                onClick={() => {
-                  setSelectedDept(String(user.department_id));
-                  setActiveTab('department');
-                  setSearchQuery(''); setSelectedSource('all'); setSelectedCategory('all');
-                  setSelectedRiskLevel('all'); setSelectedStatus('all'); setOnlyNeverEvents(false);
-                }}
-                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition shadow-sm flex items-center gap-1.5"
-              >
-                <span>📍 ดูเฉพาะแผนกของฉัน</span>
-              </button>
-            )}
-            <button
-              onClick={() => {
-                setSelectedDept('all');
-              }}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium border border-slate-700 transition"
-            >
-              ดูทั้งหมด
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* FILTER TOOLBAR FOR RISK REGISTERS */}
       {(activeTab === 'hospital' || activeTab === 'department' || activeTab === 'due') && (
         <div className="no-print bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700/80 shadow-xs space-y-3">
@@ -1087,10 +1055,10 @@ export default function Reports() {
                 className="px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
               >
                 <option value="all">ทุกระดับคะแนน</option>
-                <option value="red">🔴 Extreme (วิกฤต 15-25)</option>
-                <option value="orange">🟠 High (สูง 9-14)</option>
+                <option value="red">Extreme (วิกฤต 15-25)</option>
+                <option value="orange">High (สูง 9-14)</option>
                 <option value="yellow">🟡 Medium (ปานกลาง 4-8)</option>
-                <option value="green">🟢 Low (ต่ำ 1-3)</option>
+                <option value="green">Low (ต่ำ 1-3)</option>
               </select>
 
               {/* Status Filter */}
@@ -1160,27 +1128,28 @@ export default function Reports() {
           {/* TABLE */}
           {registerView === 'overview' && <RiskRegisterOverview risks={filteredRisks} loading={loading} failed={loadErrors.includes('ทะเบียนความเสี่ยง')} badge={getRiskBadge} canEdit={canEditRisk} onDetail={handleOpenDetailModal} onReview={handleOpenReviewModal} />}
           <div className={`overflow-x-auto ${registerView === 'overview' ? 'hidden print:block' : ''}`}>
-            <table className="w-full text-left text-xs text-slate-700 print-table border-collapse">
+            <table className="risk-register-full-table w-full text-left text-xs text-slate-700 dark:text-slate-200 print-table border-separate border-spacing-0">
+              <colgroup>{[40,80,100,190,210,128,64,90,220,96,72,40,40,96,220,180,180,180,96].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
               {/* TWO-TIER OFFICIAL SPREADSHEET HEADER */}
               <thead className="select-none font-bold border-b border-slate-300">
                 {/* TIER 1: Category Groups with Color Coding */}
-                <tr className="text-center font-extrabold text-white text-[11px] tracking-wide uppercase">
-                  <th colSpan={5} className="bg-sky-700 py-2.5 px-2 border-r border-sky-600">
-                    🔷 1. Risk Identification (การระบุความเสี่ยง)
+                <tr className="text-center font-extrabold text-slate-700 dark:text-slate-200 text-[11px] tracking-wide uppercase">
+                  <th colSpan={5} className="bg-indigo-200 text-indigo-950 dark:bg-indigo-900 dark:text-indigo-100 py-2.5 px-2 border-r border-indigo-400">
+                    1. Risk Identification (การระบุความเสี่ยง)
                   </th>
-                  <th colSpan={6} className="bg-emerald-700 py-2.5 px-2 border-r border-emerald-600">
-                    🟢 2. Risk Monitoring & Review (การติดตามและทบทวนความเสี่ยง)
+                  <th colSpan={6} className="bg-teal-200 text-teal-950 dark:bg-teal-900 dark:text-teal-100 py-2.5 px-2 border-r border-teal-500">
+                    2. Risk Monitoring & Review (การติดตามและทบทวนความเสี่ยง)
                   </th>
-                  <th colSpan={3} className="bg-amber-600 py-2.5 px-2 border-r border-amber-500">
-                    🟠 3. Risk Analysis (การวิเคราะห์)
+                  <th colSpan={3} className="bg-amber-200 text-amber-950 dark:bg-amber-900 dark:text-amber-100 py-2.5 px-2 border-r border-amber-300">
+                    3. Risk Analysis (การวิเคราะห์)
                   </th>
-                  <th colSpan={3} className="bg-purple-700 py-2.5 px-2 border-r border-purple-600">
-                    🟣 4. Risk Treatment Plan (แผนจัดการความเสี่ยง 4 ด้าน)
+                  <th colSpan={3} className="bg-violet-200 text-violet-950 dark:bg-violet-900 dark:text-violet-100 py-2.5 px-2 border-r border-violet-400">
+                    4. Risk Treatment Plan (แผนจัดการความเสี่ยง 4 ด้าน)
                   </th>
-                  <th colSpan={1} className="bg-rose-700 py-2.5 px-2 border-r border-rose-600">
-                    🔴 5. QI Plan
+                  <th colSpan={1} className="bg-rose-200 text-rose-950 dark:bg-rose-900 dark:text-rose-100 py-2.5 px-2 border-r border-rose-300">
+                    5. QI Plan
                   </th>
-                  <th colSpan={1} className="bg-slate-800 py-2.5 px-2 no-print">
+                  <th colSpan={1} className="bg-slate-100 dark:bg-slate-800 py-2.5 px-2 no-print">
                     ⚙️ จัดการ
                   </th>
                 </tr>
@@ -1224,14 +1193,14 @@ export default function Reports() {
               <tbody className="divide-y divide-slate-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={18} className="py-12 text-center text-slate-400">
+                    <td colSpan={19} className="py-12 text-center text-slate-400">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-500" />
                       กำลังโหลดข้อมูลทะเบียนความเสี่ยงโรงพยาบาล...
                     </td>
                   </tr>
                 ) : filteredRisks.length === 0 ? (
                   <tr>
-                    <td colSpan={18} className="py-12 text-center text-slate-400">
+                    <td colSpan={19} className="py-12 text-center text-slate-400">
                       <ShieldAlert className="w-10 h-10 mx-auto mb-2 text-slate-300" />
                       {loadErrors.includes('ทะเบียนความเสี่ยง') ? 'ยังแสดงทะเบียนไม่ได้ เนื่องจากโหลดข้อมูลไม่สำเร็จ' : 'ยังไม่มีทะเบียนความเสี่ยงที่บันทึกตรงกับหน่วยงานหรือเงื่อนไขที่เลือก'}
                     </td>
@@ -1256,7 +1225,7 @@ export default function Reports() {
                     return (
                       <React.Fragment key={catName}>
                         <tr className="bg-slate-100/50 dark:bg-slate-900/50">
-                          <td colSpan={18} className={`py-3 px-4 font-black text-xs tracking-wide ${headerColorClass}`}>
+                          <td colSpan={19} className={`py-3 px-4 font-black text-xs tracking-wide ${headerColorClass}`}>
                             📁 หมวดหมู่: {catName} ({items.length} รายการความเสี่ยง)
                           </td>
                         </tr>
@@ -1637,6 +1606,7 @@ export default function Reports() {
                 refreshKey={dataRevision}
               />
       )}
+      </div>
       <OfficialPrintFooter />
 
       {/* ========================================================================= */}

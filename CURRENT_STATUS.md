@@ -79,4 +79,14 @@
 - รวมช่อง CMP ในข้อ 4 และใช้ข้อความเดียวกันในข้อมูลมาตรการ; หน่วยงานของรายงานถูกใช้โดยอัตโนมัติในหน้าหน่วยงาน
 - ปุ่มสถานะใช้ชื่อรอทำ RCA หน่วยงาน; เมนูใช้ติดตามความเสี่ยง Risk register
 - ไม่มี schema/migration ใหม่และไม่แก้ข้อมูลจริง งานนำเข้าความเสี่ยงด้านยายังแยกอยู่นอก release นี้
-- ผู้ใช้สั่ง deploy; ขั้นตอนตรวจ production/backup รอ Tailscale SSH reauthentication ก่อน push main
+- Deploy สำเร็จ 2 ต.ค. 2569 เวลา 13:30 น. (ไทย): running/main commit 4daf349cd12c1ca9dc0bc004b9aba0f414bf8b04, service active, health ok/database connected
+- Backup ของ updater: /var/backups/riskhrms/riskhrms-db-20261002T062859Z.sql; SHA-256 509726b58ef456f76346d8cbee1a0b866103fafe9c87a10d9e95804c25bd624c; ไม่มี pending migration
+- Archive stale auto-deploy block ที่เกิดก่อน deploy สำเร็จรอบเดิม หลังตรวจว่า commit/state ตรงกันและ health ปกติ แล้วให้ poller เรียก updater ตาม pipeline
+- Backend tests 113 ผ่าน; updater build frontend/backend ผ่าน; ทดลอง login, เปิดรายการและรายละเอียดแบบอ่านอย่างเดียว, ตรวจชื่อเมนู Risk register/ปุ่มรอ RCA/ทางเข้าเครื่องมือ โดยไม่บันทึกเหตุการณ์จริง เครื่องมือในเรื่องที่ตรวจถูกปิดตามสิทธิ/เงื่อนไข จึงไม่ได้ทดลองบันทึก RCA จริง
+
+### Risk register workspace — 2 ตุลาคม 2569
+
+- รวมแนวโน้มและงานติดตามเป็นมุมมองหลัก ลดพื้นที่ส่วนหัว สลับขั้นตอนทะเบียนความเสี่ยง/ติดตามมาตรการ
+- ล็อกส่วนระบุความเสี่ยงและรายละเอียด ปรับสีตารางให้อ่อนและแยกกลุ่มชัดเจน ลบแถบข้อมูลผู้ใช้ซ้ำ
+- frontend/backend build ผ่าน ตรวจหน้าเดสก์ท็อปและจอแคบแล้ว ไม่มี schema migration หรือการแก้ข้อมูลจริง
+- เตรียม release ผ่าน GitHub main และ production poller; backup /var/backups/riskhrms/riskhrms-db-20261002T113111Z.sql
