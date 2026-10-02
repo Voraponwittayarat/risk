@@ -269,11 +269,21 @@ export class RcaService {
   }
 
   async createMiniConcise(data: CreateRcaCaseDto, user?: any) {
+    if (!['admin', 'head', 'rm_committee'].includes(String(user?.role || ''))) {
+      throw new ForbiddenException('เฉพาะผู้มีสิทธิ์ทบทวนเท่านั้นที่เริ่ม RCA ได้');
+    }
     const source = data.incidents?.[0];
     if (!source?.incident_id) throw new BadRequestException('ต้องสร้าง RCA จาก incident_id');
     const incident = await this.prisma.riskregister.findFirst({ where: { id: source.incident_id } });
     if (!incident?.nrls_code) throw new BadRequestException('อุบัติการณ์ยังไม่มี NRLS ที่ถูกต้อง');
     await this.assertDepartmentAccess(incident.department_id, user);
+    if (!['ตรวจสอบ', 'ทบทวน'].includes(String(incident.status_risk || ''))) {
+      throw new BadRequestException('สร้าง RCA ได้เฉพาะความเสี่ยงที่ยืนยันแล้วและยังเปิดอยู่');
+    }
+    const requiredMode = String(incident.recommended_rca_type || '').toUpperCase();
+    if (['STANDARD', 'FULL'].includes(requiredMode) || (data.rca_type === 'mini' && requiredMode === 'CONCISE')) {
+      throw new BadRequestException('กรุณาใช้ชนิด RCA ตามเกณฑ์ของเหตุการณ์ ไม่ลดระดับการวิเคราะห์');
+    }
     const duplicate = await this.prisma.rca_case.findFirst({ where: { incident_id: incident.id, rca_type: data.rca_type } });
     if (duplicate) throw new ConflictException(`มี ${data.rca_type} RCA สำหรับอุบัติการณ์นี้แล้ว`);
     const caseId = data.id || `RCA-${data.rca_type.toUpperCase()}-${Date.now().toString().slice(-6)}`;

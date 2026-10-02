@@ -2,6 +2,25 @@ import { BadRequestException, ConflictException, ForbiddenException } from '@nes
 import { RcaService } from './rca.service';
 
 describe('RcaService incident review queue', () => {
+  it('does not let a staff account create Mini RCA by calling the API directly', async () => {
+    const service = new RcaService({} as any, {} as any, {} as any);
+    await expect(service.createMiniConcise({ topic: 'ทดสอบ', rca_type: 'mini', review_date: '2026-10-02', incidents: [{ incident_id: 10 }] }, { role: 'staff', departmentId: 1 }))
+      .rejects.toThrow(ForbiddenException);
+  });
+  it.each(['รายงาน', 'แก้ไข', 'จำหน่าย', 'ไม่ใช่ความเสี่ยง'])('rejects Mini RCA for incident status %s', async (status) => {
+    const prisma: any = { riskregister: { findFirst: jest.fn().mockResolvedValue({ id: 10, nrls_code: 'CPS101', status_risk: status }) } };
+    const service = new RcaService(prisma, {} as any, {} as any);
+    await expect(service.createMiniConcise({ topic: 'ทดสอบ', rca_type: 'mini', review_date: '2026-10-02', incidents: [{ incident_id: 10 }] }, { role: 'admin' }))
+      .rejects.toThrow(BadRequestException);
+  });
+
+  it.each([['mini', 'STANDARD'], ['mini', 'FULL'], ['mini', 'CONCISE'], ['concise', 'STANDARD']])('rejects %s when criteria recommend %s', async (mode, required) => {
+    const prisma: any = { riskregister: { findFirst: jest.fn().mockResolvedValue({ id: 10, nrls_code: 'CPS101', status_risk: 'ทบทวน', recommended_rca_type: required }) } };
+    const service = new RcaService(prisma, {} as any, {} as any);
+    await expect(service.createMiniConcise({ topic: 'ทดสอบ', rca_type: mode as 'mini' | 'concise', review_date: '2026-10-02', incidents: [{ incident_id: 10 }] }, { role: 'admin' }))
+      .rejects.toThrow(BadRequestException);
+  });
+
   it('starts the FY2570 queue on 1 October Bangkok time and excludes future reviews', async () => {
     const prisma: any = {
       riskreview: { findMany: jest.fn().mockResolvedValue([]) },

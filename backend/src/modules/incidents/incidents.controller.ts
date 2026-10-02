@@ -362,8 +362,8 @@ export class IncidentsController {
 
   @Post(':id/review/send-rca')
   @ApiOperation({ summary: 'Queue a reviewed incident in the RCA center' })
-  sendReviewToRca(@Param('id') id: string, @Request() req) {
-    return this.incidentsService.sendReviewToRca(+id, req.user);
+  sendReviewToRca(@Param('id') id: string, @Request() req, @Body() body: { direct?: boolean; reason?: string }) {
+    return this.incidentsService.sendReviewToRca(+id, req.user, body);
   }
 
   @Post(':id/forward')

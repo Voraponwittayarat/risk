@@ -494,6 +494,75 @@ describe('IncidentsService incident permissions', () => {
     expect(result).toMatchObject({ rca_status: 'REQUIRED', already_existed: false });
   });
 
+  it('queues a confirmed incident directly without fabricating a review or measures', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({ ...pendingIncident, status_risk: 'ตรวจสอบ', nrls_code: 'CPS101' });
+    prisma.riskreview.findFirst.mockResolvedValue(null);
+    prisma.standard_rca_case.findFirst.mockResolvedValue(null);
+    const reason = 'ต้องการให้ศูนย์ RCA วิเคราะห์ร่วมหลายหน่วยงาน';
+    const result = await service.sendReviewToRca(10,
+      { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 }, { direct: true, reason });
+    expect(result.rca_status).toBe('REQUIRED');
+    expect(prisma.riskreview.create).not.toHaveBeenCalled();
+    expect(prisma.incident_review_entry.create).not.toHaveBeenCalled();
+    expect(prisma.standard_rca_case.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'PENDING', contributing_factors: null }),
+    }));
+    expect(prisma.workflow_audit.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'RCA_QUEUED_DIRECTLY', reason }),
+    }));
+  });
+
+  it('requires a reason for direct referral even when an earlier review exists', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({ ...pendingIncident, status_risk: 'ตรวจสอบ', nrls_code: 'CPS101' });
+    await expect(service.sendReviewToRca(10,
+      { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 }, { direct: true, reason: 'สั้น' }))
+      .rejects.toThrow(BadRequestException);
+    expect(prisma.standard_rca_case.create).not.toHaveBeenCalled();
+  });
+
+  it('keeps the legacy referral requiring an actual review', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({ ...pendingIncident, status_risk: 'ตรวจสอบ', nrls_code: 'CPS101' });
+    prisma.riskreview.findFirst.mockResolvedValue(null);
+    await expect(service.sendReviewToRca(10,
+      { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 }))
+      .rejects.toThrow(BadRequestException);
+  });
+
+  it('does not let direct referral bypass confirmation', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({ ...pendingIncident, nrls_code: 'CPS101' });
+    await expect(service.sendReviewToRca(10,
+      { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 }, { direct: true, reason: 'ขอวิเคราะห์สาเหตุโดยศูนย์ RCA' }))
+      .rejects.toThrow();
+    expect(prisma.standard_rca_case.create).not.toHaveBeenCalled();
+  });
+
+  it('reuses a queued RCA when directly referring again', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({ ...pendingIncident, status_risk: 'ทบทวน', nrls_code: 'CPS101' });
+    prisma.riskreview.findFirst.mockResolvedValue(null);
+    prisma.standard_rca_case.findFirst.mockResolvedValue({ id: 'RCA-existing', status: 'PENDING' });
+    const result = await service.sendReviewToRca(10,
+      { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 }, { direct: true, reason: 'ขอให้ศูนย์ RCA รับวิเคราะห์เรื่องเดิม' });
+    expect(result.rca_case_id).toBe('RCA-existing');
+    expect(prisma.standard_rca_case.create).not.toHaveBeenCalled();
+  });
+
+  it.each(['CANCELLED', 'COMPLETED'])('does not reactivate a %s RCA through direct referral', async (status) => {
+    prisma.riskregister.findFirst.mockResolvedValue({ ...pendingIncident, status_risk: 'ทบทวน', nrls_code: 'CPS101' });
+    prisma.standard_rca_case.findFirst.mockResolvedValue({ id: 'RCA-existing', status });
+    await expect(service.sendReviewToRca(10,
+      { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 }, { direct: true, reason: 'ขอให้ศูนย์ RCA รับวิเคราะห์เรื่องเดิม' }))
+      .rejects.toThrow(BadRequestException);
+    expect(prisma.riskregister.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('does not grant staff direct referral permission', async () => {
+    prisma.riskregister.findFirst.mockResolvedValue({ ...pendingIncident, status_risk: 'ตรวจสอบ', nrls_code: 'CPS101' });
+    await expect(service.sendReviewToRca(10,
+      { id: 20, role: 'staff', departmentId: 1 }, { direct: true, reason: 'ขอให้ศูนย์ RCA รับวิเคราะห์เรื่องเดิม' }))
+      .rejects.toThrow(ForbiddenException);
+    expect(prisma.standard_rca_case.create).not.toHaveBeenCalled();
+  });
+
   it('keeps a high-severity resolved incident open for RM closure', async () => {
     prisma.riskregister.findFirst.mockResolvedValue({
       ...pendingIncident,

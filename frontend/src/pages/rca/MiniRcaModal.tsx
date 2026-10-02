@@ -25,13 +25,15 @@ interface MiniRcaModalProps {
     department_name?: string;
     detail?: string;
     date_risk?: string;
+    date_report?: string;
+    nrls_name_snapshot?: string;
   };
   onSuccess?: () => void;
 }
 
 export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, incident, onSuccess }) => {
   const { user } = useAuth();
-  const [topic, setTopic] = useState(incident.risk_name || incident.topic || 'ทบทวนสาเหตุเชิงระบบ Mini RCA');
+  const [topic, setTopic] = useState(incident.nrls_name_snapshot || incident.risk_name || incident.topic || 'ทบทวนสาเหตุเชิงระบบ Mini RCA');
   const [incidentDetail, setIncidentDetail] = useState(incident.detail || '');
   const [holes, setHoles] = useState<SwissCheeseHole[]>([]);
   const [cmpProblem, setCmpProblem] = useState('');
@@ -60,7 +62,7 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
         topic,
         rca_type: 'mini',
         review_date: new Date().toISOString(),
-        incident_date: incident.date_risk ? new Date(incident.date_risk).toISOString() : new Date().toISOString(),
+        incident_date: incident.date_report || incident.date_risk || undefined,
         incident_detail: incidentDetail,
         created_by: user?.id || 1,
         incidents: [
@@ -93,7 +95,7 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
       };
 
       await axios.post('/rca/cases', payload);
-      alert('บันทึกการทบทวน Mini RCA เรียบร้อยแล้ว!');
+      alert('บันทึก Mini RCA แล้ว สถานะกำลังดำเนินการ กรุณาติดตามและสรุปผลในศูนย์ RCA');
       if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
@@ -117,14 +119,14 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  ทบทวนด่วน Mini RCA (Swiss Cheese Model)
+                  วิเคราะห์ Mini RCA
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300">
                   เคสเดียว (Single Case)
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                วิเคราะห์ช่องโหว่ด่านป้องกันและกำหนดมาตรการแก้ไขอย่างรวดเร็วสำหรับเหตุการณ์ระดับ C-F หรือ Near Miss
+                วิเคราะห์สาเหตุและมาตรการระดับหน่วยงาน บันทึกแล้วเคสยังเปิดอยู่เพื่อดำเนินการและติดตามผลต่อ
               </p>
             </div>
           </div>

@@ -2741,11 +2741,19 @@ export class IncidentsService {
     return { department_outcome: departmentOutcome, review_id: reviewId, structured_review_id: structuredReviewId };
   }
 
-  async sendReviewToRca(id: number, user?: any) {
+  async sendReviewToRca(id: number, user?: any, request: { direct?: boolean; reason?: string } = {}) {
     const incident = await this.prisma.riskregister.findFirst({ where: { id } });
     if (!incident) throw new NotFoundException('Incident not found');
     const permissions = await this.getIncidentPermissions(user, incident);
     this.assertPermission(permissions.canForward, 'ไม่มีสิทธิ์ส่งเรื่องเข้าศูนย์ RCA');
+    if (!['ตรวจสอบ', 'ทบทวน'].includes(String(incident.status_risk || ''))) {
+      throw new BadRequestException('ต้องยืนยันความเสี่ยงก่อนส่งเข้าศูนย์ RCA');
+    }
+    const direct = request.direct === true;
+    const reason = String(request.reason || '').trim();
+    if (direct && (reason.length < 10 || reason.length > 2000)) {
+      throw new BadRequestException('กรุณาระบุเหตุผลส่งเข้าศูนย์ RCA 10–2000 ตัวอักษร');
+    }
     if (!incident.nrls_code) throw new BadRequestException('ต้องยืนยันรหัสมาตรฐาน NRLS ก่อนส่งเรื่องเข้าศูนย์ RCA');
     if (['จำหน่าย', 'ไม่ใช่ความเสี่ยง'].includes(String(incident.status_risk || ''))) {
       throw new BadRequestException('เคสนี้สิ้นสุดแล้ว ไม่สามารถส่งเข้าศูนย์ RCA ได้');
@@ -2756,7 +2764,7 @@ export class IncidentsService {
       orderBy: [{ review_date: 'desc' }, { id: 'desc' }],
       select: { id: true, contributing_factors: true },
     });
-    if (!latestReview) throw new BadRequestException('กรุณาบันทึกผลการทบทวนก่อนส่งเรื่องเข้าศูนย์ RCA');
+    if (!latestReview && !direct) throw new BadRequestException('กรุณาบันทึกผลการทบทวนก่อนส่งเรื่องเข้าศูนย์ RCA');
 
     const actorId = this.getUserId(user);
     return this.prisma.$transaction(async (tx) => {
@@ -2764,6 +2772,9 @@ export class IncidentsService {
         where: { incident_id: incident.id },
         select: { id: true, status: true, completed_at: true },
       });
+      if (existingRca && ['CANCELLED', 'COMPLETED'].includes(String(existingRca.status || ''))) {
+        throw new BadRequestException('เอกสาร RCA เดิมสิ้นสุดแล้ว กรุณาตรวจประวัติก่อนเปิดทบทวนใหม่');
+      }
       const caseId = existingRca?.id
         || `RCA-FULL-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${incident.id}`;
 
@@ -2785,7 +2796,7 @@ export class IncidentsService {
             due_at: incident.rca_due_at,
             what_happened: incident.detail,
             actual_impact: incident.problem_basic,
-            contributing_factors: latestReview.contributing_factors,
+            contributing_factors: latestReview?.contributing_factors || null,
             status: 'PENDING',
             created_by: actorId || 1,
           },
@@ -2811,10 +2822,10 @@ export class IncidentsService {
         data: {
           entity_type: 'INCIDENT',
           entity_id: String(id),
-          action: 'RCA_QUEUED_FROM_REVIEW_SUMMARY',
+          action: direct ? 'RCA_QUEUED_DIRECTLY' : 'RCA_QUEUED_FROM_REVIEW_SUMMARY',
           old_value: JSON.stringify({ rca_status: incident.rca_status || null }),
-          new_value: JSON.stringify({ rca_status: rcaStatus, rca_case_id: caseId, review_id: latestReview.id }),
-          reason: 'ส่งเรื่องเข้าศูนย์ RCA จากหน้าสรุปผลการทบทวน',
+          new_value: JSON.stringify({ rca_status: rcaStatus, rca_case_id: caseId, review_id: latestReview?.id || null, direct }),
+          reason: direct ? reason : 'ส่งเรื่องเข้าศูนย์ RCA จากหน้าทบทวน',
           changed_by: actorId,
         },
       });

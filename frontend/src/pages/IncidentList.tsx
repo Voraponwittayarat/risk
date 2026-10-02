@@ -5,12 +5,11 @@ import { format } from 'date-fns';
 import { 
   Search, Plus, AlertTriangle, 
   ChevronLeft, ChevronRight,
-  Layers, Shield, ShieldAlert, ShieldCheck, X, CheckSquare, Square, Building2
+  Layers, ShieldCheck, X, CheckSquare, Square, Building2
 } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getStatusInfo, getSeverityBadge, isSentinelEvent } from '../utils/statusAdapter';
 import { useAuth } from '../contexts/AuthContext';
-import { MiniRcaModal } from './rca/MiniRcaModal';
 
 interface IncidentListProps {
   mode?: 'dept' | 'team' | 'pending';
@@ -29,10 +28,6 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
   
   // Multi-select State for Concise / Batch RCA
   const [selectedIncidents, setSelectedIncidents] = useState<any[]>([]);
-
-  // Mini RCA Modal State
-  const [miniRcaIncident, setMiniRcaIncident] = useState<any | null>(null);
-  const [isMiniRcaOpen, setIsMiniRcaOpen] = useState(false);
 
   // Filtering & Pagination State
   const requestedTab = searchParams.get('tab');
@@ -226,7 +221,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
     { id: 'sentinel', label: '⚠️ ความรุนแรงสูง (Sentinel)', countKey: 'sentinel' },
   ];
 
-  const renderIncidentActions = (inc: any, isSentinel: boolean, compact = false) => {
+  const renderIncidentActions = (inc: any, _isSentinel: boolean, compact = false) => {
     const status = inc.status_risk || 'รายงาน';
     const isPending = status === 'รายงาน' || status === 'แก้ไข';
     const isConfirmed = status === 'ตรวจสอบ';
@@ -255,25 +250,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
         <ShieldCheck className="w-4 h-4" />
         <span>{detailLabel}</span>
       </Link>
-      {isReviewing && canManageWorkflow && (isSentinel ? (
-        <button
-          type="button"
-          onClick={() => navigate('/rca/standard/new', { state: { incident: inc } })}
-          title="เปิด Standard Full RCA"
-          className={`${compact ? 'flex-1 justify-center py-2.5' : 'p-2'} inline-flex items-center gap-1.5 rounded-xl border bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800 transition-all font-bold text-xs`}
-        >
-          <ShieldAlert className="w-4 h-4" />{compact && <span>ทบทวน RCA</span>}
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={() => { setMiniRcaIncident(inc); setIsMiniRcaOpen(true); }}
-          title="ทบทวนด่วน Mini RCA"
-          className={`${compact ? 'flex-1 justify-center py-2.5' : 'p-2'} inline-flex items-center gap-1.5 rounded-xl border bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800 transition-all font-bold text-xs`}
-        >
-          <Shield className="w-4 h-4" />{compact && <span>ทบทวนด่วน</span>}
-        </button>
-      ))}
+
     </div>
     );
   };
@@ -319,10 +296,10 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
           <div className="flex items-start gap-3">
             <div className="rounded-xl bg-blue-600 p-2 text-white"><Building2 className="h-4 w-4" /></div>
             <div className="min-w-0 flex-1">
-              <h2 className="text-sm font-bold text-blue-950 dark:text-blue-100">หน่วยงานเป็นผู้จัดการเหตุการณ์ก่อนส่งให้ทีม</h2>
+              <h2 className="text-sm font-bold text-blue-950 dark:text-blue-100">หน่วยงานเลือกแนวทางจัดการเหตุการณ์ได้จากหน้าทบทวน</h2>
               <div className="mt-2 grid gap-2 text-xs text-blue-800 dark:text-blue-200 sm:grid-cols-3">
                 <div className="rounded-xl border border-blue-100 bg-white/70 p-3 dark:border-blue-900 dark:bg-slate-900/40"><strong>1. ยืนยันข้อมูล</strong><span className="mt-1 block text-[11px] opacity-80">ตรวจ NRLS ระดับความรุนแรง และหน่วยงานรับผิดชอบ</span></div>
-                <div className="rounded-xl border border-blue-100 bg-white/70 p-3 dark:border-blue-900 dark:bg-slate-900/40"><strong>2. บันทึกการทบทวนหน่วยงาน</strong><span className="mt-1 block text-[11px] opacity-80">ระบุสาเหตุ การแก้ไขเบื้องต้น และมาตรการที่ทำแล้ว</span></div>
+                <div className="rounded-xl border border-blue-100 bg-white/70 p-3 dark:border-blue-900 dark:bg-slate-900/40"><strong>2. เลือกแนวทางทบทวน</strong><span className="mt-1 block text-[11px] opacity-80">ทบทวนในหน่วยงาน หรือส่งศูนย์ RCA โดยระบุเหตุผล</span></div>
                 <div className="rounded-xl border border-blue-100 bg-white/70 p-3 dark:border-blue-900 dark:bg-slate-900/40"><strong>3. เลือกเส้นทางต่อ</strong><span className="mt-1 block text-[11px] opacity-80">จบที่หน่วยงาน ติดตามมาตรการ หรือขอทีมช่วยตามความจำเป็น</span></div>
               </div>
             </div>
@@ -857,18 +834,7 @@ const IncidentList = ({ mode = 'dept', defaultTab }: IncidentListProps) => {
         </div>
       )}
 
-      {/* Mini RCA Modal */}
-      {miniRcaIncident && (
-        <MiniRcaModal
-          isOpen={isMiniRcaOpen}
-          onClose={() => {
-            setIsMiniRcaOpen(false);
-            setMiniRcaIncident(null);
-          }}
-          incident={miniRcaIncident}
-          onSuccess={() => fetchIncidents()}
-        />
-      )}
+
     </div>
   );
 };
