@@ -1,6 +1,7 @@
 import RiskWorkflowNav from '../components/RiskWorkflowNav';
 import RiskRegisterOverview from '../components/RiskRegisterOverview';
 import { reviewDue } from '../utils/riskReviewDue';
+import { reviewSummary, reviewEvidence, reviewPeriodStart } from '../utils/riskReviewGuide';
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { 
@@ -109,6 +110,8 @@ export default function Reports() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'hospital' | 'department' | 'matrix' | 'due' | 'standards'>(user?.role === 'admin' || user?.rmScope === 'hospital' ? 'hospital' : 'department');
   const [registerView, setRegisterView] = useState<'overview' | 'full'>('overview');
+  const [reviewProcess, setReviewProcess] = useState('');
+  const [reviewResults, setReviewResults] = useState('');
 
   // Data States
   const [risks, setRisks] = useState<any[]>([]);
@@ -420,19 +423,23 @@ export default function Reports() {
 
   // Open Review Modal
   const handleOpenReviewModal = (item: any) => {
+    setReviewProcess('');
+    setReviewResults('');
     setSelectedRiskItem(item);
     setReviewFormData({
       review_date: new Date().toISOString().split('T')[0],
-      period_start: item.period_start ? String(item.period_start).slice(0, 10) : new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().split('T')[0],
+      period_start: reviewPeriodStart(item.last_reviewed_date, new Date().toISOString().split('T')[0]),
       period_end: new Date().toISOString().split('T')[0],
       result_of_review: '',
       incident_count_in_period: 0,
-      current_likelihood: item.initial_likelihood,
-      current_consequence: item.initial_consequence,
-      updated_prevention: item.risk_prevention || '',
+      current_likelihood: item.latest_review?.current_likelihood ?? item.initial_likelihood,
+      current_consequence: item.latest_review?.current_consequence ?? item.initial_consequence,
+      updated_prevention: item.latest_review?.updated_prevention || item.risk_prevention || '',
       is_escalated: 0,
       escalation_target: 'PCT Committee',
       reviewed_by: '',
+      lifecycle_decision: 'KEEP',
+      effectiveness_evidence: '',
     });
     setIsReviewModalOpen(true);
   };
@@ -492,10 +499,21 @@ export default function Reports() {
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRiskItem || savingRef.current) return;
+    if (!reviewProcess.trim() || !reviewResults.trim() || !reviewFormData.result_of_review.trim()) {
+      alert('กรุณาระบุผลการปฏิบัติ ผลลัพธ์ และสาเหตุ/สิ่งที่ต้องปรับให้ครบ');
+      return;
+    }
+    if (reviewFormData.period_start > reviewFormData.period_end || reviewFormData.period_end > reviewFormData.review_date) {
+      alert('ช่วงข้อมูลต้องเรียงจากวันเริ่มถึงวันสิ้นสุด และไม่เกินวันที่ทบทวน');
+      return;
+    }
     savingRef.current = true;
     setSaving(true);
     try {
-      await axios.post(`/risk-analysis/${selectedRiskItem.id}/reviews`, reviewFormData);
+      await axios.post(`/risk-analysis/${selectedRiskItem.id}/reviews`, {
+        ...reviewFormData,
+        result_of_review: reviewSummary(reviewProcess, reviewResults, reviewFormData.result_of_review),
+      });
       setIsReviewModalOpen(false);
       setDataRevision(value => value + 1);
     } catch (err: any) {
@@ -754,7 +772,7 @@ export default function Reports() {
             ทะเบียน • เมทริกซ์ • มาตรฐานความปลอดภัย
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-2.5">
-            ติดตามความเสี่ยง
+            ติดตามความเสี่ยง Risk register
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 max-w-lg leading-relaxed">
             เชื่อมสัญญาณจากอุบัติการณ์กับทะเบียนความเสี่ยง งานทบทวน และผลของมาตรการ เพื่อวางแผนความปลอดภัยร่วมกัน
@@ -1084,7 +1102,7 @@ export default function Reports() {
                 <option value="all">ทุกสถานะ</option>
                 <option value="open">เปิด (Open)</option>
                 <option value="monitoring">เฝ้าระวังต่อเนื่อง (Monitoring)</option>
-                <option value="closed">ปิด (Closed)</option>
+                <option value="closed">ปิดแบบเฝ้าระวัง (สถานะเดิม)</option>
               </select>
 
               {/* Never Event Toggle */}
@@ -1362,7 +1380,7 @@ export default function Reports() {
                               ? 'bg-blue-50 text-blue-700 border border-blue-200'
                               : 'bg-amber-50 text-amber-700 border border-amber-200'
                           }`}>
-                            {item.status === 'closed' ? 'ปิด' : item.status === 'monitoring' ? 'เฝ้าระวัง' : 'เปิด'}
+                            {item.status === 'closed' ? 'ปิดแบบเฝ้าระวัง' : item.status === 'monitoring' ? 'เฝ้าระวัง' : 'เปิด'}
                           </span>
                         </td>
 
@@ -1838,14 +1856,6 @@ export default function Reports() {
               {/* Standards and Goals */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">เริ่มรอบคำนวณ *</label>
-                  <input type="date" required value={reviewFormData.period_start} onChange={e => setReviewFormData({ ...reviewFormData, period_start: e.target.value })} className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">สิ้นสุดรอบคำนวณ *</label>
-                  <input type="date" required value={reviewFormData.period_end} onChange={e => setReviewFormData({ ...reviewFormData, period_end: e.target.value })} className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
-                </div>
-                <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">เป้าหมายความปลอดภัย (2P Safety Goal)</label>
                   <input
                     type="text"
@@ -1964,10 +1974,10 @@ export default function Reports() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">3. การติดตามเฝ้าระวัง (Risk Monitor)</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">3. แผนติดตาม (จะติดตามอะไร)</label>
                     <textarea
                       rows={2}
-                      placeholder="KPI, ตัวชี้วัด, Environmental Round หรือการสุ่ม Audit..."
+                      placeholder="วิธีตรวจการปฏิบัติ ตัวชี้วัดผลลัพธ์ เป้าหมาย และความถี่ ส่วนผลที่พบให้บันทึกในผลทบทวน"
                       value={formData.risk_monitor}
                       onChange={e => setFormData({ ...formData, risk_monitor: e.target.value })}
                       className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 leading-relaxed"
@@ -2203,7 +2213,7 @@ export default function Reports() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">การติดตาม (Monitor)</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">แผนติดตาม (จะติดตามอะไร)</label>
                   <textarea
                     rows={2}
                     value={formData.risk_monitor}
@@ -2255,7 +2265,7 @@ export default function Reports() {
                   >
                     <option value="open">เปิด (Open)</option>
                     <option value="monitoring">เฝ้าระวังต่อเนื่อง (Monitoring)</option>
-                    <option value="closed">ปิดเคส (Closed)</option>
+                    <option value="closed">ปิดแบบเฝ้าระวัง (สถานะเดิม)</option>
                   </select>
                 </div>
               </div>
@@ -2323,16 +2333,39 @@ export default function Reports() {
                     🔢 จำนวนอุบัติการณ์จริงในรอบนี้ (Incident Count)
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     readOnly
-                    value={reviewFormData.incident_count_in_period}
+                    value="คำนวณเมื่อบันทึก"
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-slate-100 font-bold"
                   />
-                  <p className="mt-1 text-[11px] text-slate-500">Backend คำนวณจาก NRLS, ช่วงวันที่ และ scope เมื่อบันทึก</p>
+                  <p className="mt-1 text-[11px] text-slate-500">ระบบคำนวณจากรายงานที่ยืนยันแล้วตามหัวข้อความเสี่ยง หน่วยงาน และช่วงวันที่เมื่อบันทึก</p>
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">เริ่มรอบคำนวณ *</label>
+                  <input type="date" required value={reviewFormData.period_start} onChange={e => setReviewFormData({ ...reviewFormData, period_start: e.target.value })} className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">สิ้นสุดรอบคำนวณ *</label>
+                  <input type="date" required value={reviewFormData.period_end} onChange={e => setReviewFormData({ ...reviewFormData, period_end: e.target.value })} className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
+                </div>
+              </div>
               {/* Baseline / Current Measures Comparison Box (มาตรการเดิม) */}
+              <p className="text-xs text-slate-600">ตรวจช่วงวันที่ให้ตรงกับหลักฐาน: รอบแรกพิจารณาย้อนหลังหนึ่งปี รอบถัดไปเริ่มจากการทบทวนครั้งก่อน จำนวนรายงานในระบบอาจครอบคลุมเฉพาะช่วงที่มีข้อมูล NRLS</p>
+              <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm">
+                <strong>แผนติดตามที่กำหนดไว้ (จะติดตามอะไร):</strong>
+                <p className="whitespace-pre-line">{selectedRiskItem.risk_monitor || 'ยังไม่ระบุแผนติดตาม'}</p>
+                <p className="mt-2">บันทึกสิ่งที่พบจริงด้านล่าง ดู RCA/CAPA ที่เชื่อมโยงจากรายละเอียดความเสี่ยง</p>
+              </div>
+              {selectedRiskItem.is_never_event === 1 && <p className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">Never Event: ต้องให้ความสำคัญแม้คะแนน L × C ต่ำหรือไม่มีรายงานใหม่ พิจารณาประสิทธิผลของมาตรการร่วมด้วย</p>}
+              <label className="block text-sm font-semibold">ผลการปฏิบัติตามมาตรการ (Process) *
+                <textarea required rows={3} value={reviewProcess} onChange={e => setReviewProcess(e.target.value)} placeholder="ทำตามมาตรการได้ครบหรือไม่ มีอุปสรรคอะไร จากการตามรอย สัมภาษณ์ หรือสุ่มตรวจ พร้อมแหล่งหลักฐาน" className="mt-2 w-full rounded-lg border border-slate-300 p-3 font-normal" />
+              </label>
+              <label className="block text-sm font-semibold">ผลลัพธ์และแนวโน้ม (Results) *
+                <textarea required rows={3} value={reviewResults} onChange={e => setReviewResults(e.target.value)} placeholder="จำนวน/อัตราเกิดซ้ำ ตัวชี้วัดเทียบเป้าหมายและช่วงก่อนหน้า หากไม่มีข้อมูลให้ระบุข้อจำกัด ไม่สรุปว่าได้ผลจากการไม่มีรายงานเพียงอย่างเดียว" className="mt-2 w-full rounded-lg border border-slate-300 p-3 font-normal" />
+              </label>
               <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs">
                 <div className="flex items-center gap-1.5 font-bold text-amber-900">
                   <span>📌 มาตรการเดิมที่กำหนดไว้ (Current Baseline Measures):</span>
@@ -2351,12 +2384,12 @@ export default function Reports() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  🔍 ผลการทบทวน / วิเคราะห์สาเหตุ RCA / แนวโน้ม *
+                  🔍 สาเหตุ / RCA ที่เกี่ยวข้อง และสิ่งที่ต้องปรับ *
                 </label>
                 <textarea
                   rows={2}
                   required
-                  placeholder="ระบุข้อค้นพบในการทบทวน แนวโน้มความรุนแรง หรือผลการดำเนินงานตามมาตรการเดิม..."
+                  placeholder="ระบุสาเหตุที่ยังควบคุมไม่ได้ อ้างอิง RCA/CAPA ที่เกี่ยวข้อง และข้อเสนอปรับมาตรการ หากยังไม่มีข้อสรุปให้ระบุสิ่งที่ต้องตรวจเพิ่ม"
                   value={reviewFormData.result_of_review}
                   onChange={e => setReviewFormData({ ...reviewFormData, result_of_review: e.target.value })}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
@@ -2408,10 +2441,10 @@ export default function Reports() {
                   <option value="KEEP">คงระดับและติดตามรอบถัดไป</option>
                   <option value="DECREASE">ลดระดับความเสี่ยงและติดตามต่อ</option>
                   <option value="ESCALATE">ยกระดับให้ทีมนำ/องค์กรสนับสนุน</option>
-                  <option value="CLOSE_MONITORING">ปิดแบบเฝ้าระวัง (เฉพาะ Residual Risk สีเขียว)</option>
+                  <option value="CLOSE_MONITORING">ควบคุมได้และติดตามต่อ (ปิดแบบเฝ้าระวังเดิม; เฉพาะสีเขียว)</option>
                   <option value="REOPEN">เปิดความเสี่ยงกลับมาติดตามเข้มข้น</option>
                 </select><label className="mt-3 block text-sm">หลักฐานว่ามาตรการทำงานจริง (จำเป็นเมื่อปิดแบบเฝ้าระวัง)<textarea rows={3} value={reviewFormData.effectiveness_evidence || ''} onChange={e => setReviewFormData({ ...reviewFormData, effectiveness_evidence: e.target.value })} placeholder="ผลการตรวจติดตาม ตัวชี้วัด ช่วงเวลาประเมิน และแหล่งหลักฐาน" className="mt-2 w-full rounded-lg border p-3" /></label>
-                <p className="mt-1 text-[11px] text-cyan-700">แม้ไม่มี Incident ใหม่ ระบบยังคงนัดทบทวนตามรอบได้ การปิดแบบเฝ้าระวังสามารถเปิดกลับมาใหม่เมื่อเกิดเหตุซ้ำหรือระดับเพิ่มขึ้น</p>
+                <p className="mt-1 text-[11px] text-cyan-700">ปิดแบบเฝ้าระวังของระบบเดิมยังมีวันนัดติดตาม ไม่ใช่ Closed ที่ยุติการติดตามตามคู่มือ สามารถเปิดกลับมาเมื่อเกิดเหตุซ้ำหรือระดับเพิ่มขึ้น</p>
               </div>
 
               {/* UPDATED MEASURE INPUT (มาตรการที่ได้เปลี่ยนแปลง) */}
@@ -2422,7 +2455,7 @@ export default function Reports() {
                 <textarea
                   rows={2}
                   required
-                  placeholder="ระบุมาตรการใหม่ ระบบใหม่ นวัตกรรม หรือข้อปฏิบัติที่ปรับปรุงจากการทบทวน..."
+                  placeholder="ระบุมาตรการที่ใช้ต่อ เชื่อมกับสาเหตุ/RCA และ CAPA หากคงมาตรการเดิมให้ระบุเหตุผล; QI ที่พิสูจน์ว่าได้ผลให้นำมารวมในมาตรการ"
                   value={reviewFormData.updated_prevention}
                   onChange={e => setReviewFormData({ ...reviewFormData, updated_prevention: e.target.value })}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
@@ -2565,7 +2598,7 @@ export default function Reports() {
                   </div>
 
                   <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-200">
-                    <span className="text-xs font-bold text-amber-900 block mb-1">3. การติดตามเฝ้าระวัง (Risk Monitor)</span>
+                    <span className="text-xs font-bold text-amber-900 block mb-1">3. แผนติดตาม (จะติดตามอะไร)</span>
                     <p className="text-xs text-slate-700 whitespace-pre-line leading-relaxed">
                       {selectedRiskItem.risk_monitor || 'ไม่มีข้อมูล'}
                     </p>
@@ -2601,7 +2634,8 @@ export default function Reports() {
                           </span>
                           {getRiskBadge(rev.current_risk_level, rev.current_risk_score)}
                         </div>
-                        <p className="text-xs text-slate-700">{rev.result_of_review}</p>
+                        <p className="whitespace-pre-line text-xs text-slate-700">{rev.result_of_review}</p>
+                        {reviewEvidence(rev.calculation_snapshot) && <div className="rounded border border-indigo-200 bg-indigo-50 p-2 text-xs whitespace-pre-line"><strong>หลักฐานประสิทธิผล:</strong><p>{reviewEvidence(rev.calculation_snapshot)}</p></div>}
                         {rev.updated_prevention && (
                           <div className="text-xs text-emerald-700 bg-emerald-50 p-2 rounded border border-emerald-200">
                             <strong>มาตรการปรับปรุง:</strong> {rev.updated_prevention}
