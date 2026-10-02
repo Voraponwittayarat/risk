@@ -13,7 +13,6 @@ import {
   Plus,
   Trash2,
   Layers,
-  HelpCircle,
   Search,
   ChevronDown,
   ChevronUp,
@@ -83,12 +82,6 @@ const CLINICAL_CARE_STEPS = [
   'จำหน่าย/ดูแลต่อเนื่อง (Discharge)',
   'อื่นๆ (ระบุเอง)',
 ];
-
-interface WhyItem {
-  level: number;
-  question?: string;
-  answer: string;
-}
 
 interface ProcessAnalysisItem {
   process_key: string;
@@ -279,15 +272,6 @@ export default function StandardRcaForm() {
   // NRLS fiscal-year 2569 Contributing Factors, scoped to the case or a clinical process
   const [contributingFactors, setContributingFactors] = useState<ContributingFactorSelection[]>([]);
   const [legacyFishbones, setLegacyFishbones] = useState<LegacyCauseFactor[]>([]);
-
-  // Section 6a: 5 Whys
-  const [whys, setWhys] = useState<WhyItem[]>([
-    { level: 1, question: 'ทำไมถึงเกิดเหตุการณ์นี้?', answer: '' },
-    { level: 2, question: 'ทำไมถึงเกิดสาเหตุในข้อ 1?', answer: '' },
-    { level: 3, question: 'ทำไมถึงเกิดสาเหตุในข้อ 2?', answer: '' },
-    { level: 4, question: 'ทำไมถึงเกิดสาเหตุในข้อ 3?', answer: '' },
-    { level: 5, question: 'ทำไม (สาเหตุรากเหง้าเชิงระบบ)?', answer: '' },
-  ]);
 
   // Section 6b: Swiss Cheese Model (4 Layers)
   const [swissCheeseOrg, setSwissCheeseOrg] = useState('');
@@ -533,7 +517,6 @@ export default function StandardRcaForm() {
       setInfoInspection(data.info_inspection ?? true);
 
       if (data.timelines?.length) setTimelines(data.timelines);
-      if (data.whys?.length) setWhys(data.whys);
       const storedContributingFactors = normalizeContributingFactorSelections(data.contributing_factors);
       const migratedFishbones = contributingFactorSelectionsFromLegacy(data.fishbones || []);
       if (storedContributingFactors.length || migratedFishbones.selections.length) {
@@ -601,10 +584,6 @@ export default function StandardRcaForm() {
       const suggested = normalizeContributingFactorSelections(aiData.contributing_factors);
       const migratedSuggestion = contributingFactorSelectionsFromLegacy(aiData.fishbones || []).selections;
       setContributingFactors(suggested.length ? suggested : migratedSuggestion);
-    }
-
-    if (selectedKeys.includes('whys') && aiData.whys?.length) {
-      setWhys(aiData.whys);
     }
 
     if (selectedKeys.includes('cmps') && aiData.cmps?.length) {
@@ -865,7 +844,6 @@ export default function StandardRcaForm() {
       status: markAsNotRisk ? 'closed' : status,
       created_by: user?.id || 1,
       timelines: timelines.filter((t) => t.event_description.trim() || t.event_time.trim()),
-      whys: whys.filter((w) => w.answer.trim()),
       contributing_factors: contributingFactors,
       fishbones: [
         ...legacyFishbones,
@@ -1054,7 +1032,7 @@ export default function StandardRcaForm() {
   const selectableIncidents = sourceIncident && !incidentCandidates.some((candidate) => candidate.id === sourceIncident.id)
     ? [sourceIncident, ...incidentCandidates]
     : incidentCandidates;
-  const hasAnalysis = contributingFactors.length > 0 || cmps.some((item) => item.observation.trim() || item.hypothesis.trim()) || whys.some((item) => item.answer.trim()) || processAnalyses.some((item) => item.problem.trim() || item.corrective_action.trim());
+  const hasAnalysis = contributingFactors.length > 0 || cmps.some((item) => item.observation.trim() || item.hypothesis.trim()) || processAnalyses.some((item) => item.problem.trim() || item.corrective_action.trim());
   const hasCompleteCapa = capas.some(item => item.action.trim()) && capas.every((item) => item.action.trim() && item.responsible.trim() && item.due_date && item.effectiveness_criteria?.trim() && item.baseline_value?.trim() && item.target_value?.trim() && item.effectiveness_due_date);
   const hasReviewTeam = participants.some((item) => item.is_owner && item.display_name.trim());
   const hasVoice = !canViewVoice || !infoInterview || voiceOfStaffEntries.some((item) => item.key_points.trim());
@@ -1720,8 +1698,8 @@ export default function StandardRcaForm() {
           )}
         </section></details>
 
-        {/* ================= SECTION 6: 5 WHYS & SWISS CHEESE MODEL ================= */}
-        <details className={`rounded-xl border border-slate-200 p-4 ${guidedMode && activeStep !== 'rca-analysis' ? 'hidden print:block' : ''}`}><summary className="cursor-pointer text-sm font-semibold text-blue-700">เครื่องมือเพิ่มเติม: ถามทำไมและวิเคราะห์แนวป้องกัน</summary><section className={`bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 `}>
+        {/* ================= SECTION 6: SWISS CHEESE MODEL ================= */}
+        <details className={`rounded-xl border border-slate-200 p-4 ${guidedMode && activeStep !== 'rca-analysis' ? 'hidden print:block' : ''}`}><summary className="cursor-pointer text-sm font-semibold text-blue-700">เครื่องมือเพิ่มเติม: วิเคราะห์แนวป้องกัน</summary><section className={`bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 `}>
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
@@ -1729,10 +1707,10 @@ export default function StandardRcaForm() {
               </span>
               <div>
                 <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
-                  การขุดค้นสาเหตุ 5 Whys และแบบจำลองชีสสวิส (Swiss Cheese Model)
+                  แบบจำลองชีสสวิส (Swiss Cheese Model)
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  ถามเจาะลึก 5 ระดับเพื่อค้นหารากเหง้าเชิงระบบ และวิเคราะห์ช่องโหว่ของแนวป้องกัน 4 ชั้น
+                  วิเคราะห์ช่องโหว่ของแนวป้องกัน 4 ชั้นเพื่อค้นหาสาเหตุเชิงระบบ
                 </p>
               </div>
             </div>
@@ -1749,40 +1727,6 @@ export default function StandardRcaForm() {
               <span>{useSwissCheese ? '✓ แสดงแบบจำลองชีสสวิส' : '+ เปิดใช้เครื่องมือชีสสวิส (Swiss Cheese)'}</span>
               {useSwissCheese ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
-          </div>
-
-          {/* 6a. 5 Whys Chain */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-              <HelpCircle className="w-4 h-4 text-amber-500" />
-              <span>ลำดับการวิเคราะห์ 5 Whys (Five Whys Root Cause Chain)</span>
-            </h4>
-
-            {whys.map((w, idx) => (
-              <div
-                key={idx}
-                className="p-3.5 rounded-2xl bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/30 flex flex-col sm:flex-row items-start sm:items-center gap-3"
-              >
-                <div className="w-full sm:w-48 shrink-0">
-                  <span className="font-bold text-xs text-amber-800 dark:text-amber-300">
-                    Why #{w.level}: {w.question}
-                  </span>
-                </div>
-                <div className="flex-1 w-full">
-                  <input
-                    type="text"
-                    value={w.answer}
-                    onChange={(e) => {
-                      const updated = [...whys];
-                      updated[idx].answer = e.target.value;
-                      setWhys(updated);
-                    }}
-                    placeholder={`ตอบสาเหตุระดับที่ ${w.level}...`}
-                    className="w-full px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/50 text-xs text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-            ))}
           </div>
 
           {/* 6b. Swiss Cheese Model (Collapsible) */}

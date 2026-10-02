@@ -4,7 +4,6 @@ import {
   Bot,
   AlertTriangle,
   Layers,
-  HelpCircle,
   ShieldAlert,
   ClipboardCheck,
   RefreshCw,
@@ -78,7 +77,6 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
   const [selectedSections, setSelectedSections] = useState<Record<string, boolean>>({
     problem_impact: true,
     fishbone: true,
-    whys: true,
     cmps: true,
     process: true,
     swiss_cheese: true,
@@ -222,7 +220,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                   กำลังประมวลผลการวิเคราะห์สาเหตุเชิงลึก...
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  ระบบกำลังวิเคราะห์ปัจจัยร่วม NRLS 2569, 5 Whys, CMPs, Swiss Cheese และมาตรการแก้ไขจากข้อมูลเหตุการณ์
+                  ระบบกำลังวิเคราะห์ปัจจัยร่วม NRLS 2569, CMPs, Swiss Cheese และมาตรการแก้ไขจากข้อมูลเหตุการณ์
                 </p>
               </div>
             </div>
@@ -290,7 +288,6 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                       setSelectedSections({
                         problem_impact: true,
                         fishbone: true,
-                        whys: true,
                         cmps: true,
                         process: true,
                         swiss_cheese: true,
@@ -310,7 +307,6 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                       setSelectedSections({
                         problem_impact: false,
                         fishbone: false,
-                        whys: false,
                         cmps: false,
                         process: false,
                         swiss_cheese: false,
@@ -443,58 +439,6 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                         {fb.sub_factor && (
                           <p className="text-slate-500 dark:text-slate-400 italic">└ {fb.sub_factor}</p>
                         )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* 2. Five Whys */}
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                <div
-                  className="px-4 py-3 bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between cursor-pointer"
-                  onClick={() => setExpandedSection(expandedSection === 'whys' ? null : 'whys')}
-                >
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedSections.whys}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        toggleSectionSelect('whys');
-                      }}
-                      className="rounded border-slate-300 text-purple-600 focus:ring-purple-500 w-4 h-4"
-                    />
-                    <div className="flex items-center gap-2">
-                      <HelpCircle className="w-4 h-4 text-amber-500" />
-                      <span className="font-semibold text-sm text-slate-800 dark:text-slate-200">
-                        การขุดค้นสาเหตุ 5 Whys (Five Whys Root Cause Chain)
-                      </span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-medium">
-                        {aiData.whys?.length || 0} ขั้น
-                      </span>
-                    </div>
-                  </div>
-                  {expandedSection === 'whys' ? (
-                    <ChevronUp className="w-4 h-4 text-slate-400" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-slate-400" />
-                  )}
-                </div>
-
-                {expandedSection === 'whys' && (
-                  <div className="p-4 space-y-2.5 bg-white dark:bg-slate-900">
-                    {aiData.whys?.map((why, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3 rounded-lg bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 text-xs space-y-1"
-                      >
-                        <div className="font-bold text-amber-800 dark:text-amber-300">
-                          Why #{why.level}: {why.question}
-                        </div>
-                        <div className="text-slate-700 dark:text-slate-300 pl-4 border-l-2 border-amber-400">
-                          {why.answer}
-                        </div>
                       </div>
                     ))}
                   </div>
