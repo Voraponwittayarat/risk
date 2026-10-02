@@ -134,3 +134,13 @@
 - Word เป็น .doc แบบ HTML ที่เปิดแก้ไขใน Word ได้; PDF ผ่าน browser print เลือก Save as PDF (ไม่ได้ดาวน์โหลด PDF อัตโนมัติ) ใช้ข้อมูลในฟอร์มปัจจุบันและเตือนเมื่อยังไม่บันทึก
 - ตรวจ frontend/backend build ผ่าน, unit tests รายงาน 4 ข้อ, browser preview และการตัดส่วนที่ไม่เลือกผ่าน; IAB ไม่ส่ง download event และไม่สามารถตรวจหน้าพิมพ์ระบบได้ จึงยังต้องตรวจเปิด .doc ใน Word และบันทึก PDF ด้วย Chrome/Edge จริงก่อน release
 - ไม่มี schema/migration ไม่แก้ข้อมูลจริงและยังไม่ deploy; ไม่มี backup/health-check รอบนี้
+
+### รูปแบบรายงาน RCA ทางการ — 2 ตุลาคม 2569
+
+- ใช้โลโก้เดียวกับรายงาน HA พร้อมชื่อโรงพยาบาล รหัส RM-RCA-FM-01 และเลขอ้างอิง; เนื้อหาและตารางใช้ TH SarabunPSK 14pt บรรจุฟอนต์ regular/bold พร้อม license จากต้นฉบับ ไม่แก้ไฟล์ฟอนต์
+- โหลดฟอนต์/โลโก้เมื่อเปิดรายงานเท่านั้น เพื่อลดภาระการโหลดหน้าอื่น; รอ fonts.ready ก่อนพิมพ์ PDF
+- Timeline รวมวันที่ซ้ำเฉพาะแถวต่อเนื่องด้วย rowspan ไม่เรียงเหตุการณ์ใหม่ ไม่รวมข้ามแถวไม่ทราบวันที่
+- Word .doc ใช้ MHTML บรรจุโลโก้ไว้ภายในเพื่อเปิดแบบออฟไลน์; Word ใช้ TH SarabunPSK ที่ติดตั้งในเครื่อง ส่วน PDF ฝัง web font ในรายงาน
+- Unit tests รายงาน 6 ข้อผ่าน; ไม่มี schema/migration/ข้อมูลจริง และยังไม่ deploy
+
+- ตรวจ frontend/backend build ผ่าน, browser ยืนยัน TH SarabunPSK 18.6667px (=14pt), fonts loaded และวันที่กลุ่ม 4/1 แถวถูกต้อง; ยังไม่ตรวจไฟล์จริงใน Word/Chrome print dialog (ข้อจำกัดเดิม)

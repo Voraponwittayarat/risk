@@ -22,13 +22,21 @@ const fields = (items: [string, unknown][]) => {
   const filled = items.filter(([, v]) => has(v));
   return filled.length ? `<table><colgroup><col style="width:27%"><col style="width:73%"></colgroup><tbody>${filled.map(([label, value]) => `<tr><th scope="row">${text(label)}</th><td>${text(value)}</td></tr>`).join('')}</tbody></table>` : '';
 };
-const table = (columns: [string, string][], rows: Row[]) => {
+const table = (columns: [string, string][], rows: Row[], mergeDates = false) => {
   const filled = rows.filter(row => columns.some(([key]) => has(row[key])));
   if (!filled.length) return '';
   const visible = columns.filter(([key]) => filled.some(row => has(row[key])));
   const weights = visible.map(([key]) => key === 'event_description' ? 5 : ['event_time', 'critical'].includes(key) ? 1 : 2);
   const total = weights.reduce((a, b) => a + b, 0);
-  return `<table><colgroup>${weights.map(w => `<col style="width:${100 * w / total}%">`).join('')}</colgroup><thead><tr>${visible.map(([, title]) => `<th>${text(title)}</th>`).join('')}</tr></thead><tbody>${filled.map(row => `<tr>${visible.map(([key]) => `<td>${text(row[key])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  return `<table><colgroup>${weights.map(w => `<col style="width:${100 * w / total}%">`).join('')}</colgroup><thead><tr>${visible.map(([, title]) => `<th>${text(title)}</th>`).join('')}</tr></thead><tbody>${filled.map((row, index) => `<tr>${visible.map(([key]) => {
+    if (mergeDates && key === 'date' && has(row.date)) {
+      if (index > 0 && filled[index - 1].date === row.date) return '';
+      let span = 1;
+      while (index + span < filled.length && filled[index + span].date === row.date) span++;
+      return `<td rowspan="${span}" class="date-group">${text(row.date)}</td>`;
+    }
+    return `<td>${text(row[key])}</td>`;
+  }).join('')}</tr>`).join('')}</tbody></table>`;
 };
 export function getRcaReportSections(d: RcaReportData): ReportSection[] {
   const sections: ReportSection[] = [];
@@ -39,7 +47,7 @@ export function getRcaReportSections(d: RcaReportData): ReportSection[] {
     ['รายละเอียดเหตุการณ์', d.whatHappened], ['ผลกระทบที่เกิดขึ้นจริง', d.actualImpact], ['ผลกระทบที่อาจเกิดขึ้น', d.potentialImpact],
   ]));
   add('sessions', 'บันทึกการทบทวน', table([['date', 'วันที่ทบทวน'], ['reviewers', 'ผู้ทบทวน'], ['notes', 'ผลการทบทวน']], d.sessions.filter(s => has(s.reviewers) || has(s.notes) || has(s.review_date_time)).map(s => ({ ...s, date: reportDate(s.review_date_time, true) }))));
-  add('timeline', 'รายละเอียดเหตุการณ์ตามลำดับเวลา (Timeline)', table([['date', 'วันที่'], ['event_time', 'เวลา'], ['event_description', 'เหตุการณ์'], ['critical', 'จุดวิกฤต']], d.timelines.filter(t => has(t.event_description)).map(t => ({ ...t, date: reportDate(t.event_date), critical: t.is_critical_point ? 'จุดวิกฤต' : '' }))));
+  add('timeline', 'รายละเอียดเหตุการณ์ตามลำดับเวลา (Timeline)', table([['date', 'วันที่'], ['event_time', 'เวลา'], ['event_description', 'เหตุการณ์'], ['critical', 'จุดวิกฤต']], d.timelines.filter(t => has(t.event_description)).map(t => ({ ...t, date: reportDate(t.event_date), critical: t.is_critical_point ? 'จุดวิกฤต' : '' })), true));
   add('cmps', 'ข้อสังเกตและปัญหาในการดูแล (CMPs)', table([['observation', 'สิ่งที่สังเกต'], ['hypothesis', 'สมมติฐาน / ปัญหาในการดูแล'], ['comment', 'ข้อมูลเพิ่มเติม / ความเห็น']], d.cmps));
   const factors = d.factors.map(f => ({ process_key: f.process_key || '', factor: `${f.code} ${getContributingFactor(f.code)?.labelTh || ''}`, detail: f.detail || '' }));
   const processes: Row[] = d.processes.filter(p => Object.entries(p).some(([key, v]) => key !== 'process_key' && has(v)) || factors.some(f => f.process_key === p.process_key)).map(p => ({
@@ -65,13 +73,25 @@ export function getRcaReportSections(d: RcaReportData): ReportSection[] {
   ])}`).join(''));
   return sections;
 }
-export function buildRcaReportHtml(sections: ReportSection[], selected: string[], title = 'รายงาน RCA'): string {
+export function buildRcaReportHtml(sections: ReportSection[], selected: string[], title = 'รายงาน RCA', assets?: { logo: string; regular: string; bold: string }): string {
+  const fontFaces = assets ? `@font-face{font-family:'TH SarabunPSK';src:url('${assets.regular}')} @font-face{font-family:'TH SarabunPSK';font-weight:700;src:url('${assets.bold}')}` : '';
+  const reference = title.replace(/^RCA\s*/, '') || 'DRAFT';
   return `<!DOCTYPE html><html lang="th" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>${escapeReportText(title)}</title><style>
-    @page { size:A4; margin:16mm; } *{box-sizing:border-box} body{font-family:Tahoma,'Leelawadee UI',sans-serif;color:#182333;font-size:12px;line-height:1.55;margin:0;padding:24px;background:white} h1{text-align:center;font-size:19px;margin:0 0 4px} .hospital{text-align:center;margin:0 0 22px} h2{font-size:14px;margin:20px 0 8px;color:#174d59;break-after:avoid} h3{font-size:12px;break-after:avoid} p{margin:5px 0;overflow-wrap:anywhere} table{border-collapse:collapse;width:100%;table-layout:fixed;margin:8px 0 14px;font-size:11px} th,td{border:1px solid #aab7be;padding:6px 7px;text-align:left;vertical-align:top;overflow-wrap:anywhere} th{background:#edf4f5;color:#183c45;font-weight:bold} thead{display:table-header-group} tr{break-inside:avoid} @media print{body{padding:0} th{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
-    </style></head><body><h1>แบบบันทึกการวิเคราะห์ RCA (Root Cause Analysis)</h1><p class="hospital">โรงพยาบาลวังเจ้า</p>${sections.filter(s => selected.includes(s.id)).map((s, i) => `<section><h2>${i + 1}. ${text(s.title)}</h2>${s.html}</section>`).join('')}</body></html>`;
+    ${fontFaces} @page { size:A4; margin:12mm 12mm 16mm; } *{box-sizing:border-box} body{font-family:'TH SarabunPSK','TH Sarabun New',sans-serif;color:#111827;font-size:14pt;line-height:1.2;margin:0;padding:12mm;background:white} h1{font-size:14pt;margin:2mm 0 0} h2{font-size:14pt;margin:5mm 0 2mm;color:#064e3b;break-after:avoid} h3{font-size:14pt;break-after:avoid} p{margin:1mm 0;overflow-wrap:anywhere} table{border-collapse:collapse;width:100%;table-layout:fixed;margin:2mm 0 4mm;font-size:14pt} th,td{border:0.2mm solid #aab7be;padding:1.5mm 2mm;text-align:left;vertical-align:top;overflow-wrap:anywhere} th{background:#edf4f5;color:#183c45;font-weight:bold} thead{display:table-header-group} tr{break-inside:avoid} .date-group{vertical-align:middle;text-align:center} .brand{border-bottom:1mm double #065f46;margin:0 0 4mm;break-inside:avoid} .brand td{border:0;padding:0 2mm 3mm;vertical-align:middle} .brand .heading{text-align:center} .hospital{font-weight:bold;color:#064e3b} .reference{border:0.2mm solid #334155;padding:2mm;font-size:14pt} .logo{width:23mm;height:23mm;object-fit:contain} @media print{body{padding:0} th{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+    </style></head><body><table class="brand"><colgroup><col style="width:17%"><col style="width:55%"><col style="width:28%"></colgroup><tbody><tr><td>${assets ? `<img class="logo" width="87" height="87" src="${assets.logo}" alt="ตราสัญลักษณ์โรงพยาบาลวังเจ้า">` : ''}</td><td class="heading"><div class="hospital">โรงพยาบาลวังเจ้า</div><div>WANG CHAO HOSPITAL</div><h1>แบบวิเคราะห์สาเหตุรากเหง้าเชิงระบบ</h1><div>Root Cause Analysis Report</div></td><td><div class="reference"><strong>รหัสเอกสาร</strong><br>RM-RCA-FM-01<br><strong>เลขที่อ้างอิง</strong><br>${text(reference)}</div></td></tr></tbody></table>${sections.filter(s => selected.includes(s.id)).map((s, i) => `<section><h2>${i + 1}. ${text(s.title)}</h2>${s.html}</section>`).join('')}</body></html>`;
+}
+export function buildRcaWordDocument(html: string): string {
+  const logo = html.match(/src="data:(image\/png);base64,([A-Za-z0-9+/=]+)"/);
+  if (!logo) return '\ufeff' + html;
+  const boundary = '----RiskHRMSRcaReport';
+  const location = 'file:///C:/RCA-report-assets/logo.png';
+  const body = html.replace(logo[0], `src="${location}"`);
+  const base64 = btoa(Array.from(new TextEncoder().encode(body), byte => String.fromCharCode(byte)).join(''));
+  const wrap = (value: string) => value.match(/.{1,76}/g)?.join('\r\n') || '';
+  return `MIME-Version: 1.0\r\nContent-Type: multipart/related; boundary="${boundary}"\r\n\r\n--${boundary}\r\nContent-Type: text/html; charset="utf-8"\r\nContent-Transfer-Encoding: base64\r\nContent-Location: file:///C:/RCA-report.html\r\n\r\n${wrap(base64)}\r\n--${boundary}\r\nContent-Type: image/png\r\nContent-Transfer-Encoding: base64\r\nContent-Location: ${location}\r\n\r\n${wrap(logo[2])}\r\n--${boundary}--\r\n`;
 }
 export function downloadRcaDoc(html: string, caseId: string) {
-  const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
+  const blob = new Blob([buildRcaWordDocument(html)], { type: 'application/msword' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a'); link.href = url; link.download = `RCA-${(caseId || 'draft').replace(/[^a-zA-Z0-9_-]/g, '_')}.doc`;
   document.body.appendChild(link); link.click(); link.remove();

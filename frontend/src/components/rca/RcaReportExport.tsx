@@ -7,11 +7,23 @@ export default function RcaReportExport({ data, hasUnsavedChanges }: { data: Rca
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
+  const [assets, setAssets] = useState<{ logo: string; regular: string; bold: string }>();
+  const [preparing, setPreparing] = useState(false);
+  const [error, setError] = useState('');
   const frame = useRef<HTMLIFrameElement>(null);
-  const html = useMemo(() => buildRcaReportHtml(sections, selected, `RCA ${data.caseId}`), [sections, selected, data.caseId]);
+  const html = useMemo(() => buildRcaReportHtml(sections, selected, `RCA ${data.caseId}`, assets), [sections, selected, data.caseId, assets]);
+  const openReport = async () => {
+    setPreparing(true); setError('');
+    try {
+      const loaded = assets || (await import('../../utils/rcaReportAssets')).rcaReportAssets;
+      setAssets(loaded); setSelected(sections.map(s => s.id)); setReady(false); setOpen(true);
+    } catch { setError('โหลดฟอนต์และโลโก้รายงานไม่สำเร็จ กรุณาลองอีกครั้ง'); }
+    finally { setPreparing(false); }
+  };
   const toggle = (id: string) => { setReady(false); setSelected(current => current.includes(id) ? current.filter(v => v !== id) : [...current, id]); };
   return <>
-    <button type="button" onClick={() => { setSelected(sections.map(s => s.id)); setReady(false); setOpen(true); }} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">ส่งออกรายงาน Word / PDF</button>
+    <button type="button" disabled={preparing} onClick={openReport} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">{preparing ? 'กำลังเตรียมรายงาน...' : 'ส่งออกรายงาน Word / PDF'}</button>
+    {error && <span role="alert" className="text-sm text-rose-700">{error}</span>}
     {open && createPortal(<div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950/60 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="rca-export-title">
       <div className="mx-auto max-w-6xl rounded-2xl bg-white p-4 shadow-xl sm:p-6">
         <div className="flex items-center justify-between gap-3"><h2 id="rca-export-title" className="text-lg font-bold text-slate-900">เลือกข้อมูลและดูตัวอย่างรายงาน RCA</h2><button type="button" onClick={() => setOpen(false)} className="rounded-lg border px-3 py-2 text-sm">ปิด</button></div>
@@ -24,7 +36,7 @@ export default function RcaReportExport({ data, hasUnsavedChanges }: { data: Rca
         </div>
         <p className="mb-3 text-xs text-slate-500">PDF: เลือก “บันทึกเป็น PDF” ในหน้าพิมพ์ และปิดหัว/ท้ายกระดาษของเบราว์เซอร์ · Word: ไฟล์ .doc แบบ HTML ที่เปิดและแก้ไขใน Microsoft Word ได้</p>
         {!selected.length && <p role="alert" className="mb-3 text-sm text-amber-800">กรุณาเลือกอย่างน้อยหนึ่งส่วน</p>}
-        <iframe ref={frame} title="ตัวอย่างรายงาน RCA" srcDoc={html} onLoad={() => setReady(true)} className="h-[65vh] w-full rounded-lg border border-slate-200 bg-white" />
+        <iframe ref={frame} title="ตัวอย่างรายงาน RCA" srcDoc={html} onLoad={async () => { await frame.current?.contentDocument?.fonts.ready; setReady(true); }} className="h-[65vh] w-full rounded-lg border border-slate-200 bg-white" />
       </div>
     </div>, document.body)}
   </>;

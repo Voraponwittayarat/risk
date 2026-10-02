@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getRcaReportSections, buildRcaReportHtml } from './rcaReport.ts';
+import { getRcaReportSections, buildRcaReportHtml, buildRcaWordDocument } from './rcaReport.ts';
 const draft = () => ({ caseId: 'TEST', rmNo: '', topic: 'ทดสอบ', severity: 'E', incidentDate: '', team: '', department: '', whatHappened: '', actualImpact: '', potentialImpact: '', timelines: [], cmps: [], processes: [], capas: [], sessions: [], participants: [], interviews: [], factors: [], legacyFactors: [], barriers: [] });
 test('omits unused tools, blank rows and columns, preserves filled clinical facts and selected sections', () => {
   const d = draft();
@@ -31,4 +31,21 @@ test('keeps factors linked to an otherwise blank process and does not duplicate 
 test('does not export an unused CAPA with only automatically populated dates', () => {
   const d = draft(); d.capas = [{ action: '', due_date: '2026-11-01', effectiveness_due_date: '2026-12-01' }];
   assert.deepEqual(getRcaReportSections(d).map(s => s.id), ['facts']);
+});
+test('merges consecutive timeline dates while preserving order and unknown-date boundaries', () => {
+  const d = draft(); d.timelines = ['2026-10-02', '2026-10-02', '', '2026-10-02', '2026-10-03'].map((event_date, i) => ({ event_date, event_time: `${i}`, event_description: `เหตุการณ์ ${i}` }));
+  const html = getRcaReportSections(d).find(s => s.id === 'timeline').html;
+  assert.ok(html.includes('rowspan="2"'));
+  assert.equal((html.match(/2 ต.ค. 2569/g) || []).length, 2);
+  for (let i = 0; i < 5; i++) assert.ok(html.includes(`เหตุการณ์ ${i}`));
+});
+test('embeds official logo in Word package and uses Sarabun 14pt in report', () => {
+  const html = buildRcaReportHtml([], [], 'RCA TEST', { logo: 'data:image/png;base64,aGVsbG8=', regular: 'data:font/ttf;base64,eA==', bold: 'data:font/ttf;base64,eA==' });
+  assert.ok(html.includes("font-family:'TH SarabunPSK'")); assert.ok(html.includes('font-size:14pt'));
+  const doc = buildRcaWordDocument(html);
+  assert.ok(doc.includes('multipart/related')); assert.ok(doc.includes('Content-Type: image/png'));
+  const encoded = doc.split('Content-Location: file:///C:/RCA-report.html\r\n\r\n')[1].split('\r\n------RiskHRMSRcaReport')[0];
+  const body = Buffer.from(encoded.replace(/\s/g, ''), 'base64').toString('utf8');
+  assert.ok(body.includes('src="file:///C:/RCA-report-assets/logo.png"'));
+  assert.ok(body.includes('โรงพยาบาลวังเจ้า'));
 });
