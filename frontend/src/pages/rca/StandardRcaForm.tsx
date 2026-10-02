@@ -7,7 +7,6 @@ import {
   ShieldAlert,
   ArrowLeft,
   Sparkles,
-  Printer,
   Save,
   AlertTriangle,
   Plus,
@@ -25,11 +24,11 @@ import {
 } from 'lucide-react';
 import type { TimelineItem } from '../../components/rca/EventTimeline';
 import TimelineEditor from '../../components/rca/TimelineEditor';
+import RcaReportExport from '../../components/rca/RcaReportExport';
 import { TierContributingFactorPicker } from '../../components/rca/TierContributingFactorPicker';
 import { AiRcaAssistantModal } from '../../components/rca/AiRcaAssistantModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { OfficialPrintFooter, OfficialPrintHeader } from '../../components/OfficialPrintLayout';
-import { printOfficialReport } from '../../utils/officialPrint';
 import {
   contributingFactorSelectionsFromLegacy,
   contributingFactorSelectionsToLegacy,
@@ -1121,14 +1120,18 @@ export default function StandardRcaForm() {
             <Sparkles className="w-4 h-4 text-purple-200" />
             <span>✨ ผู้ช่วย AI วิเคราะห์ RCA</span>
           </button>
-          <button
-            type="button"
-            onClick={printOfficialReport}
-            className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-medium border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 transition cursor-pointer"
-          >
-            <Printer className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-            <span>พิมพ์รายงาน HA</span>
-          </button>
+          <RcaReportExport hasUnsavedChanges={hasUnsavedChanges} data={{
+            caseId, rmNo, topic, severity, incidentDate,
+            team: rcaTeam === 'other' ? customTeam : rcaTeam,
+            department: departments.find(d => String(d.id) === String(sourceIncident?.department_id))?.depart_name || '',
+            whatHappened, actualImpact, potentialImpact, timelines,
+            cmps: cmps.map(v => ({ ...v })), processes: processAnalyses.map(v => ({ ...v })),
+            capas: capas.map(v => ({ ...v })), sessions: reviewSessions.map(v => ({ ...v })),
+            participants: participants.map(v => ({ ...v })),
+            interviews: canViewVoice && infoInterview ? voiceOfStaffEntries.map(v => ({ ...v })) : [],
+            factors: contributingFactors, legacyFactors: legacyFishbones.map(v => ({ ...v })),
+            barriers: useSwissCheese ? [swissCheeseOrg, swissCheeseSupervision, swissCheesePreconditions, swissCheeseUnsafeActs] : [],
+          }} />
           {canComplete && ['admin', 'head', 'rm_committee'].includes(user?.role || '') && !['COMPLETED', 'CANCELLED'].includes(status.toUpperCase()) && <button type="button" disabled={saving || completing} onClick={() => setDischargeReason('')} className="rounded-xl border border-orange-300 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-800">
             ทบทวนแล้วไม่ต้องทำ RCA/จำหน่ายเคส
           </button>}
