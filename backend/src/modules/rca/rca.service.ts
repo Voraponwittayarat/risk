@@ -628,6 +628,7 @@ export class RcaService {
     }
 
     let incidentDetail = '';
+    let actualImpactNeedsReview = false;
 
     if (stdCase.source_trigger_review_id) {
       const triggerRev = await this.prisma.medical_record_review.findUnique({
@@ -652,6 +653,8 @@ export class RcaService {
         });
         if (riskReg) {
           incidentDetail = riskReg.detail || riskReg.problem_basic || '';
+          const savedImpact = stdCase.actual_impact?.trim();
+          actualImpactNeedsReview = Boolean(savedImpact && [riskReg.problem_basic, riskReg.edit].some(value => value?.trim() === savedImpact));
         }
       }
     }
@@ -669,6 +672,7 @@ export class RcaService {
       voice_of_staff_entries: canViewVoice ? stdCase.voice_of_staff_entries : [],
       what_happened: stdCase.what_happened || incidentDetail,
       incident_detail_raw: incidentDetail,
+      actual_impact_needs_review: actualImpactNeedsReview,
     };
   }
 

@@ -212,6 +212,7 @@ export default function StandardRcaForm() {
   const [timelinePreview, setTimelinePreview] = useState<TimelineItem[]>([]);
   const [timelinePasteError, setTimelinePasteError] = useState('');
   const [canManageTeam, setCanManageTeam] = useState(true);
+  const [actualImpactNeedsReview, setActualImpactNeedsReview] = useState(false);
   const [canViewVoice, setCanViewVoice] = useState(true);
   const [saveError, setSaveError] = useState('');
 
@@ -514,6 +515,7 @@ export default function StandardRcaForm() {
       setIsNotRisk(data.is_not_risk ?? false);
       setWhatHappened(data.what_happened || '');
       setActualImpact(data.actual_impact || '');
+      setActualImpactNeedsReview(data.actual_impact_needs_review === true);
       setPotentialImpact(data.potential_impact || '');
       setStatus(data.status || 'in_progress');
       const registerDraft = data.draft_register ? JSON.parse(data.draft_register) : {};
@@ -1496,10 +1498,12 @@ export default function StandardRcaForm() {
                 <textarea
                   rows={3}
                   value={actualImpact}
-                  onChange={(e) => setActualImpact(e.target.value)}
-                  placeholder="ผลกระทบต่อผู้ป่วย ญาติ เจ้าหน้าที่ หรือชื่อเสียงของโรงพยาบาล..."
+                  onChange={(e) => { setActualImpact(e.target.value); setActualImpactNeedsReview(false); }}
+                  placeholder="เช่น ผู้ป่วยได้รับบาดเจ็บ ต้องรักษาเพิ่ม บริการล่าช้า หรือไม่พบผลกระทบจริง (กรณีเกือบพลาด)"
                   className="w-full px-4 py-3 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-rose-500 focus:outline-none"
                 />
+                <p className="text-xs text-slate-500">ระบุผลที่เกิดจากเหตุการณ์จริง ไม่ใช่สิ่งที่ทำเพื่อแก้ไขหรือดูแลช่วยเหลือหลังเกิดเหตุ</p>
+                {actualImpactNeedsReview && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">โปรดตรวจสอบข้อความเดิม: ตรงกับข้อมูลรายงานหรือการแก้ไขเบื้องต้น อาจถูกดึงมาอัตโนมัติจากระบบเดิม กรุณาระบุผลกระทบที่เกิดขึ้นจริง</p>}
               </div>
 
               <div className="space-y-2">

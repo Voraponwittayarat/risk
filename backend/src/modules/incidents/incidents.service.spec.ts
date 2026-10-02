@@ -505,7 +505,7 @@ describe('IncidentsService incident permissions', () => {
     expect(prisma.riskreview.create).not.toHaveBeenCalled();
     expect(prisma.incident_review_entry.create).not.toHaveBeenCalled();
     expect(prisma.standard_rca_case.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ status: 'PENDING', contributing_factors: null }),
+      data: expect.objectContaining({ status: 'PENDING', actual_impact: null, contributing_factors: null }),
     }));
     expect(prisma.workflow_audit.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ action: 'RCA_QUEUED_DIRECTLY', reason }),
