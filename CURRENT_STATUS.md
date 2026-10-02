@@ -90,3 +90,15 @@
 - ล็อกส่วนระบุความเสี่ยงและรายละเอียด ปรับสีตารางให้อ่อนและแยกกลุ่มชัดเจน ลบแถบข้อมูลผู้ใช้ซ้ำ
 - frontend/backend build ผ่าน ตรวจหน้าเดสก์ท็อปและจอแคบแล้ว ไม่มี schema migration หรือการแก้ข้อมูลจริง
 - เตรียม release ผ่าน GitHub main และ production poller; backup /var/backups/riskhrms/riskhrms-db-20261002T113111Z.sql
+
+- Release workspace deploy สำเร็จ: 18496b08df4ee29776bce5144e8c2067176e8ba6; health ok/database connected; production frontend/backend build ผ่าน
+- Updater backup /var/backups/riskhrms/riskhrms-db-20261002T113618Z.sql SHA-256 0d835cf994e9f71950ff80f065cffc3dfcb4a05d72cf13d2ff2fbeabf03e07ae ตรวจแล้ว; ตรวจหน้า Reports และ incident list แบบอ่านอย่างเดียวผ่าน
+
+### ศูนย์ RCA รพ. และนัดหมาย (งานใหม่ ยังไม่ deploy)
+
+- เรื่องส่งเข้าศูนย์ระบุ hospital_center; ทีม RM/PCT เห็นและจัดทีม/นัดได้ ไม่เพิ่มสิทธิ์อนุมัติสรุปหรือข้อมูลสัมภาษณ์
+- นัดเลือกผู้ร่วมทบทวนที่บันทึกแล้ว พร้อม snapshot รายชื่อ วันเวลา สถานที่ และสถานะส่ง Telegram
+- ใช้ Bot/กลุ่มเดียวกับ E/3 และเพิ่ม toggle ในตั้งค่าแจ้งเตือน ส่งเฉพาะข้อมูลนัดกับลิงก์ ไม่ส่งรายละเอียดเหตุการณ์/รายชื่อ
+- ทดสอบ backend ทั้งหมดผ่าน 28 suites / 228 tests; มี migration ใหม่ 20261002120000_rca_center_appointments ยังไม่ได้รันกับฐานข้อมูลจริง
+
+- ชุดนัด RCA build frontend/backend ผ่าน; ตรวจ UI ด้วย browser ยังไม่ได้เนื่องจากเส้นทาง preview ถูก client block จึงยังต้องตรวจหน้าจอก่อน release งานใหม่นี้

@@ -202,6 +202,13 @@ export class RcaService {
     private readonly capaService: CapaService,
   ) {}
 
+  private async isCenterCoordinator(user: any) {
+    if (user?.role === 'admin' || (user?.role === 'rm_committee' && user?.rmScope === 'hospital')) return true;
+    if (!user?.teamId) return false;
+    const team = await this.prisma.team.findUnique({ where: { id: Number(user.teamId) }, select: { team_name: true } });
+    return /(^|[^A-Z])(RM|PCT)([^A-Z]|$)/i.test(team?.team_name || '');
+  }
+
   private async allowedDepartments(user: any): Promise<string[] | null> {
     if (user?.role === 'admin' || (user?.role === 'rm_committee' && user?.rmScope === 'hospital')) return null;
     if (['rm_committee', 'head'].includes(user?.role) && user?.rmScope === 'group' && user?.departmentGroup) {
@@ -560,9 +567,11 @@ export class RcaService {
 
   async getStandardList(user?: any) {
     const allowed = await this.allowedDepartments(user);
+    const centerCoordinator = await this.isCenterCoordinator(user);
     return this.prisma.standard_rca_case.findMany({
       where: allowed ? {
         OR: [
+          ...(centerCoordinator ? [{ hospital_center: true }] : []),
           { department_id: { in: allowed } },
           { assigned_member_cid: user?.cid || '__unassigned__' },
           { participants: { some: { OR: [
@@ -615,7 +624,7 @@ export class RcaService {
       );
       const ownerAccess = allowed === null || allowed.includes(String(stdCase.department_id || ''))
         || (stdCase.assigned_member_cid && String(stdCase.assigned_member_cid) === String(user?.cid || ''));
-      if (!ownerAccess && !participantAccess) throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึง RCA นอกขอบเขต');
+      if (!ownerAccess && !participantAccess && !(stdCase.hospital_center && await this.isCenterCoordinator(user))) throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึง RCA นอกขอบเขต');
     }
 
     let incidentDetail = '';
@@ -651,7 +660,7 @@ export class RcaService {
     try { await this.assertStandardWriter(stdCase, user); canEdit = true; } catch (error) { if (!(error instanceof ForbiddenException)) throw error; }
     try { await this.assertStandardWriter(stdCase, user, true); canComplete = true; } catch (error) { if (!(error instanceof ForbiddenException)) throw error; }
     const scope = await this.allowedDepartments(user);
-    const canManageTeam = scope === null || Boolean(scope?.includes(String(stdCase.department_id)));
+    const canManageTeam = scope === null || Boolean(scope?.includes(String(stdCase.department_id))) || (stdCase.hospital_center && await this.isCenterCoordinator(user));
     const canViewVoice = canComplete || stdCase.participants.some(p => p.role === 'FACILITATOR'
       && ((p.user_id && Number(p.user_id) === Number(user?.id)) || (p.team_id && Number(p.team_id) === Number(user?.teamId))));
     return {
@@ -898,7 +907,7 @@ export class RcaService {
         || (p.team_id && Number(p.team_id) === Number(user?.teamId))
         || (p.department_id && departments?.includes(String(p.department_id)))));
     const accountableOwner = owner && (!completing || ['admin', 'head', 'rm_committee'].includes(user?.role) || Number(record.created_by) === Number(user?.id) || (record.assigned_member_cid && record.assigned_member_cid === user?.cid));
-    if (!accountableOwner && !delegated) throw new ForbiddenException('บทบาทนี้ดูหรือให้ข้อมูลได้ แต่ไม่มีสิทธิ์แก้ไขหรือสรุป RCA');
+    if (!accountableOwner && !delegated && !(!completing && record.hospital_center && await this.isCenterCoordinator(user))) throw new ForbiddenException('บทบาทนี้ดูหรือให้ข้อมูลได้ แต่ไม่มีสิทธิ์แก้ไขหรือสรุป RCA');
   }
 
   private async saveDraftMeasures(tx: any, id: string, existing: any, measures: NonNullable<CreateStandardRcaDto['capas']>, user: any) {

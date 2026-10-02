@@ -537,12 +537,14 @@ describe('IncidentsService incident permissions', () => {
   });
 
   it('reuses a queued RCA when directly referring again', async () => {
+    prisma.standard_rca_case.update = jest.fn();
     prisma.riskregister.findFirst.mockResolvedValue({ ...pendingIncident, status_risk: 'ทบทวน', nrls_code: 'CPS101' });
     prisma.riskreview.findFirst.mockResolvedValue(null);
     prisma.standard_rca_case.findFirst.mockResolvedValue({ id: 'RCA-existing', status: 'PENDING' });
     const result = await service.sendReviewToRca(10,
       { id: 30, role: 'head', departmentId: 1, departmentGroup: 1 }, { direct: true, reason: 'ขอให้ศูนย์ RCA รับวิเคราะห์เรื่องเดิม' });
     expect(result.rca_case_id).toBe('RCA-existing');
+    expect(prisma.standard_rca_case.update).toHaveBeenCalledWith({ where: { id: 'RCA-existing' }, data: { hospital_center: true } });
     expect(prisma.standard_rca_case.create).not.toHaveBeenCalled();
   });
 

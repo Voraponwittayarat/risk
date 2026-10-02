@@ -2588,6 +2588,7 @@ export class IncidentsService {
               topic: String(incident.nrls_name_snapshot || incident.detail || `อุบัติการณ์ #${incident.id}`).slice(0, 255),
               incident_date: incident.date_report,
               rca_team: 'รอศูนย์ RCA รับเรื่อง',
+            hospital_center: true,
               severity: incident.level_id,
               nrls_code: incident.nrls_code,
               nrls_name_snapshot: incident.nrls_name_snapshot,
@@ -2788,6 +2789,7 @@ export class IncidentsService {
             topic: String(incident.nrls_name_snapshot || incident.detail || `อุบัติการณ์ #${incident.id}`).slice(0, 255),
             incident_date: incident.date_report,
             rca_team: 'รอศูนย์ RCA รับเรื่อง',
+            hospital_center: true,
             severity: incident.level_id,
             nrls_code: incident.nrls_code,
             nrls_name_snapshot: incident.nrls_name_snapshot,
@@ -2803,6 +2805,7 @@ export class IncidentsService {
         });
       }
 
+      if (existingRca) await tx.standard_rca_case.update({ where: { id: caseId }, data: { hospital_center: true } });
       const rcaStatus = existingRca?.status === 'COMPLETED' && existingRca.completed_at
         ? 'COMPLETED'
         : 'REQUIRED';

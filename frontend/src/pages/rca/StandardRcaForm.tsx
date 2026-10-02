@@ -1,3 +1,4 @@
+import RcaAppointmentPanel from '../../components/RcaAppointmentPanel';
 import RiskWorkflowNav from '../../components/RiskWorkflowNav';
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
@@ -1244,6 +1245,7 @@ export default function StandardRcaForm() {
         </section>
       )}
 
+      {caseId && <div className="mb-4 print:hidden"><RcaAppointmentPanel caseId={caseId} onEditTeam={() => { setGuidedMode(true); setActiveStep('rca-team'); document.getElementById('rca-team')?.scrollIntoView({ behavior: 'smooth' }); }} /></div>}
       {/* Main 9 Sections Form Body (No nested <form> tags) */}
       <div className="space-y-8">
         {completionPercent < 100 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 print:hidden"><strong>ก่อนสรุป ยังต้องเติมข้อมูล</strong><div className="mt-2 flex flex-wrap gap-2">{stepKeys.filter(key => !sectionCompletion[key]).map(key => <button key={key} type="button" onClick={() => { setGuidedMode(true); setActiveStep(key); }} className="rounded-lg bg-white px-3 py-2 underline">{stepLabels[key]}</button>)}</div>{!hasCompleteCapa && <p className="mt-2">มาตรการทุกข้อที่ระบุต้องมีผู้รับผิดชอบ กำหนดเสร็จ เกณฑ์วัดผล Baseline เป้าหมาย และวันประเมิน</p>}</div>}
