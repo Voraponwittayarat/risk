@@ -119,6 +119,11 @@ export class RcaController {
     return this.rcaService.completeStandard(id, data, req.user);
   }
 
+  @Post('standard/:id/discharge-without-rca')
+  dischargeWithoutRca(@Param('id') id: string, @Body() data: { reason: string; expected_version: number }, @Request() req: any) {
+    return this.rcaService.dischargeWithoutRca(id, data, req.user);
+  }
+
   @Delete('standard/:id')
   @ApiOperation({ summary: 'Delete Standard Full RCA case' })
   deleteStandard(@Param('id') id: string, @Body() body: { reason: string }, @Request() req: any) {

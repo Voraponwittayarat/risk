@@ -646,7 +646,7 @@ export class RcaService {
       && ((p.user_id && Number(p.user_id) === Number(user?.id)) || (p.team_id && Number(p.team_id) === Number(user?.teamId))));
     return {
       ...stdCase,
-      can_edit: canEdit, can_complete: canComplete, can_manage_team: canManageTeam, can_view_voice: canViewVoice,
+      can_edit: canEdit && stdCase.status !== 'CANCELLED', can_complete: canComplete && stdCase.status !== 'CANCELLED', can_manage_team: canManageTeam, can_view_voice: canViewVoice,
       voice_of_staff_entries: canViewVoice ? stdCase.voice_of_staff_entries : [],
       what_happened: stdCase.what_happened || incidentDetail,
       incident_detail_raw: incidentDetail,
@@ -974,7 +974,7 @@ export class RcaService {
     }
     const result = await this.prisma.$transaction(async (tx) => {
       const locked = await tx.standard_rca_case.updateMany({
-        where: { id, version: data.expected_version, status: { not: 'COMPLETED' } },
+        where: { id, version: data.expected_version, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
         data: { version: { increment: 1 } },
       });
       if (locked.count !== 1) throw new ConflictException('มีผู้บันทึกหรือสรุป RCA นี้แล้ว กรุณาโหลดข้อมูลใหม่');
@@ -1216,6 +1216,7 @@ export class RcaService {
 
   async completeStandard(id: string, data: CompleteStandardRcaDto, user?: any) {
     const standardCase = await this.getStandardById(id, user);
+    if (String(standardCase.status).toUpperCase() === 'CANCELLED') throw new BadRequestException('RCA นี้ถูกยกเลิกหรือจำหน่ายแล้ว');
     if (String(standardCase.status || '').toUpperCase() === 'COMPLETED' && standardCase.risk_analysis) {
       return { rca: standardCase, risk_analysis: standardCase.risk_analysis, risk_profile_created: false, already_completed: true };
     }
@@ -1367,8 +1368,38 @@ export class RcaService {
     return { ...result, risk_profile_created: profileCreated };
   }
 
+  async dischargeWithoutRca(id: string, data: { reason: string; expected_version: number }, user?: any) {
+    const record = await this.getStandardById(id, user);
+    await this.assertStandardWriter(record, user, true);
+    if (!['admin', 'head', 'rm_committee'].includes(user?.role)) throw new ForbiddenException('ให้หัวหน้าหน่วยงานหรือกรรมการความเสี่ยงยืนยันการจำหน่าย');
+    const reason = typeof data.reason === 'string' ? data.reason.trim() : '';
+    if (reason.length < 10 || reason.length > 2000) throw new BadRequestException('ระบุเหตุผลที่ไม่ต้องทำ RCA อย่างน้อย 10 และไม่เกิน 2000 ตัวอักษร');
+    if (!record.incident_id || ['COMPLETED', 'CANCELLED'].includes(String(record.status).toUpperCase())) throw new BadRequestException('จำหน่ายได้เฉพาะ RCA ที่ยังดำเนินการและเชื่อมกับอุบัติการณ์');
+    if (!Number.isInteger(data.expected_version) || data.expected_version !== record.version) throw new ConflictException('ข้อมูลเปลี่ยนแล้ว กรุณาโหลดใหม่ก่อนจำหน่าย');
+    const actorId = Number(user?.id || user?.userId || user?.sub);
+    return this.prisma.$transaction(async (tx) => {
+      const incident = await tx.riskregister.findFirst({ where: { id: record.incident_id! } });
+      if (!incident || !['ตรวจสอบ', 'ทบทวน'].includes(String(incident.status_risk))) throw new BadRequestException('อุบัติการณ์ไม่อยู่ในสถานะที่จำหน่ายได้');
+      const activeMeasures = await tx.capa_action.count({ where: { incident_id: record.incident_id!, status: { notIn: ['CLOSED', 'CANCELLED'] } } });
+      if (activeMeasures) throw new BadRequestException('เคสนี้มีมาตรการที่ยังติดตามอยู่ ให้ดำเนินการตามขั้นตอนปิดมาตรการก่อน');
+      const otherRca = await tx.rca_case.count({ where: { incident_id: record.incident_id!, status: { notIn: ['COMPLETED', 'CANCELLED'] } } });
+      if (otherRca) throw new BadRequestException('เคสนี้มี RCA อื่นที่ยังดำเนินการอยู่');
+      const changed = await tx.standard_rca_case.updateMany({ where: { id, version: data.expected_version, status: { notIn: ['COMPLETED', 'CANCELLED'] } }, data: { status: 'CANCELLED', completed_at: null, version: { increment: 1 } } });
+      if (changed.count !== 1) throw new ConflictException('ข้อมูลเปลี่ยนแล้ว กรุณาโหลดใหม่ก่อนจำหน่าย');
+      const now = new Date();
+      const note = `ทบทวนแล้วไม่ต้องทำ RCA/จำหน่ายเคส: ${reason}`;
+      await tx.riskreview.create({ data: { riskregister_id: incident.id, risk_id: incident.id_risk, riskvisit: `NR${Date.now().toString().slice(-12)}`, review_date: now, notereview: note, reviewresults_id: 1, status_risk: 'จำหน่าย', discharge: '1', created_by: actorId, create_date: now } });
+      const closedIncident = await tx.riskregister.updateMany({ where: { id: incident.id, id_risk: incident.id_risk, status_risk: { in: ['ตรวจสอบ', 'ทบทวน'] } }, data: { status_risk: 'จำหน่าย', rca_required: false, rca_status: 'NONE', rca_due_at: null, operational_closed_at: now, team_review_status: 'COMPLETED', team_review_completed_at: now, modify_date: now, updated_by: actorId } });
+      if (closedIncident.count !== 1) throw new ConflictException('สถานะอุบัติการณ์เปลี่ยนแล้ว กรุณาตรวจสอบใหม่');
+      await tx.sla_instance.updateMany({ where: { entity_type: 'INCIDENT', entity_id: String(incident.id), status: 'ACTIVE' }, data: { status: 'COMPLETED', completed_at: now } });
+      await tx.workflow_audit.create({ data: { entity_type: 'RCA', entity_id: id, action: 'DISCHARGED_WITHOUT_RCA', old_value: JSON.stringify({ status: record.status, incident_status: incident.status_risk }), new_value: JSON.stringify({ status: 'CANCELLED', incident_status: 'จำหน่าย' }), reason, changed_by: actorId } });
+      return { incident_id: incident.id, status: 'จำหน่าย' };
+    });
+  }
+
   async deleteStandard(id: string, reason?: string, actorId?: number, user?: any) {
     const existing = await this.getStandardById(id, user);
+    if (existing.status === 'CANCELLED') throw new BadRequestException('RCA นี้ถูกยกเลิกหรือจำหน่ายแล้ว');
     if (!reason?.trim()) throw new BadRequestException('ต้องระบุเหตุผลการยกเลิก RCA');
     const cancelled = await this.prisma.standard_rca_case.update({ where: { id }, data: { status: 'CANCELLED', completed_at: null } });
     if (existing.incident_id) await this.prisma.riskregister.updateMany({ where: { id: existing.incident_id }, data: { rca_status: 'REQUIRED', rca_case_id: null } });

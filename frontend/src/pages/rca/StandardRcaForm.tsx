@@ -24,6 +24,7 @@ import {
   MessageSquareText,
 } from 'lucide-react';
 import type { TimelineItem } from '../../components/rca/EventTimeline';
+import { parseTimelinePaste } from '../../utils/timelinePaste';
 import { TierContributingFactorPicker } from '../../components/rca/TierContributingFactorPicker';
 import { AiRcaAssistantModal } from '../../components/rca/AiRcaAssistantModal';
 import { useAuth } from '../../contexts/AuthContext';
@@ -205,6 +206,10 @@ export default function StandardRcaForm() {
   const conflictRef = useRef(false);
   const [canEdit, setCanEdit] = useState(true);
   const [canComplete, setCanComplete] = useState(true);
+  const [dischargeReason, setDischargeReason] = useState<string | null>(null);
+  const [timelinePaste, setTimelinePaste] = useState('');
+  const [timelinePreview, setTimelinePreview] = useState<TimelineItem[]>([]);
+  const [timelinePasteError, setTimelinePasteError] = useState('');
   const [canManageTeam, setCanManageTeam] = useState(true);
   const [canViewVoice, setCanViewVoice] = useState(true);
   const [saveError, setSaveError] = useState('');
@@ -930,7 +935,7 @@ export default function StandardRcaForm() {
     return () => { window.removeEventListener('beforeunload', warn); document.removeEventListener('click', guardLink, true); };
   }, [hasUnsavedChanges]);
   useEffect(() => {
-    if (!caseId || loading || !canEdit || status.toUpperCase() === 'COMPLETED') return;
+    if (!caseId || loading || !canEdit || ['COMPLETED', 'CANCELLED'].includes(status.toUpperCase())) return;
     const timer = window.setInterval(async () => {
       if (saving || completing || saveInFlightRef.current || conflictRef.current) return;
       const payload = latestDraftPayloadRef.current;
@@ -1004,6 +1009,18 @@ export default function StandardRcaForm() {
   };
 
   const handleSave = async (markAsNotRisk = isNotRisk) => persistRca(markAsNotRisk, true);
+
+  const handleDischargeWithoutRca = async () => {
+    if (!dischargeReason || dischargeReason.trim().length < 10) { alert('กรุณาระบุเหตุผลอย่างน้อย 10 ตัวอักษร'); return; }
+    setCompleting(true);
+    try {
+      const savedId = await persistRca(false, false);
+      if (!savedId) return;
+      const { data } = await axios.post(`/rca/standard/${savedId}/discharge-without-rca`, { reason: dischargeReason, expected_version: versionRef.current });
+      navigate(`/incidents/${data.incident_id}`);
+    } catch (err: any) { alert(err.response?.data?.message || 'จำหน่ายไม่สำเร็จ กรุณาลองใหม่'); }
+    finally { setCompleting(false); }
+  };
 
   const handleCompleteRca = async () => {
     if (!window.confirm('ยืนยันสรุป RCA และนำความเสี่ยงเข้าสู่ Risk Register ใช่หรือไม่?')) return;
@@ -1152,6 +1169,9 @@ export default function StandardRcaForm() {
             <Printer className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             <span>พิมพ์รายงาน HA</span>
           </button>
+          {canComplete && ['admin', 'head', 'rm_committee'].includes(user?.role || '') && !['COMPLETED', 'CANCELLED'].includes(status.toUpperCase()) && <button type="button" disabled={saving || completing} onClick={() => setDischargeReason('')} className="rounded-xl border border-orange-300 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-800">
+            ทบทวนแล้วไม่ต้องทำ RCA/จำหน่ายเคส
+          </button>}
           {status.toUpperCase() !== 'COMPLETED' && <button
             type="button"
             onClick={() => handleSave()}
@@ -1498,6 +1518,17 @@ export default function StandardRcaForm() {
 
         {/* ================= SECTION 3: INCIDENT TIMELINE ================= */}
         <section id="rca-timeline" className={`scroll-mt-24 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 ${guidedMode && activeStep !== 'rca-timeline' ? 'hidden print:block' : ''}`}>
+          <details className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:bg-blue-950/20">
+            <summary className="cursor-pointer font-semibold">วางตารางจาก Excel</summary>
+            <p className="my-2 text-sm">เรียงคอลัมน์: วันที่ | เวลา | เหตุการณ์ | จุดวิกฤต (คอลัมน์สุดท้ายไม่บังคับ ใช้ ใช่/ไม่) รองรับ 2/10/2569 หรือ 2026-10-02 เว้นวันที่ได้หากไม่ทราบ</p>
+            <textarea aria-label="ตาราง Timeline จาก Excel" rows={4} value={timelinePaste} onChange={e => { setTimelinePaste(e.target.value); setTimelinePreview([]); setTimelinePasteError(''); }} placeholder="คัดลอกเซลล์ใน Excel แล้ววางที่นี่" className="w-full rounded-xl border p-3 dark:bg-slate-900" />
+            <button type="button" onClick={() => { try { setTimelinePreview(parseTimelinePaste(timelinePaste)); setTimelinePasteError(''); } catch (err) { setTimelinePasteError((err as Error).message); } }} className="mt-2 rounded-lg bg-blue-600 px-4 py-2 text-white">ตรวจและดูตัวอย่าง</button>
+            {timelinePasteError && <p role="alert" className="mt-2 text-red-700">{timelinePasteError}</p>}
+            {timelinePreview.length > 0 && <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm"><thead><tr><th>วันที่</th><th>เวลา</th><th>เหตุการณ์</th><th>จุดวิกฤต</th></tr></thead><tbody>{timelinePreview.map((t, i) => <tr key={i}><td>{t.event_date || 'ไม่ระบุ'}</td><td>{t.event_time}</td><td className="whitespace-pre-wrap">{t.event_description}</td><td>{t.is_critical_point ? 'ใช่' : 'ไม่'}</td></tr>)}</tbody></table>
+              <button type="button" onClick={() => { setTimelines([...timelines.filter(t => t.event_description.trim() || t.event_time.trim() || t.event_date), ...timelinePreview]); setTimelinePreview([]); setTimelinePaste(''); }} className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-white">เพิ่ม {timelinePreview.length} แถวลง Timeline (เก็บรายการเดิมไว้)</button>
+            </div>}
+          </details>
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
@@ -1533,6 +1564,7 @@ export default function StandardRcaForm() {
                 }`}
               >
                 <div className="w-full sm:w-36 shrink-0">
+                  <label className="block text-xs">วันที่<input type="date" aria-label={`วันที่เหตุการณ์ ${idx + 1}`} value={t.event_date?.slice(0, 10) || ''} onChange={e => handleTimelineChange(idx, 'event_date', e.target.value)} className="mb-2 w-full rounded-xl border p-2 dark:bg-slate-900" /></label>
                   <input
                     type="text"
                     value={t.event_time}
@@ -1543,8 +1575,8 @@ export default function StandardRcaForm() {
                 </div>
 
                 <div className="flex-1 w-full">
-                  <input
-                    type="text"
+                  <textarea
+                    rows={2}
                     value={t.event_description}
                     onChange={(e) =>
                       handleTimelineChange(idx, 'event_description', e.target.value)
@@ -2529,6 +2561,14 @@ export default function StandardRcaForm() {
       )}
 
       {/* ================= AI RCA ASSISTANT MODAL ================= */}
+      {dischargeReason !== null && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="discharge-title">
+        <div className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 dark:bg-slate-900">
+          <h2 id="discharge-title" className="text-lg font-bold">ทบทวนแล้วไม่ต้องทำ RCA/จำหน่ายเคส</h2>
+          <p className="text-sm">ใช้เมื่อส่งเข้า RCA ผิดหรือทบทวนแล้วไม่จำเป็นต้องทำ RCA ระบบจะปิดอุบัติการณ์ เก็บร่าง RCA และบันทึกเหตุผลในผลการทบทวน</p>
+          <label className="block text-sm font-semibold">เหตุผลที่ไม่ต้องทำ RCA<textarea autoFocus rows={4} maxLength={2000} value={dischargeReason} onChange={e => setDischargeReason(e.target.value)} className="mt-2 w-full rounded-xl border p-3 dark:bg-slate-800" /></label>
+          <div className="flex justify-end gap-3"><button type="button" disabled={completing} onClick={() => setDischargeReason(null)}>กลับไปทบทวน</button><button type="button" disabled={completing || saving || dischargeReason.trim().length < 10} onClick={handleDischargeWithoutRca} className="rounded-xl bg-orange-600 px-4 py-2 text-white disabled:opacity-50">{completing ? 'กำลังจำหน่าย...' : 'ยืนยันจำหน่ายเคส'}</button></div>
+        </div>
+      </div>}
       <AiRcaAssistantModal
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
