@@ -63,7 +63,7 @@ function parseReviewAttachments(value: unknown): ReviewAttachment[] {
 }
 
 const DEPARTMENT_OUTCOME_LABELS: Record<DepartmentOutcome, string> = {
-  IN_PROGRESS: 'อยู่ระหว่างการดำเนินการแก้ปัญหาระดับหน่วยงาน',
+  IN_PROGRESS: 'รอทำ RCA หน่วยงาน',
   RESOLVED: 'สิ้นสุดการแก้ปัญหาระดับหน่วยงาน โดยยุติปัญหาได้',
   UNRESOLVED: 'สิ้นสุดการแก้ปัญหาระดับหน่วยงาน แต่ไม่สามารถยุติปัญหาได้',
 };
@@ -1249,19 +1249,19 @@ export default function IncidentDetail() {
           <p className="text-sm font-bold text-indigo-700 dark:text-indigo-300">Standard RCA — วิเคราะห์ต่อโดยศูนย์ RCA</p>
           <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">ระบุเหตุผลแล้วกดยืนยันส่งเข้าศูนย์ RCA ระบบจะเปิดงาน Standard RCA รอรับเรื่อง ไม่ต้องกรอกปัจจัยร่วมและมาตรการล่วงหน้า</p>
         </div> : (
-          <details className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-            <summary className="cursor-pointer text-sm font-semibold text-indigo-700 dark:text-indigo-300">วิเคราะห์สาเหตุในหน่วยงานด้วย Mini RCA</summary>
-            <p className="mt-2 text-xs text-slate-500">เลือกเครื่องมือเพื่อเปิดแบบวิเคราะห์ได้เลย หากมีเอกสารแล้วจะเปิดรายการเดิม</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {([
-                ['MINI', 'Mini RCA', !canStartRca || ['STANDARD', 'FULL', 'CONCISE'].includes(incident.recommended_rca_type)],
-              ] as const).map(([mode, label, disabled]) => <button key={mode} type="button" disabled={disabled || submittingAction}
-                onClick={event => void handleAddReview(event, mode)} className="rounded-lg border border-indigo-200 px-3 py-2 text-sm font-bold text-indigo-700 disabled:opacity-40 dark:text-indigo-300">{label}</button>)}
-            </div>
-          </details>
+          <div className="space-y-3">
+            <button type="button" aria-expanded={isMiniRcaOpen}
+              disabled={!canStartRca || ['STANDARD', 'FULL', 'CONCISE'].includes(incident.recommended_rca_type) || submittingAction}
+              onClick={event => isMiniRcaOpen ? setIsMiniRcaOpen(false) : void handleAddReview(event, 'MINI')}
+              className="w-full rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-left text-sm font-semibold text-indigo-700 disabled:opacity-40 dark:bg-indigo-950/20 dark:text-indigo-300">
+              {isMiniRcaOpen ? '▾' : '▸'} ทบทวน RCA ในหน่วยงาน
+            </button>
+            {isMiniRcaOpen && <MiniRcaModal embedded isOpen incident={incident}
+              onClose={() => setIsMiniRcaOpen(false)} onSuccess={() => { fetchDetail(); navigate('/rca/list'); }} />}
+          </div>
         )}
 
-        {reviewAction !== 'CENTER' && <div className="space-y-2">
+        {reviewAction !== 'CENTER' && !isMiniRcaOpen && <div className="space-y-2">
           <label htmlFor="department-review-cause" className="block text-sm font-bold text-slate-700 dark:text-slate-200">สาเหตุที่พบจากการทบทวนของหน่วยงาน</label>
           <textarea id="department-review-cause" rows={3} maxLength={255} value={causeProblem}
             onChange={event => setCauseProblem(event.target.value)}
@@ -1270,7 +1270,7 @@ export default function IncidentDetail() {
           <p className="text-xs text-slate-500">{isLowSeverityReview ? 'กรอกสาเหตุที่พบได้ โดยไม่บังคับเลือกรหัสปัจจัยร่วม' : 'ระบุสาเหตุในช่องนี้ หรือเลือกปัจจัยร่วม NRLS ด้านล่าง'} • {causeProblem.length}/255</p>
         </div>}
 
-        {!isLowSeverityReview && reviewAction !== 'CENTER' && (
+        {!isLowSeverityReview && reviewAction !== 'CENTER' && !isMiniRcaOpen && (
           <section className="space-y-4 rounded-2xl border-2 border-indigo-300 bg-indigo-50/30 p-4 dark:border-indigo-800 dark:bg-indigo-950/20 sm:p-5">
             <div>
               <h3 className="text-sm font-black text-indigo-950 dark:text-indigo-200">
@@ -1288,7 +1288,7 @@ export default function IncidentDetail() {
         )}
 
         {/* 4. ฟอร์มบันทึกข้อมูลหลัก (Main Review Inputs) */}
-        <form onSubmit={event => void handleAddReview(event)} className="space-y-4" noValidate={!['REVIEW', 'RESOLVED', 'CLOSE'].includes(reviewAction)}>
+        {(reviewAction === 'CENTER' || !isMiniRcaOpen) && <form onSubmit={event => void handleAddReview(event)} className="space-y-4" noValidate={!['REVIEW', 'RESOLVED', 'CLOSE'].includes(reviewAction)}>
           {['REVIEW', 'RESOLVED', 'CLOSE'].includes(reviewAction) && <>
           <div>
             <label htmlFor="review-measure-change" className="block text-xs font-bold mb-2">มาตรการในรอบนี้ *</label>
@@ -1370,7 +1370,7 @@ export default function IncidentDetail() {
           <fieldset className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
             <legend className="px-1 text-xs font-bold">ผลการดำเนินการของหน่วยงาน</legend>
             <div className="grid grid-cols-2 gap-2">
-              {([['IN_PROGRESS', 'ยังต้องติดตามต่อ'], ['RESOLVED', 'ยุติปัญหาได้ในหน่วยงาน']] as const).map(([value, label]) => (
+              {([['IN_PROGRESS', 'รอทำ RCA หน่วยงาน'], ['RESOLVED', 'ยุติปัญหาได้ในหน่วยงาน']] as const).map(([value, label]) => (
                 <button key={value} type="button" aria-pressed={departmentOutcome === value} onClick={() => setDepartmentOutcome(value)}
                   className={`rounded-lg border p-3 text-sm font-bold ${departmentOutcome === value ? 'border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-950' : 'border-slate-200 text-slate-600'}`}>{label}</button>
               ))}
@@ -1471,7 +1471,7 @@ export default function IncidentDetail() {
                 : 'การบันทึกทบทวนเป็นประวัติรอบใหม่ เก็บผลเดิมไว้ตรวจสอบย้อนหลัง'}
             </div>
           </div>
-        </form>
+        </form>}
       </div>
       )}
 
@@ -2255,9 +2255,6 @@ export default function IncidentDetail() {
         </div>
       )}
 
-      {isMiniRcaOpen && <MiniRcaModal isOpen={isMiniRcaOpen} incident={incident}
-        onClose={() => setIsMiniRcaOpen(false)} onSuccess={() => { fetchDetail(); navigate('/rca/list'); }} />}
-      {/* Mini RCA Modal for Department */}
       {/* Image Lightbox Modal */}
       {selectedLightboxImage && (
         <div 

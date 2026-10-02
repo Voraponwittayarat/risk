@@ -72,3 +72,11 @@
 - ไฟล์: IncidentDetail, IncidentList, MiniRcaModal, incidents.controller/service/spec, rca.service/spec และเอกสารสถานะ/การตัดสินใจ/TODO
 - งานต่อ: ตรวจบัญชีจริงบน staging และอนุมัติ release ตาม pipeline; Mini/Concise เดิมเปิดรายการเพื่อดู โดยยังไม่เพิ่มการเขียนทับมาตรการเดิม
 - ตรวจผ่าน: npm run build ทั้ง frontend/backend, backend tests 113 รายการ (incidents.service, rca.service, rca-discharge), git diff --check; frontend ยังมีคำเตือน bundle ใหญ่เดิม
+## 2 ตุลาคม 2569 — เตรียม release หน้าทบทวน RCA หน่วยงาน
+
+- Mini RCA แสดงในหน้าทบทวนโดยตรง ซ่อนแบบกรอกสาเหตุ/มาตรการปกติระหว่างใช้เครื่องมือ และเอาข้อมูลเหตุการณ์ซ้ำออก
+- เลือกปัจจัย NRLS และกรอกข้อค้นพบภายใน Swiss Cheese ข้อ 1–4; นโยบายและการสื่อสารอยู่ข้อ 1, กำกับดูแลอยู่ข้อ 2, หมวดอื่นอยู่ข้อ 3
+- รวมช่อง CMP ในข้อ 4 และใช้ข้อความเดียวกันในข้อมูลมาตรการ; หน่วยงานของรายงานถูกใช้โดยอัตโนมัติในหน้าหน่วยงาน
+- ปุ่มสถานะใช้ชื่อรอทำ RCA หน่วยงาน; เมนูใช้ติดตามความเสี่ยง Risk register
+- ไม่มี schema/migration ใหม่และไม่แก้ข้อมูลจริง งานนำเข้าความเสี่ยงด้านยายังแยกอยู่นอก release นี้
+- ผู้ใช้สั่ง deploy; ขั้นตอนตรวจ production/backup รอ Tailscale SSH reauthentication ก่อน push main

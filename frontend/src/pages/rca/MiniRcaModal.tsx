@@ -5,8 +5,11 @@ import { SwissCheeseTable } from '../../components/rca/SwissCheeseTable';
 import type { SwissCheeseHole } from '../../components/rca/SwissCheeseTable';
 import { ContributingFactorSelector } from '../../components/rca/ContributingFactorSelector';
 import { AiRcaAssistantModal } from '../../components/rca/AiRcaAssistantModal';
+import { SWISS_CHEESE_LAYERS } from '../../utils/rcaCriteria';
+import { factorSwissLayer, factorsToSwissHoles } from '../../utils/factorSwissCheese';
 import { useAuth } from '../../contexts/AuthContext';
 import {
+  CONTRIBUTING_FACTORS,
   contributingFactorSelectionsFromLegacy,
   normalizeContributingFactorSelections,
   type ContributingFactorSelection,
@@ -14,6 +17,7 @@ import {
 
 interface MiniRcaModalProps {
   isOpen: boolean;
+  embedded?: boolean;
   onClose: () => void;
   incident: {
     id: number;
@@ -31,7 +35,7 @@ interface MiniRcaModalProps {
   onSuccess?: () => void;
 }
 
-export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, incident, onSuccess }) => {
+export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, incident, onSuccess, embedded = false }) => {
   const { user } = useAuth();
   const [topic, setTopic] = useState(incident.nrls_name_snapshot || incident.risk_name || incident.topic || 'ทบทวนสาเหตุเชิงระบบ Mini RCA');
   const [incidentDetail, setIncidentDetail] = useState(incident.detail || '');
@@ -44,7 +48,7 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
 
   // New features for feedback
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
-  const [toolChoice, setToolChoice] = useState<'swiss_cheese' | 'contributing_factors'>('swiss_cheese');
+  const factorLayers: Record<string, string> = {};
   const [contributingFactors, setContributingFactors] = useState<ContributingFactorSelection[]>([]);
 
   if (!isOpen) return null;
@@ -75,13 +79,13 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
             detail: incidentDetail,
           },
         ],
-        swiss_cheeses: toolChoice === 'swiss_cheese' ? holes : [],
-        contributing_factors: toolChoice === 'contributing_factors' ? contributingFactors : [],
+        swiss_cheeses: [...factorsToSwissHoles(contributingFactors, factorLayers), ...holes, ...(cmpProblem.trim() ? [{ layer: 'act', hole: cmpProblem.trim() }] : [])],
+        contributing_factors: contributingFactors,
         cmps: [
           {
-            cmp_problem: cmpProblem || 'ปัญหา/ช่องโหว่การปฏิบัติงาน',
+            cmp_problem: [cmpProblem.trim(), ...holes.filter(hole => hole.layer === 'act').map(hole => hole.hole)].filter(Boolean).join('; ') || [...factorsToSwissHoles(contributingFactors, factorLayers), ...holes].map(hole => hole.hole).join('; ') || 'ปัญหา/ช่องโหว่การปฏิบัติงาน',
             corrective_action: correctiveAction,
-            responsible_unit: responsibleUnit,
+            responsible_unit: embedded ? (incident.department_name || (incident.department_id ? `หน่วยที่ ${incident.department_id}` : '')) : responsibleUnit,
             status: 'pending',
           },
         ],
@@ -89,7 +93,7 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
           {
             name: reviewerName || user?.name || 'ทีมงาน',
             position: 'ผู้ทบทวน',
-            department: responsibleUnit,
+            department: embedded ? (incident.department_name || (incident.department_id ? `หน่วยที่ ${incident.department_id}` : '')) : responsibleUnit,
           },
         ],
       };
@@ -108,8 +112,8 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
-        <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-6 my-8">
+      <div className={embedded ? "w-full" : "fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"}>
+        <div className={`w-full bg-white dark:bg-slate-900 rounded-2xl p-4 border border-indigo-200 dark:border-indigo-800 space-y-6 ${embedded ? "" : "max-w-4xl shadow-2xl my-8"}`}>
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-2.5">
@@ -119,7 +123,7 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  วิเคราะห์ Mini RCA
+                  ทบทวน RCA ในหน่วยงาน
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300">
                   เคสเดียว (Single Case)
@@ -140,15 +144,15 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
               <Sparkles className="w-4 h-4" />
               <span>ผู้ช่วย AI</span>
             </button>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <button type="button" aria-label={embedded ? "กลับไปใช้แบบทบทวนปกติ" : "ปิด Mini RCA"} onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
               <X size={20} />
             </button>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Incident Snapshot Card */}
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
+          {/* Standalone form needs context; embedded review already shows it above. */}
+          {!embedded && <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
                 รหัสอุบัติการณ์: #{incident.id} | ระดับความรุนแรง: {incident.level_id || 'C'}
@@ -182,42 +186,45 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
                 className="w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
               />
             </div>
-          </div>
+          </div>}
 
-          {/* Tool Selection Toggle */}
-          <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit mx-auto border border-slate-200 dark:border-slate-700">
-            <button
-              type="button"
-              onClick={() => setToolChoice('swiss_cheese')}
-              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                toolChoice === 'swiss_cheese'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              สวิสชีส (Swiss Cheese)
-            </button>
-            <button
-              type="button"
-              onClick={() => setToolChoice('contributing_factors')}
-              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                toolChoice === 'contributing_factors'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              ปัจจัยร่วม NRLS 2569
-            </button>
-          </div>
-
-          {/* Analysis Tool Component */}
-          {toolChoice === 'swiss_cheese' ? (
-            <SwissCheeseTable holes={holes} onChange={setHoles} />
-          ) : (
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <ContributingFactorSelector value={contributingFactors} onChange={setContributingFactors} />
+          <section className="space-y-4">
+            <h4 className="text-sm font-bold">Swiss Cheese และปัจจัย NRLS</h4>
+            <p className="text-xs text-slate-500">กดหัวข้อ 1–4 เพื่อเลือกปัจจัยและกรอกข้อค้นพบในชั้นนั้น โดยจัดหมวดให้อัตโนมัติตามที่ตกลงไว้</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {SWISS_CHEESE_LAYERS.map(layer => {
+                const codes = CONTRIBUTING_FACTORS.filter(factor => factorSwissLayer(factor.code) === layer.key).map(factor => factor.code);
+                const selected = contributingFactors.filter(factor => codes.includes(factor.code));
+                const extraHoles = holes.filter(hole => hole.layer === layer.key);
+                return <details key={layer.key} className="rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 overflow-hidden">
+                  <summary className={`cursor-pointer p-4 text-sm font-bold ${layer.color}`}>
+                    {layer.name} <span className="ml-2">({selected.length + extraHoles.length + (layer.key === 'act' && cmpProblem.trim() ? 1 : 0)})</span>
+                  </summary>
+                  <div className="space-y-3 p-3">
+                    <p className="text-xs text-slate-500">{layer.description}</p>
+                    {codes.length > 0 ? <ContributingFactorSelector hideHeader pickerOpen allowedCodes={codes}
+                      value={selected} onChange={next => setContributingFactors(previous => [...previous.filter(factor => !codes.includes(factor.code)), ...next])} />
+                      : <p className="text-xs text-slate-500">หมวด NRLS จัดอยู่ในข้อ 1–3 ตามที่ตกลงไว้ ข้อนี้ใช้ระบุการกระทำที่ไม่ปลอดภัยจากข้อเท็จจริงเพิ่มเติม</p>}
+                    {layer.key === 'act' && <label className="block text-xs font-semibold">
+                      การกระทำที่ไม่ปลอดภัย / จุดอ่อนในการดูแลที่พบ
+                      <textarea rows={3} value={cmpProblem} onChange={event => setCmpProblem(event.target.value)}
+                        placeholder="ระบุสิ่งที่เกิดขึ้นจริง เช่น ไม่ได้ตรวจสอบซ้ำก่อนปฏิบัติ"
+                        className="mt-2 w-full rounded-xl border border-rose-200 bg-white p-3 text-xs dark:bg-slate-900" />
+                      <span className="mt-1 block font-normal text-slate-500">นำข้อความนี้ไปใช้เป็นปัญหาตั้งต้นของมาตรการโดยอัตโนมัติ ไม่ต้องกรอก CMP ซ้ำ</span>
+                    </label>}
+                    {extraHoles.map(hole => <div key={holes.indexOf(hole)} className="flex justify-between gap-2 text-xs">
+                      <span>{hole.hole}</span><button type="button" aria-label={`ลบช่องโหว่ ${hole.hole}`} onClick={() => setHoles(previous => previous.filter(item => item !== hole))} className="text-rose-600">ลบ</button>
+                    </div>)}
+                    <details className="rounded-xl border border-slate-200 p-2">
+                      <summary className="cursor-pointer text-xs">เพิ่มช่องโหว่อื่นในชั้นนี้ (ถ้ามี)</summary>
+                      <SwissCheeseTable controlsOnly fixedLayer={layer.key} holes={extraHoles}
+                        onChange={next => setHoles(previous => [...previous.filter(hole => hole.layer !== layer.key), ...next])} />
+                    </details>
+                  </div>
+                </details>;
+              })}
             </div>
-          )}
+          </section>
 
           {/* Action Plan & CMP */}
           <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/60 space-y-3">
@@ -227,20 +234,7 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  ปัญหา/จุดอ่อนในการดูแล (CMP Problem)
-                </label>
-                <input
-                  type="text"
-                  placeholder="เช่น ไม่ได้ทำ Double check, ขาดระบบเตือน..."
-                  value={cmpProblem}
-                  onChange={(e) => setCmpProblem(e.target.value)}
-                  className="w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
-                />
-              </div>
-
-              <div>
+              {!embedded && <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   หน่วยงานรับผิดชอบ
                 </label>
@@ -250,7 +244,7 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
                   onChange={(e) => setResponsibleUnit(e.target.value)}
                   className="w-full text-xs px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
                 />
-              </div>
+              </div>}
 
               <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
@@ -287,7 +281,7 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
               onClick={onClose}
               className="px-5 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold"
             >
-              ยกเลิก
+              {embedded ? "กลับไปใช้แบบทบทวนปกติ" : "ยกเลิก"}
             </button>
             <button
               type="submit"
@@ -315,12 +309,11 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
           }
           if (aiData.swiss_cheeses && aiData.swiss_cheeses.length > 0) {
             setHoles(aiData.swiss_cheeses);
-            setToolChoice('swiss_cheese');
-          } else if ((aiData.contributing_factors && aiData.contributing_factors.length > 0) || (aiData.fishbones && aiData.fishbones.length > 0)) {
+          }
+          if ((aiData.contributing_factors && aiData.contributing_factors.length > 0) || (aiData.fishbones && aiData.fishbones.length > 0)) {
             const suggested = normalizeContributingFactorSelections(aiData.contributing_factors);
             const migratedSuggestion = contributingFactorSelectionsFromLegacy(aiData.fishbones || []).selections;
             setContributingFactors(suggested.length ? suggested : migratedSuggestion);
-            setToolChoice('contributing_factors');
           }
         }}
       />

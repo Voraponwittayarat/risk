@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 import { BookOpen, Check, Plus, Search, Trash2 } from 'lucide-react';
 import {
@@ -13,6 +14,11 @@ interface ContributingFactorSelectorProps {
   value: ContributingFactorSelection[];
   onChange: (value: ContributingFactorSelection[]) => void;
   readOnly?: boolean;
+  allowedCodes?: string[];
+  pickerOpen?: boolean;
+  hideHeader?: boolean;
+  mode?: 'all' | 'picker' | 'selected';
+  renderSelectionExtra?: (selection: ContributingFactorSelection) => ReactNode;
   legacyItems?: LegacyCauseFactor[];
   otherCause?: string;
   onOtherCauseChange?: (value: string) => void;
@@ -22,6 +28,11 @@ export function ContributingFactorSelector({
   value,
   onChange,
   readOnly = false,
+  allowedCodes,
+  pickerOpen = false,
+  hideHeader = false,
+  mode = 'all',
+  renderSelectionExtra,
   legacyItems = [],
   otherCause = '',
   onOtherCauseChange,
@@ -33,12 +44,13 @@ export function ContributingFactorSelector({
   const filteredFactors = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return CONTRIBUTING_FACTORS.filter((factor) => {
+      if (allowedCodes && !allowedCodes.includes(factor.code)) return false;
       if (category !== 'all' && factor.category !== category) return false;
       if (!needle) return true;
       return [factor.code, factor.name, factor.labelTh, factor.definition]
         .some((field) => field.toLowerCase().includes(needle));
     });
-  }, [category, search]);
+  }, [category, search, allowedCodes]);
 
   const groupedFactors = useMemo(() => CONTRIBUTING_FACTOR_CATEGORIES
     .map((group) => ({
@@ -62,7 +74,7 @@ export function ContributingFactorSelector({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 dark:border-slate-800 sm:flex-row sm:items-start sm:justify-between">
+      {mode !== 'selected' && !hideHeader && <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 dark:border-slate-800 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
             <BookOpen className="h-4 w-4 text-indigo-500" />
@@ -76,9 +88,9 @@ export function ContributingFactorSelector({
         <span className="w-fit rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300">
           เลือกแล้ว {value.length} ปัจจัย
         </span>
-      </div>
+      </div>}
 
-      {value.length > 0 && (
+      {mode !== 'picker' && value.length > 0 && (
         <div className="space-y-3">
           <div className="text-xs font-bold text-slate-700 dark:text-slate-300">ปัจจัยที่เลือกและข้อค้นพบเฉพาะเหตุการณ์</div>
           {value.map((selection) => {
@@ -97,7 +109,7 @@ export function ContributingFactorSelector({
                     <div className="mt-1 text-[11px] text-slate-600 dark:text-slate-400">{factor.name}</div>
                     <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{factor.definition}</p>
                   </div>
-                  {!readOnly && (
+                  {!readOnly && mode !== 'selected' && (
                     <button
                       type="button"
                       onClick={() => removeFactor(selection.code)}
@@ -108,6 +120,7 @@ export function ContributingFactorSelector({
                     </button>
                   )}
                 </div>
+                {renderSelectionExtra?.(selection)}
                 <textarea
                   rows={2}
                   readOnly={readOnly}
@@ -134,9 +147,9 @@ export function ContributingFactorSelector({
         </div>
       )}
 
-      {!readOnly && (
-        <details className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50">
-          <summary className="cursor-pointer text-sm font-semibold text-indigo-700">ค้นหาหรือเพิ่มปัจจัยที่เกี่ยวข้อง</summary>
+      {!readOnly && mode !== 'selected' && (
+        <details open={pickerOpen || undefined} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50">
+          <summary className={pickerOpen ? "hidden" : "cursor-pointer text-sm font-semibold text-indigo-700"}>ค้นหาหรือเพิ่มปัจจัยที่เกี่ยวข้อง</summary>
           <div>
             <label className="relative block">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -158,10 +171,11 @@ export function ContributingFactorSelector({
                 ? 'border-indigo-600 bg-indigo-600 text-white'
                 : 'border-slate-300 bg-white text-slate-600 hover:border-indigo-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}
             >
-              ทุกหมวด ({CONTRIBUTING_FACTORS.length})
+              ทุกหมวด ({allowedCodes?.length ?? CONTRIBUTING_FACTORS.length})
             </button>
             {CONTRIBUTING_FACTOR_CATEGORIES.map((item) => {
-              const count = CONTRIBUTING_FACTORS.filter((factor) => factor.category === item.key).length;
+              const count = CONTRIBUTING_FACTORS.filter((factor) => factor.category === item.key && (!allowedCodes || allowedCodes.includes(factor.code))).length;
+              if (count === 0) return null;
               return (
                 <button
                   key={item.key}

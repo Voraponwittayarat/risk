@@ -155,7 +155,7 @@ export default function Layout() {
           badgeColor: "bg-rose-500/20 text-rose-300 border border-rose-500/30",
         },
         {
-          name: "ติดตามความเสี่ยง",
+          name: "ติดตามความเสี่ยง Risk register",
           path: "/reports",
           icon: BarChart3,
           badge: "5x5 Matrix",

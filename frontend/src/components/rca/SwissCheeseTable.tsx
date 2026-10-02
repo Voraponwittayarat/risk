@@ -11,9 +11,11 @@ interface SwissCheeseTableProps {
   holes: SwissCheeseHole[];
   onChange: (holes: SwissCheeseHole[]) => void;
   readOnly?: boolean;
+  controlsOnly?: boolean;
+  fixedLayer?: string;
 }
 
-export const SwissCheeseTable: React.FC<SwissCheeseTableProps> = ({ holes, onChange, readOnly = false }) => {
+export const SwissCheeseTable: React.FC<SwissCheeseTableProps> = ({ holes, onChange, readOnly = false, controlsOnly = false, fixedLayer }) => {
   const [selectedLayer, setSelectedLayer] = useState('org');
   const [newHoleText, setNewHoleText] = useState('');
 
@@ -21,7 +23,7 @@ export const SwissCheeseTable: React.FC<SwissCheeseTableProps> = ({ holes, onCha
     if (e && 'preventDefault' in e) e.preventDefault();
     if (!newHoleText.trim()) return;
 
-    onChange([...holes, { layer: selectedLayer, hole: newHoleText.trim() }]);
+    onChange([...holes, { layer: fixedLayer || selectedLayer, hole: newHoleText.trim() }]);
     setNewHoleText('');
   };
 
@@ -31,7 +33,7 @@ export const SwissCheeseTable: React.FC<SwissCheeseTableProps> = ({ holes, onCha
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
+      {!controlsOnly && <><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
         <div>
           <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
             <Shield className="w-4 h-4 text-amber-500" />
@@ -104,10 +106,11 @@ export const SwissCheeseTable: React.FC<SwissCheeseTableProps> = ({ holes, onCha
         })}
       </div>
 
+      </>}
       {/* Add New Hole Controls (Container is div, not form) */}
       {!readOnly && (
         <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <div className="w-full sm:w-64 shrink-0">
+          {!fixedLayer && <div className="w-full sm:w-64 shrink-0">
             <select
               value={selectedLayer}
               onChange={(e) => setSelectedLayer(e.target.value)}
@@ -119,7 +122,7 @@ export const SwissCheeseTable: React.FC<SwissCheeseTableProps> = ({ holes, onCha
                 </option>
               ))}
             </select>
-          </div>
+          </div>}
 
           <div className="flex-1 min-w-0">
             <input
