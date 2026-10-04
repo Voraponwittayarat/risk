@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { normalizeAiSwissLayer } from './ai-rca-validation';
+import { BadRequestException, ConflictException, ForbiddenException, ServiceUnavailableException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IncidentRcaPolicyService } from './incident-rca-policy.service';
 import { normalizeContributingFactors, serializeContributingFactors, toLegacyFishbone } from './contributing-factor.catalog';
@@ -18,6 +19,7 @@ export class EvaluateCriteriaDto {
 }
 
 export class AiAssistDto {
+  incident_id?: number;
   topic?: string;
   what_happened?: string;
   actual_impact?: string;
@@ -1634,12 +1636,29 @@ export class RcaService {
   }
 
   // ================= 6. AI RCA Clinical Assistant Engine =================
+  async generateAiForIncident(dto: AiAssistDto, user: any) {
+    if (!['admin', 'head', 'rm_committee'].includes(String(user?.role || ''))) throw new ForbiddenException('เฉพาะผู้มีสิทธิ์ทบทวนเท่านั้นที่ใช้ผู้ช่วย RCA ได้');
+    if (!Number.isSafeInteger(dto?.incident_id) || Number(dto.incident_id) < 1) throw new BadRequestException('ต้องระบุ incident_id ที่ถูกต้อง');
+    const incident = await this.prisma.riskregister.findFirst({ where: { id: dto.incident_id }, select: { department_id: true, status_risk: true } });
+    if (!incident) throw new NotFoundException('ไม่พบอุบัติการณ์');
+    await this.assertDepartmentAccess(incident.department_id, user);
+    if (!['ตรวจสอบ', 'ทบทวน'].includes(String(incident.status_risk))) throw new BadRequestException('ใช้ผู้ช่วยได้เฉพาะความเสี่ยงที่ยืนยันแล้วและยังเปิดอยู่');
+    return this.generateAiAssistance(dto);
+  }
+
+  private activeAiRequests = 0;
+
   async generateAiAssistance(dto: AiAssistDto) {
+    if (!dto || typeof dto !== 'object') throw new BadRequestException('ข้อมูลไม่ถูกต้อง');
+    for (const key of ['topic', 'what_happened', 'actual_impact', 'severity', 'incident_text', 'rca_type', 'analysis_mode'] as const) {
+      const value = dto?.[key];
+      if (value !== undefined && (typeof value !== 'string' || value.length > 4000)) {
+        throw new BadRequestException('ข้อมูลต้องเป็นข้อความ ความยาวไม่เกิน 4,000 ตัวอักษรต่อช่อง');
+      }
+    }
     const topic = (dto.topic || '').trim();
     const incidentText = (dto.incident_text || dto.what_happened || '').trim();
     const whatHappened = (dto.what_happened || incidentText).trim();
-    const actualImpact = (dto.actual_impact || '').trim();
-    const severity = (dto.severity || 'G').toUpperCase();
     const rcaType = dto.rca_type === 'mini' ? 'mini' : 'standard';
     const analysisMode = dto.analysis_mode === 'basic' ? 'basic' : 'full';
 
@@ -1650,6 +1669,8 @@ export class RcaService {
     let aiFallbackNotice = '';
     const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
     if (process.env.AI_ASSISTANT_ENABLED === 'true' && apiKey) {
+      if (this.activeAiRequests >= 2) throw new ServiceUnavailableException('ตัวช่วยกำลังประมวลผล กรุณาลองใหม่ภายหลัง');
+      this.activeAiRequests++;
       try {
         const { GoogleGenerativeAI } = await import('@google/generative-ai');
         const genAI = new GoogleGenerativeAI(apiKey);
@@ -1692,7 +1713,7 @@ export class RcaService {
     { "processKey": "ชื่อกระบวนการดูแล", "problem": "CMP ของกระบวนการ", "tier1Personnel": "บุคคล/ผู้ป่วย", "tier2Teamwork": "งานและทีม", "tier3Environment": "สิ่งแวดล้อม/เครื่องมือ", "tier4Policy": "การบริหาร/องค์กร", "tier5External": "ปัจจัยภายนอก", "correctiveAction": "เป้าหมายหรือการออกแบบระบบใหม่" }
   ],
   "swissCheeses": [
-    { "layer": "ชั้นของแนวป้องกัน", "hole": "ช่องโหว่เชิงระบบ" }
+    { "layer": "org หรือ supervision หรือ precondition หรือ act เท่านั้น", "hole": "ช่องโหว่เชิงระบบ" }
   ],
   "capas": [
     { "action": "มาตรการ", "type": "immediate หรือ preventive หรือ systemic", "responsible": "หน่วยงาน/บทบาทผู้รับผิดชอบ", "dueDate": "YYYY-MM-DD หรือค่าว่าง", "status": "pending" }
@@ -1707,7 +1728,7 @@ export class RcaService {
 ${safeIncidentText}
 --- จบเนื้อหา ---`;
 
-        const result = await model.generateContent(prompt);
+        const result = await model.generateContent(prompt, { timeout: 45000 });
         const rawText = result.response.text().trim();
         const cleaned = rawText
           .replace(/^```json\s*/i, '')
@@ -1719,7 +1740,7 @@ ${safeIncidentText}
           ? parsed.timelines.map((item: any) => ({
               event_time: String(item?.eventTime || item?.event_time || '').trim(),
               event_description: String(item?.description || item?.eventDescription || item?.event_description || '').trim(),
-              is_critical_point: Boolean(item?.isCriticalPoint ?? item?.is_critical_point),
+              is_critical_point: (item?.isCriticalPoint ?? item?.is_critical_point) === true,
             })).filter((item: any) => item.event_time || item.event_description)
           : [];
         const cmps = Array.isArray(parsed?.cmps)
@@ -1747,7 +1768,7 @@ ${safeIncidentText}
           ? swissCheesesRaw.map((item: any) => ({
               layer: String(item?.layer || '').trim(),
               hole: String(item?.hole || '').trim(),
-            })).filter((item: any) => item.layer || item.hole)
+            })).map((item: any) => ({ ...item, layer: normalizeAiSwissLayer(item.layer) })).filter((item: any) => item.layer && item.hole)
           : [];
         const capas = Array.isArray(parsed?.capas)
           ? parsed.capas.map((item: any) => ({
@@ -1777,248 +1798,13 @@ ${safeIncidentText}
           analysis_mode: analysisMode,
         };
       } catch (error) {
-        console.error('Gemini RCA assistance failed; using local fallback', error);
-        aiFallbackNotice = 'การเชื่อมต่อ AI ภายนอกไม่สำเร็จ ระบบจึงใช้การวิเคราะห์สำรองภายในเครื่อง';
-      }
+        void error; // Do not log provider errors containing clinical prompts or credentials.
+        aiFallbackNotice = 'การเชื่อมต่อ AI ภายนอกไม่สำเร็จ ระบบหยุดการวิเคราะห์';
+      } finally { this.activeAiRequests--; }
     } else {
-      aiFallbackNotice = 'ขณะนี้โรงพยาบาลยังไม่ได้เปิดการประมวลผล AI ภายนอก ระบบจึงใช้การวิเคราะห์สำรองภายในเครื่อง';
+      aiFallbackNotice = 'ขณะนี้โรงพยาบาลยังไม่ได้เปิดการประมวลผล AI ภายนอก ระบบหยุดการวิเคราะห์';
     }
 
-    const text = `${topic} ${whatHappened} ${actualImpact}`.toLowerCase();
-
-    // Context Detection
-    const isMed = /ยา|medication|dose|drug|dispens|high\s*alert|ฉีด|แพ้ยา|overdose|potassium|insulin|morphine/i.test(text);
-    const isFall = /ล้ม|ตก|fall|เตียง|ห้องน้ำ|slip|bed/i.test(text);
-    const isSepsisOrDelay = /sepsis|ช็อก|shock|ล่าช้า|delay|ส่งต่อ|refer|triage|cpr|หมดสติ|arrest/i.test(text);
-    const isIden = /ระบุตัว|ชื่อ|สลับ|ผิดคน|wrong\s*patient|identification|blood\s*group|สลับเลือด/i.test(text);
-    const isEquip = /เครื่อง|ชำรุด|ดับ|oxygen|suction|monitor|ventilator|defib/i.test(text);
-    const isComm = /สื่อสาร|ส่งเวร|sbar|ไม่แจ้ง|เข้าใจผิด|โทร|consult/i.test(text);
-
-    // Dynamic NRLS fiscal-year 2569 Contributing Factors
-    const fishbones: Array<{ category: string; factor: string; sub_factor?: string }> = [];
-    // Dynamic 5 Whys
-    const whys: Array<{ level: number; question: string; answer: string }> = [];
-    // Dynamic CMPs
-    const cmps: Array<{ observation: string; hypothesis: string; comment: string }> = [];
-    // Dynamic 5-Tier Process
-    const process_analyses: Array<{
-      process_key: string;
-      problem: string;
-      tier1_personnel: string;
-      tier2_teamwork: string;
-      tier3_environment: string;
-      tier4_policy: string;
-      tier5_external: string;
-      corrective_action: string;
-    }> = [];
-    // Dynamic Swiss Cheese
-    const swiss_cheeses: Array<{ layer: string; hole: string }> = [];
-    // Dynamic CAPA
-    const capas: Array<{ action: string; type: string; responsible: string; due_date: string; status: string }> = [];
-    // Dynamic Timelines
-    const timelines: Array<{ event_time: string; event_description: string; is_critical_point: boolean }> = [];
-
-    if (isMed) {
-      fishbones.push(
-        toLegacyFishbone('F0001', 'บุคลากรมีความเหนื่อยล้าจากเวรดึกและภาระงานหนาแน่น จนอาจขาดการตรวจสอบซ้ำ'),
-        toLegacyFishbone('F0011', 'รายการยาและกระบวนการบริหารยาความเสี่ยงสูงมีความซับซ้อน'),
-        toLegacyFishbone('F0021', 'การส่งต่อคำสั่งยาและข้อมูลระหว่างห้องยากับหอผู้ป่วยไม่ครบถ้วน'),
-        toLegacyFishbone('F0027', 'ไม่ได้ทำ Independent Double Check ตามแนวทางยา High Alert Drug'),
-        toLegacyFishbone('F0032', 'ระบบสั่งยาและหน้าจอไม่มีการออกแบบป้องกันการเลือกยาหรือขนาดยาคลาดเคลื่อน'),
-        toLegacyFishbone('F0036', 'จุดเตรียมยามีเสียงรบกวนและแสงสว่างไม่เพียงพอ'),
-      );
-
-      whys.push(
-        { level: 1, question: 'ทำไมผู้ป่วยจึงได้รับยาไม่ตรงตามแผนการรักษา / เกิด Medication Error?', answer: 'ผู้ปฏิบัติงานจัดยาและฉีดยาผิดขนาด/ผิดชนิดเนื่องจากอ่านคำสั่งคลาดเคลื่อน' },
-        { level: 2, question: 'ทำไมผู้ปฏิบัติงานจึงอ่านคำสั่งคลาดเคลื่อนและไม่ตรวจพบก่อนให้ยา?', answer: 'ขาดการทำ Independent Double Check ร่วมกับพยาบาลอีกท่านเนื่องจากเวลานั้นมีผู้ป่วยวิกฤตพร้อมกัน' },
-        { level: 3, question: 'ทำไมจึงไม่มีระบบบังคับ Double Check หรือระบบล็อกความปลอดภัย?', answer: 'ระบบคอมพิวเตอร์สั่งยาไม่มี Warning Popup สำหรับยาที่มีความเสี่ยงสูง (HAD)' },
-        { level: 4, question: 'ทำไมระบบเทคโนโลยีและแนวทางปฏิบัติจึงยังไม่ครอบคลุม?', answer: 'ขาดการทบทวนแนวทางการจัดการยาความเสี่ยงสูง (HAD Policy) ร่วมกันระหว่างทีมเภสัชกรรมและทีมการพยาบาล' },
-        { level: 5, question: 'ทำไม (สาเหตุรากเหง้าเชิงระบบ)?', answer: 'ระบบบริหารความปลอดภัยด้านยา (Medication Safety System) ขาดการเชื่อมโยงระบบแจ้งเตือนอัจฉริยะและการออกแบบสิ่งแวดล้อมที่ป้องกัน Human Error (Poka-Yoke)' },
-      );
-
-      cmps.push(
-        {
-          observation: 'ขั้นตอนการเตรียมยาและการส่งมอบยาขาดการ Double Check ที่เป็นอิสระต่อกัน (Independent Double Check)',
-          hypothesis: 'ภาระงานหนาแน่นในช่วงส่งเวรและขาดเครื่องมือช่วยตรวจสอบแบบ Real-time',
-          comment: 'กำหนดให้มี Had Check-box บนระบบคอมพิวเตอร์และป้ายเตือนสองชั้นทันที',
-        },
-        {
-          observation: 'การจัดเก็บยา Look-Alike Sound-Alike (LASA) บนตู้ยาจัดวางติดกัน',
-          hypothesis: 'พื้นที่จัดเก็บจำกัดและไม่ได้ทำ Tallman Lettering บนฉลากยา',
-          comment: 'จัดระเบียบตู้ยาใหม่ แยกตำแหน่ง LASA และติดสติกเกอร์สีสะท้อนแสงเตือน',
-        },
-      );
-
-      process_analyses.push({
-        process_key: 'กระบวนการสั่งยา จัดยา และบริหารยา (Medication Process)',
-        problem: 'การตรวจสอบคำสั่งยาและขนาดยาก่อนให้ผู้ป่วยเกิดความคลาดเคลื่อน',
-        tier1_personnel: 'เจ้าหน้าที่เร่งรีบเนื่องจากปริมาณผู้รับบริการมาก มีความล้า',
-        tier2_teamwork: 'การประสานงานระหว่างห้องยากับพยาบาลวอร์ดใช้การโทรศัพท์แบบไม่เป็นทางการ ขาด Read-back',
-        tier3_environment: 'จุดเตรียมยามีแสงสว่างไม่พอ มีการเดินผ่านไปมาและเสียงรบกวนสมาธิ',
-        tier4_policy: 'นโยบาย HAD ยังไม่มีข้อบังคับ Scan Barcode ยืนยันตัวยาก่อนฉีด',
-        tier5_external: 'บรรจุภัณฑ์ยาจากบริษัทยาภายนอกมีการเปลี่ยนรูปแบบกะทันหันโดยไม่มีการแจ้งเตือนล่วงหน้า',
-        corrective_action: 'ติดตั้งระบบ Barcode Medication Administration (BCMA) และปรับสิ่งแวดล้อมจุดผสมยาเป็น Silent Zone',
-      });
-
-      swiss_cheeses.push(
-        { layer: 'การบริหารองค์กร (Organizational Influences)', hole: 'ขาดนโยบายบังคับใช้ระบบ Barcode Medication Verification และงบประมาณในการปรับปรุงบรรจุภัณฑ์ LASA' },
-        { layer: 'การนิเทศกำกับ (Unsafe Supervision)', hole: 'หัวหน้าเวรไม่ได้สุ่มตรวจ Audit กระบวนการ Double-check ของยา HAD ในช่วงเวรดึก' },
-        { layer: 'สภาพแวดล้อมและเงื่อนไข (Preconditions)', hole: 'ความเหนื่อยล้าของบุคลากร จุดเตรียมยามีเสียงดังรบกวน และยา LASA วางติดกัน' },
-        { layer: 'การกระทำหน้างาน (Unsafe Acts)', hole: 'ผู้ปฏิบัติงานไม่ได้ตรวจสอบซ้ำชื่อยาและขนาดยากับใบ MAR ก่อนฉีดให้ผู้ป่วย' },
-      );
-
-      capas.push(
-        { action: 'จัดทำระบบ Smart Alert Warning ในโปรแกรม HosXP สำหรับยา High Alert Drug ทุกรายการ', type: 'systemic', responsible: 'ทีมสารสนเทศ (IT) & ทีม PTC', due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10), status: 'pending' },
-        { action: 'ปรับปรุงตู้ยาและฉลากยา LASA ให้ใช้ Tall-Man Lettering และแยกชั้นวางออกจากกันอย่างชัดเจน', type: 'preventive', responsible: 'กลุ่มงานเภสัชกรรม', due_date: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10), status: 'pending' },
-        { action: 'จัดตั้งพื้นที่ "Silent Zone / เขตปลอดการรบกวน" บริเวณจุดเตรียมยาฉีดในทุกหอผู้ป่วย', type: 'immediate', responsible: 'หัวหน้าพยาบาลทุกหน่วยงาน', due_date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), status: 'pending' },
-      );
-
-      timelines.push(
-        { event_time: '08:30 น.', event_description: 'แพทย์มีคำสั่งปรับแผนการรักษาและสั่งยาผ่านระบบเวชระเบียน', is_critical_point: false },
-        { event_time: '09:15 น.', event_description: 'ห้องยาจัดส่งยาขึ้นหอผู้ป่วย โดยซองยามีลักษณะคล้ายคลึงกับยาเดิมของผู้ป่วยข้างเตียง', is_critical_point: true },
-        { event_time: '10:00 น.', event_description: 'พยาบาลเตรียมยาและนำไปให้ผู้ป่วยโดยไม่ได้ทำ Independent Double Check', is_critical_point: true },
-        { event_time: '10:30 น.', event_description: 'ผู้ป่วยเริ่มแสดงอาการผิดปกติ พยาบาลตรวจสอบซองยาพบความคลาดเคลื่อน จึงรายงานแพทย์และให้การรักษาแก้ไขทันที', is_critical_point: true },
-      );
-    } else if (isFall) {
-      fishbones.push(
-        toLegacyFishbone('F0010', 'ผู้ป่วยมีภาวะสับสนหรือกล้ามเนื้ออ่อนแรงและมีความเสี่ยงต่อการพลัดตกหกล้ม'),
-        toLegacyFishbone('F0037', 'สภาวะเฉพาะบุคคลและข้อจำกัดในการช่วยเหลือตนเองเพิ่มความเสี่ยง'),
-        toLegacyFishbone('F0022', 'การสื่อสารวิธีขอความช่วยเหลือและข้อควรระวังแก่ผู้ป่วยหรือญาติไม่ชัดเจน'),
-        toLegacyFishbone('F0027', 'ไม่ได้ประเมิน Fall Risk ซ้ำหลังได้รับยาที่มีฤทธิ์กดประสาทตามแนวทาง'),
-        toLegacyFishbone('F0031', 'ระบบล็อกล้อเตียงหรือกริ่งเรียกพยาบาลทำงานไม่เหมาะสม'),
-        toLegacyFishbone('F0036', 'พื้นห้องน้ำเปียกและแสงสว่างทางเดินช่วงกลางคืนไม่เพียงพอ'),
-      );
-
-      whys.push(
-        { level: 1, question: 'ทำไมผู้ป่วยจึงพลัดตกหกล้มในหอผู้ป่วย?', answer: 'ผู้ป่วยลุกไปเข้าห้องน้ำคนเดียวในเวลากลางคืนแล้วเกิดอาการเซ เสียการทรงตัว' },
-        { level: 2, question: 'ทำไมผู้ป่วยจึงลุกไปคนเดียวโดยไม่เรียกพยาบาล?', answer: 'ผู้ป่วยเกรงใจเจ้าหน้าที่และสายกริ่งเรียกพยาบาลวางอยู่ไกลเอื้อมไม่ถึง' },
-        { level: 3, question: 'ทำไมเจ้าหน้าที่จึงไม่ได้เฝ้าระวังหรือยกไม้กั้นเตียงขึ้นให้สนิท?', answer: 'ไม่ได้ระบุว่าผู้ป่วยเป็นกลุ่ม High Risk หลังได้รับยาปรับพฤติกรรม/ยานอนหลับ' },
-        { level: 4, question: 'ทำไมจึงไม่มีระบบ Re-assessment อัตโนมัติเมื่อมีการสั่งยานอนหลับ?', answer: 'ขั้นตอนการประเมิน Fall Risk ยังใช้กระดาษและประเมินแค่วันละครั้ง ไม่ได้ Trigger ตามการสั่งยา' },
-        { level: 5, question: 'ทำไม (สาเหตุรากเหง้าเชิงระบบ)?', answer: 'ระบบการจัดการสิ่งแวดล้อมและความปลอดภัยของผู้ป่วย (Patient Safety Environment) ขาดระบบ Sensor แจ้งเตือนการลุกจากเตียงและการเชื่อมโยงการประเมินความเสี่ยงแบบ Dynamic' },
-      );
-
-      cmps.push(
-        { observation: 'ไม่มีการประเมินซ้ำความเสี่ยงพลัดตกหกล้มหลังได้รับยาที่มีฤทธิ์กดประสาท', hypothesis: 'เจ้าหน้าที่ขาดเครื่องมือบันทึก Dynamic Fall Risk ที่สะดวก', comment: 'ปรับแบบประเมิน Fall Risk ให้เตือนใน HosXP ทันทีที่มีการสั่ง Sedatives' },
-        { observation: 'สายกริ่งฉุกเฉินหลุดจากที่ยึดข้างเตียง', hypothesis: 'อุปกรณ์ยึดชำรุดและไม่มีการเดินตรวจความพร้อมประจำวัน', comment: 'จัดทำ Checklist ตรวจสอบอุปกรณ์ข้างเตียงก่อนรับเวรทุกกะ' },
-      );
-
-      process_analyses.push({
-        process_key: 'กระบวนการดูแลและเฝ้าระวังผู้ป่วยกลุ่มเสี่ยง (Fall Prevention Process)',
-        problem: 'ผู้ป่วยกลุ่มเสี่ยงสูงลุกจากเตียงโดยลำพังและเกิดอุบัติเหตุพลัดตกหกล้ม',
-        tier1_personnel: 'เจ้าหน้าที่พยาบาลเวรดึกมีจำนวนจำกัด ดูแลผู้ป่วยหลายห้อง',
-        tier2_teamwork: 'การประสานงานกับญาติผู้ป่วยเรื่องการเฝ้าไข้ยังไม่เป็นลายลักษณ์อักษร',
-        tier3_environment: 'พื้นทางเดินมีความลื่นและแสงสว่างในห้องผู้ป่วยไม่เพียงพอเวลากลางคืน',
-        tier4_policy: 'นโยบาย Fall Prevention ขาดเกณฑ์บังคับใช้อุปกรณ์ Bed Sensor สำหรับผู้ป่วยเสี่ยงสูง',
-        tier5_external: 'ญาติมีความจำเป็นต้องกลับบ้านกะทันหันโดยไม่ได้แจ้งพยาบาล',
-        corrective_action: 'ติดตั้ง Bed Motion Sensor และจัดหาเตียงไฟฟ้าปรับระดับต่ำพิเศษสำหรับหอผู้ป่วย',
-      });
-
-      swiss_cheeses.push(
-        { layer: 'การบริหารองค์กร (Organizational Influences)', hole: 'ขาดการจัดสรรงบประมาณสำหรับเตียง Low-bed และระบบ Sensor แจ้งเตือนการลุกจากเตียง' },
-        { layer: 'การนิเทศกำกับ (Unsafe Supervision)', hole: 'ไม่มีการ Audit มาตรการป้องกันการพลัดตกหกล้มในช่วงเวรดึกอย่างสม่ำเสมอ' },
-        { layer: 'สภาพแวดล้อมและเงื่อนไข (Preconditions)', hole: 'พื้นห้องน้ำลื่น แสงสว่างไม่พอ และสายกริ่งเรียกพยาบาลอยู่ไกลมือ' },
-        { layer: 'การกระทำหน้างาน (Unsafe Acts)', hole: 'ผู้ป่วยพยายามลุกเข้าห้องน้ำเองโดยไม่กดเรียกเจ้าหน้าที่ และไม่ได้ยกไม้กั้นเตียงขึ้นทั้งสองฝั่ง' },
-      );
-
-      capas.push(
-        { action: 'จัดทำป้ายสัญลักษณ์ High Fall Risk แถบสีเหลืองเด่นชัดติดหัวเตียงและสายรัดข้อมือ', type: 'immediate', responsible: 'ทีมการพยาบาลทุกหอผู้ป่วย', due_date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), status: 'pending' },
-        { action: 'สำรวจและติดตั้งแผ่นยางกันลื่นพร้อมราวจับในห้องน้ำผู้ป่วยทุกห้อง', type: 'preventive', responsible: 'กลุ่มงานบริหารทั่วไป & ทีม ENV', due_date: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10), status: 'pending' },
-        { action: 'จัดซื้อและติดตั้งระบบ Bed Exit Alarm Sensor สำหรับผู้ป่วยกลุ่ม High Risk', type: 'systemic', responsible: 'คณะกรรมการบริหารความเสี่ยง & ทีม PCT', due_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), status: 'pending' },
-      );
-
-      timelines.push(
-        { event_time: '20:00 น.', event_description: 'ผู้ป่วยได้รับยานอนหลับตามแผนการรักษา พยาบาลยกไม้กั้นเตียงขึ้น 1 ข้าง', is_critical_point: false },
-        { event_time: '02:30 น.', event_description: 'ผู้ป่วยตื่นนอนรู้สึกปวดปัสสาวะ พยายามเอื้อมมือกดกริ่งเรียกพยาบาลแต่สายกริ่งหล่นอยู่ข้างเตียง', is_critical_point: true },
-        { event_time: '02:35 น.', event_description: 'ผู้ป่วยพยายามก้าวลงจากเตียงด้วยตนเอง เกิดเสียการทรงตัวและล้มลงข้างเตียง มีเสียงกระแทก', is_critical_point: true },
-        { event_time: '02:37 น.', event_description: 'พยาบาลเข้าช่วยเหลือทันที ตรวจร่างกาย ทำการปฐมพยาบาล และรายงานแพทย์เวรเพื่อประเมินและ X-ray', is_critical_point: false },
-      );
-    } else {
-      // General Clinical / Sepsis / Delay / Communication Case
-      fishbones.push(
-        toLegacyFishbone('F0004', 'บุคลากรขาดประสบการณ์ในการประเมินสัญญาณเตือนวิกฤต MEWS/SOS Score'),
-        toLegacyFishbone('F0015', 'มีผู้ป่วยหลายรายต้องได้รับการดูแลพร้อมกันภายใต้เวลาจำกัด'),
-        toLegacyFishbone('F0021', 'การส่งต่อข้อมูลด้วย SBAR และการยืนยันแผนการรักษาไม่ครบถ้วน'),
-        toLegacyFishbone('F0024', 'การกำกับติดตามและจัดสรรบุคลากรในช่วงภาระงานสูงไม่เพียงพอ'),
-        toLegacyFishbone('F0026', 'เกณฑ์ Clinical Pathway หรือการเรียกทีมตอบสนองเร็วไม่ชัดเจน'),
-        toLegacyFishbone('F0028', 'ข้อมูลสัญญาณชีพและผลวิกฤตไม่พร้อมใช้เพื่อแจ้งเตือนอย่างทันท่วงที'),
-      );
-
-      whys.push(
-        { level: 1, question: `ทำไมจึงเกิดเหตุการณ์ "${topic || 'ความเสี่ยงทางคลินิก'}" ขึ้น?`, answer: 'การตรวจจับอาการเปลี่ยนแปลงและการรายงานแพทย์เพื่อเริ่มการรักษาเฉพาะทางมีความล่าช้ากว่าเกณฑ์มาตรฐาน' },
-        { level: 2, question: 'ทำไมการรายงานแพทย์และการตรวจจับอาการจึงล่าช้า?', answer: 'ผู้ปฏิบัติงานไม่ได้บันทึกและคำนวณคะแนน Early Warning Score (EWS/SOS) อย่างต่อเนื่อง' },
-        { level: 3, question: 'ทำไมจึงไม่มีการคำนวณ EWS/SOS และส่งสัญญาณแจ้งเตือนอัตโนมัติ?', answer: 'ระบบสารสนเทศของโรงพยาบาลยังไม่มีระบบ Auto-calculate SOS Score และ Trigger แจ้งเตือนเมื่อคะแนนเข้าเกณฑ์วิกฤต' },
-        { level: 4, question: 'ทำไมระบบ Rapid Response Team (RRT) หรือ Fast Track จึงไม่ถูกเปิดใช้งาน?', answer: 'ขาดเกณฑ์การเปิดใช้งาน Fast Track ที่เป็นรูปธรรมและบุคลากรหน้างานยังไม่ได้รับการซักซ้อมระบบ RRT สม่ำเสมอ' },
-        { level: 5, question: 'ทำไม (สาเหตุรากเหง้าเชิงระบบ)?', answer: 'ระบบการเฝ้าระวังผู้ป่วยวิกฤตในหอผู้ป่วยทั่วไป (In-hospital Cardiac Arrest & Sepsis Surveillance System) ขาดการบูรณาการระบบแจ้งเตือนเชิงรุกและทีมตอบสนองเร็ว (RRT)' },
-      );
-
-      cmps.push(
-        {
-          observation: 'สัญญาณชีพของผู้ป่วยเริ่มเปลี่ยนแปลงแต่ไม่มีการรายงานแพทย์เวรทันที',
-          hypothesis: 'พยาบาลหน้างานประเมินว่าเป็นอาการชั่วคราวและรอการรายงานพร้อมรอบวัดสัญญาณชีพถัดไป',
-          comment: 'กำหนด Trigger Criteria ที่ต้องโทรรายงานแพทย์ทันที (Immediate Call Criteria) ติดไว้ทุกเคาน์เตอร์',
-        },
-        {
-          observation: 'การรายงานแพทย์ทางโทรศัพท์ไม่ได้ใช้โครงสร้าง SBAR ทำให้แพทย์ไม่ทราบภาพรวมความเร่งด่วน',
-          hypothesis: 'ยังไม่ได้ฝึกอบรมและประเมินทักษะการสื่อสาร SBAR ในบุคลากรใหม่อย่างครบถ้วน',
-          comment: 'จัดอบรมเชิงปฏิบัติการ SBAR Communication และจัดทำแผ่นพับสรุปขั้นตอน',
-        },
-      );
-
-      process_analyses.push({
-        process_key: 'กระบวนการประเมินและดูแลผู้ป่วยภาวะวิกฤต (Clinical Assessment & Escalation Process)',
-        problem: 'การระบุสัญญาณเตือนและการเรียกทีมแพทย์ช่วยเหลือผู้ป่วยล่าช้า',
-        tier1_personnel: 'พยาบาลผู้ดูแลเป็นพยาบาลจบใหม่ ขาดประสบการณ์ในการประเมินภาวะ Severe Sepsis / Deterioration',
-        tier2_teamwork: 'การประสานงานระหว่างพยาบาลและแพทย์เวรขาดการยืนยันเป้าหมายและเวลาที่ต้องมาประเมินซ้ำ',
-        tier3_environment: 'หอผู้ป่วยมีภาระงานล้น (Bed Occupancy > 100%) ในช่วงเวรบ่าย-ดึก',
-        tier4_policy: 'ยังไม่มีนโยบายการจัดตั้งทีมตอบสนองเร็ว (Rapid Response Team : RRT) อย่างเป็นทางการ',
-        tier5_external: 'ระบบส่งต่อผู้ป่วยไปยังโรงพยาบาลระดับตติยภูมิมียอดเตียง ICU เต็ม ต้องรอประสานงาน',
-        corrective_action: 'จัดตั้งระบบ Fast Track พร้อมทีม RRT และพัฒนาโปรแกรม Auto SOS Alert ในระบบสารสนเทศ',
-      });
-
-      swiss_cheeses.push(
-        { layer: 'การบริหารองค์กร (Organizational Influences)', hole: 'ขาดนโยบายการจัดตั้งระบบ Rapid Response Team (RRT) และการจัดสรรอัตรากำลังพยาบาลตามภาระความหนักของผู้ป่วย' },
-        { layer: 'การนิเทศกำกับ (Unsafe Supervision)', hole: 'หัวหน้าเวรไม่ได้เข้าประเมินร่วม (Joint Assessment) ในผู้ป่วยที่มีสัญญาณชีพเปลี่ยนแปลง' },
-        { layer: 'สภาพแวดล้อมและเงื่อนไข (Preconditions)', hole: 'ภาระงานหนาแน่นในเวรดึก และระบบคอมพิวเตอร์ไม่ได้คำนวณคะแนนเตือนภัยวิกฤตอัตโนมัติ' },
-        { layer: 'การกระทำหน้างาน (Unsafe Acts)', hole: 'ไม่ได้ใช้หลักการสื่อสาร SBAR ในการรายงานแพทย์ ทำให้แพทย์ไม่ทราบความเร่งด่วนของสถานการณ์' },
-      );
-
-      capas.push(
-        { action: 'จัดทำระบบ Auto SOS/MEWS Score Calculation พร้อม Warning Alert เด้งเตือนในระบบ HosXP', type: 'systemic', responsible: 'ทีม IT & คณะกรรมการ PCT', due_date: new Date(Date.now() + 21 * 86400000).toISOString().slice(0, 10), status: 'pending' },
-        { action: 'จัดตั้งทีม Rapid Response Team (RRT) พร้อมคู่มือเกณฑ์การเปิดใช้และซ้อมแผนรับมือผู้ป่วยทรุดลงในวอร์ด', type: 'preventive', responsible: 'ทีมกู้ชีพ CPR & องค์กรแพทย์/พยาบาล', due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10), status: 'pending' },
-        { action: 'จัดอบรมและทบทวนทักษะการสื่อสาร SBAR Communication ให้แก่พยาบาลและแพทย์ประจำบ้านทุกคน', type: 'immediate', responsible: 'กลุ่มงานการพยาบาล', due_date: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10), status: 'pending' },
-      );
-
-      timelines.push(
-        { event_time: '14:00 น.', event_description: 'ผู้ป่วยเข้ารับการรักษาในหอผู้ป่วย มีอาการไข้และอ่อนเพลีย สัญญาณชีพแรกรับความดันโลหิตปกติ', is_critical_point: false },
-        { event_time: '18:00 น.', event_description: 'ผู้ป่วยเริ่มมีชีพจรเร็วขึ้น 110 ครั้ง/นาที หายใจ 24 ครั้ง/นาที แต่ยังไม่ได้รายงานแพทย์', is_critical_point: true },
-        { event_time: '21:30 น.', event_description: 'ผู้ป่วยซึมลง ความดันโลหิตลดลงเหลือ 85/50 mmHg พยาบาลโทรรายงานแพทย์เวร', is_critical_point: true },
-        { event_time: '21:45 น.', event_description: 'แพทย์เข้าตรวจรักษา วินิจฉัยภาวะ Septic Shock เริ่มให้สารน้ำ สั่งยาปฏิชีวนะ และเปิด Fast Track ทันที', is_critical_point: true },
-      );
-    }
-
-    return {
-      topic_refined: topic || 'การวิเคราะห์หาสาเหตุที่แท้จริงของอุบัติการณ์ความเสี่ยง',
-      what_happened_summary: whatHappened || 'เกิดเหตุการณ์ความคลาดเคลื่อนทางคลินิกที่ส่งผลกระทบต่อความปลอดภัยของผู้ป่วยในโรงพยาบาลวังเจ้า',
-      actual_impact_summary: actualImpact || `ผู้ป่วยได้รับผลกระทบในระดับความรุนแรง ${severity} ต้องได้รับการประเมินและดูแลเพิ่มเติม`,
-      potential_impact_summary: 'หากไม่มีมาตรการควบคุมเชิงระบบ อาจเกิดเหตุการณ์ซ้ำและส่งผลกระทบต่อชีวิตหรือความพิการของผู้ป่วย',
-      contributing_factors: normalizeContributingFactors(
-        fishbones.map((factor) => ({
-          code: factor.factor.match(/\bF\d{4}\b/)?.[0],
-          detail: factor.sub_factor,
-        })),
-      ),
-      fishbones,
-      whys,
-      cmps,
-      process_analyses: analysisMode === 'full' && rcaType === 'standard' ? process_analyses : [],
-      swiss_cheeses: rcaType === 'mini' ? swiss_cheeses : [],
-      capas,
-      timelines,
-      rca_team_suggestion: 'คณะกรรมการบริหารความเสี่ยง (RM) ร่วมกับทีมนำทางคลินิก (PCT) และหน่วยงานที่เกิดเหตุ',
-      reviewers_suggestion: 'นพ.ประธาน PCT, พยาบาลหัวหน้าตึก, เภสัชกรประจำหอผู้ป่วย, พยาบาลผู้จัดการความเสี่ยง (RM Coordinator)',
-      analysis_source: 'local_fallback',
-      analysis_mode: analysisMode,
-      analysis_notice: aiFallbackNotice,
-    };
+    throw new BadRequestException(aiFallbackNotice + ' ไม่มีการสร้างข้อมูลทดแทน กรุณากรอกจากข้อเท็จจริง หรือใช้ตัวช่วย Timeline ภายในเครื่อง');
   }
 }

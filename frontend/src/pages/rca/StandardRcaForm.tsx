@@ -26,7 +26,7 @@ import type { TimelineItem } from '../../components/rca/EventTimeline';
 import TimelineEditor from '../../components/rca/TimelineEditor';
 import RcaReportExport from '../../components/rca/RcaReportExport';
 import { TierContributingFactorPicker } from '../../components/rca/TierContributingFactorPicker';
-import { AiRcaAssistantModal } from '../../components/rca/AiRcaAssistantModal';
+import TimelineAssistantModal from '../../components/rca/TimelineAssistantModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { OfficialPrintFooter, OfficialPrintHeader } from '../../components/OfficialPrintLayout';
 import {
@@ -573,55 +573,6 @@ export default function StandardRcaForm() {
     }
   };
 
-  // AI Modal Apply Handler
-  const handleApplyAiData = (aiData: any, selectedKeys: string[]) => {
-    if (selectedKeys.includes('problem_impact')) {
-      if (aiData.topic_refined && !topic) setTopic(aiData.topic_refined);
-      if (aiData.what_happened_summary) setWhatHappened(aiData.what_happened_summary);
-      if (aiData.actual_impact_summary) setActualImpact(aiData.actual_impact_summary);
-      if (aiData.potential_impact_summary) setPotentialImpact(aiData.potential_impact_summary);
-    }
-
-    if (selectedKeys.includes('fishbone') && (aiData.contributing_factors?.length || aiData.fishbones?.length)) {
-      const suggested = normalizeContributingFactorSelections(aiData.contributing_factors);
-      const migratedSuggestion = contributingFactorSelectionsFromLegacy(aiData.fishbones || []).selections;
-      setContributingFactors(suggested.length ? suggested : migratedSuggestion);
-    }
-
-    if (selectedKeys.includes('cmps') && aiData.cmps?.length) {
-      setCmps(aiData.cmps);
-    }
-
-    if (selectedKeys.includes('process') && aiData.process_analyses?.length) {
-      setProcessAnalyses(aiData.process_analyses);
-    }
-
-    if (selectedKeys.includes('swiss_cheese') && aiData.swiss_cheeses?.length) {
-      setUseSwissCheese(true);
-      aiData.swiss_cheeses.forEach((sc: any) => {
-        if (sc.layer.includes('องค์กร')) setSwissCheeseOrg(sc.hole);
-        else if (sc.layer.includes('นิเทศ')) setSwissCheeseSupervision(sc.hole);
-        else if (sc.layer.includes('สภาพแวดล้อม')) setSwissCheesePreconditions(sc.hole);
-        else if (sc.layer.includes('การกระทำ')) setSwissCheeseUnsafeActs(sc.hole);
-      });
-    }
-
-    if (selectedKeys.includes('capa') && aiData.capas?.length) {
-      setCapas(aiData.capas);
-    }
-
-    if (selectedKeys.includes('timeline') && aiData.timelines?.length) {
-      setTimelines(aiData.timelines);
-    }
-
-    if (selectedKeys.includes('team')) {
-      if (aiData.rca_team_suggestion) {
-        setRcaTeam('other');
-        setCustomTeam(aiData.rca_team_suggestion);
-      }
-    }
-  };
-
   // Trigger Tool Item Select
   const handleSelectTrigger = (item: (typeof TRIGGER_TOOL_ITEMS)[0]) => {
     setTopic(`[${item.code}] ${item.name}`);
@@ -1121,7 +1072,7 @@ export default function StandardRcaForm() {
             className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm font-semibold shadow-xs flex items-center gap-2 transition-all cursor-pointer"
           >
             <Sparkles className="w-4 h-4 text-purple-200" />
-            <span>✨ ผู้ช่วย AI วิเคราะห์ RCA</span>
+            <span>ช่วยจัด Timeline จากข้อมูล</span>
           </button>
           <RcaReportExport hasUnsavedChanges={hasUnsavedChanges} data={{
             caseId, rmNo, topic, severity, incidentDate,
@@ -2415,15 +2366,13 @@ export default function StandardRcaForm() {
           <div className="flex justify-end gap-3"><button type="button" disabled={completing} onClick={() => setDischargeReason(null)}>กลับไปทบทวน</button><button type="button" disabled={completing || saving || dischargeReason.trim().length < 10} onClick={handleDischargeWithoutRca} className="rounded-xl bg-orange-600 px-4 py-2 text-white disabled:opacity-50">{completing ? 'กำลังจำหน่าย...' : 'ยืนยันจำหน่ายเคส'}</button></div>
         </div>
       </div>}
-      <AiRcaAssistantModal
+      <TimelineAssistantModal
+        key={caseId || id || 'new'}
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
-        topic={topic}
-        whatHappened={whatHappened}
-        actualImpact={actualImpact}
-        severity={severity}
-        rcaType="standard"
-        onApply={handleApplyAiData}
+        initialText={whatHappened}
+        items={timelines}
+        onChange={setTimelines}
       />
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   Bot,
@@ -48,6 +48,7 @@ interface AiData {
 
 interface AiRcaAssistantModalProps {
   isOpen: boolean;
+  incidentId: number;
   onClose: () => void;
   topic: string;
   whatHappened: string;
@@ -59,6 +60,7 @@ interface AiRcaAssistantModalProps {
 
 export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
   isOpen,
+  incidentId,
   onClose,
   topic,
   whatHappened,
@@ -67,58 +69,57 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
   rcaType = 'standard',
   onApply,
 }) => {
+  const request = useRef<AbortController | null>(null);
+  const dialog = useRef<HTMLDivElement>(null);
+  const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aiData, setAiData] = useState<AiData | null>(null);
   const [incidentText, setIncidentText] = useState('');
   const [analysisMode, setAnalysisMode] = useState<'basic' | 'full'>('full');
 
-  // Selected sections to import
-  const [selectedSections, setSelectedSections] = useState<Record<string, boolean>>({
-    problem_impact: true,
-    fishbone: true,
-    cmps: true,
-    process: true,
-    swiss_cheese: true,
-    capa: true,
-    timeline: true,
-    team: true,
-  });
+  const emptySelection = () => ({ problem_impact: false, fishbone: false, cmps: false, process: false, swiss_cheese: false, capa: false, timeline: false, team: false });
+  const [selectedSections, setSelectedSections] = useState<Record<string, boolean>>(emptySelection);
+  useEffect(() => { setConfirmed(false); }, [selectedSections]);
 
   const [expandedSection, setExpandedSection] = useState<string | null>('fishbone');
 
-  const toggleSectionSelect = (key: string) => {
+  const toggleSectionSelect = (key: string) => { setConfirmed(false);
     setSelectedSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleGenerate = async (mode: 'basic' | 'full' = analysisMode) => {
+    if (loading) return;
+    if (incidentText.length > 4000) { setError('รองรับไม่เกิน 4,000 ตัวอักษร กรุณาแบ่งข้อมูลเป็นช่วง'); return; }
     if (!incidentText.trim()) {
       setError('กรุณาระบุรายละเอียดเหตุการณ์ก่อนเริ่มวิเคราะห์');
       return;
     }
+    request.current?.abort();
+    const controller = new AbortController(); request.current = controller;
+    setAiData(null); setConfirmed(false);
     setLoading(true);
     setError(null);
     setAnalysisMode(mode);
     try {
       const res = await axios.post(`${API_BASE}/rca/ai-assist`, {
-        topic: topic || 'อุบัติการณ์ความเสี่ยงทางคลินิก',
-        what_happened: whatHappened || '',
-        actual_impact: actualImpact || '',
-        severity: severity,
+        incident_id: incidentId,
         incident_text: incidentText.trim(),
         rca_type: rcaType,
         analysis_mode: mode,
-      });
+      }, { signal: controller.signal, timeout: 50000 });
+      if (controller.signal.aborted || request.current !== controller) return;
       setAiData(res.data);
     } catch (err: any) {
-      console.error('Failed to generate AI RCA:', err);
+      if (axios.isCancel(err) || controller.signal.aborted || request.current !== controller) return;
       setError(err?.response?.data?.message || 'ไม่สามารถวิเคราะห์ข้อมูลได้ กรุณาตรวจสอบการเชื่อมต่อแล้วลองใหม่');
     } finally {
-      setLoading(false);
+      if (request.current === controller) setLoading(false);
     }
   };
 
   useEffect(() => {
+    request.current?.abort(); request.current = null; setLoading(false); setConfirmed(false);
     if (isOpen) {
       const initialText = [
         topic ? `หัวข้อเหตุการณ์: ${topic}` : '',
@@ -129,17 +130,20 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
       setIncidentText(initialText);
       setAiData(null);
       setError(null);
-      setAnalysisMode('full');
+      setAnalysisMode('full'); setSelectedSections(emptySelection());
+      dialog.current?.querySelector<HTMLElement>('button')?.focus();
     }
-  }, [isOpen, topic, whatHappened, actualImpact, severity]);
+    return () => { request.current?.abort(); request.current = null; };
+  }, [isOpen, incidentId]);
 
   if (!isOpen) return null;
 
   const handleApply = () => {
-    if (!aiData) return;
+    if (!aiData || !confirmed) return;
     const activeKeys = Object.entries(selectedSections)
-      .filter(([_, active]) => active)
+      .filter(([key, active]) => active && (rcaType !== 'mini' || ['fishbone', 'cmps', 'swiss_cheese'].includes(key)))
       .map(([k]) => k);
+    if (!activeKeys.length) return;
     onApply(aiData, activeKeys);
     onClose();
   };
@@ -159,7 +163,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl border border-purple-200 dark:border-purple-900/50 flex flex-col overflow-hidden">
+      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="rca-ai-title" onKeyDown={event => { if (event.key === 'Escape') onClose(); if (event.key === 'Tab') { const controls = [...(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input,textarea,select') || [])]; const first = controls[0], last = controls.at(-1); if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); } } }} className="bg-white dark:bg-slate-900 w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl border border-purple-200 dark:border-purple-900/50 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white flex items-center justify-between shrink-0 shadow-md">
           <div className="flex items-center gap-3">
@@ -168,7 +172,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-lg">✨ ผู้ช่วย AI วิเคราะห์ Root Cause Analysis</h3>
+                <h3 id="rca-ai-title" className="font-bold text-lg">✨ ผู้ช่วย AI วิเคราะห์ Root Cause Analysis</h3>
                 <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded-full bg-amber-400 text-slate-900 shadow-xs">
                   Clinical AI Model
                 </span>
@@ -179,7 +183,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
+            aria-label="ปิดผู้ช่วย RCA" onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-white/20 text-white/80 hover:text-white transition-colors"
           >
             <X className="w-5 h-5" />
@@ -207,6 +211,8 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
           </button>
         </div>
 
+        {error && <p role="alert" className="px-6 py-2 text-sm text-rose-700">{error}</p>}
+        {aiData && <div className="flex flex-wrap gap-2 px-6 py-2 text-xs"><button type="button" disabled={loading} onClick={() => handleGenerate('basic')}>วิเคราะห์ใหม่แบบพื้นฐาน</button><button type="button" disabled={loading} onClick={() => handleGenerate('full')}>วิเคราะห์ใหม่แบบเจาะลึก</button></div>}
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {loading ? (
@@ -220,7 +226,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                   กำลังประมวลผลการวิเคราะห์สาเหตุเชิงลึก...
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  ระบบกำลังวิเคราะห์ปัจจัยร่วม NRLS 2569, CMPs, Swiss Cheese และมาตรการแก้ไขจากข้อมูลเหตุการณ์
+                  ระบบกำลังสร้างข้อเสนอจากข้อความที่ส่ง กรุณาตรวจสอบข้อเท็จจริงก่อนนำเข้า
                 </p>
               </div>
             </div>
@@ -323,7 +329,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
               </div>
 
               {/* Incident summary and impact */}
-              <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+              {rcaType !== 'mini' && <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
                 <div
                   className="flex cursor-pointer items-center justify-between bg-slate-50 px-4 py-3 dark:bg-slate-800/60"
                   onClick={() => setExpandedSection(expandedSection === 'problem' ? null : 'problem')}
@@ -355,10 +361,10 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                     </div>
                   </div>
                 )}
-              </div>
+              </div>}
 
               {/* Timeline */}
-              <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+              {rcaType !== 'mini' && <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
                 <div
                   className="flex cursor-pointer items-center justify-between bg-slate-50 px-4 py-3 dark:bg-slate-800/60"
                   onClick={() => setExpandedSection(expandedSection === 'timeline' ? null : 'timeline')}
@@ -388,7 +394,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                     )) : <p className="text-xs text-slate-500">AI ไม่พบข้อมูลลำดับเวลาที่ชัดเจนจากเนื้อหา</p>}
                   </div>
                 )}
-              </div>
+              </div>}
 
               {/* 1. NRLS Contributing Factors Section */}
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
@@ -599,7 +605,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
               </div>
 
               {/* 5. CAPA Action Plan */}
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+              {rcaType !== 'mini' && <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                 <div
                   className="px-4 py-3 bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between cursor-pointer"
                   onClick={() => setExpandedSection(expandedSection === 'capa' ? null : 'capa')}
@@ -655,16 +661,17 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
                     ))}
                   </div>
                 )}
-              </div>
+              </div>}
             </div>
           )}
         </div>
 
+        {aiData && <label className="flex gap-2 px-6 py-3 text-sm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />ตรวจข้อเสนอแล้ว ยืนยันเพิ่มข้อมูลที่เลือกต่อจากข้อมูลเดิม</label>}
         {/* Footer Actions */}
         <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
           <button
             type="button"
-            onClick={onClose}
+            aria-label="ปิดผู้ช่วย RCA" onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition"
           >
             ยกเลิก
@@ -673,7 +680,7 @@ export const AiRcaAssistantModal: React.FC<AiRcaAssistantModalProps> = ({
             <button
               type="button"
               onClick={handleApply}
-              disabled={loading}
+              disabled={loading || !confirmed || !Object.values(selectedSections).some(Boolean)}
               className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium text-sm rounded-xl shadow-lg shadow-purple-500/25 flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span>นำข้อมูลที่เลือกไปใส่ในฟอร์ม RCA</span>

@@ -12,8 +12,8 @@ export class RcaController {
 
   @Post('ai-assist')
   @ApiOperation({ summary: 'Generate comprehensive AI RCA recommendations for hospital incidents' })
-  generateAiAssistance(@Body() dto: AiAssistDto) {
-    return this.rcaService.generateAiAssistance(dto);
+  generateAiAssistance(@Body() dto: AiAssistDto, @Request() req: any) {
+    return this.rcaService.generateAiForIncident(dto, req.user);
   }
 
   @Post('evaluate-criteria')

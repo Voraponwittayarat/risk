@@ -36,3 +36,16 @@
 
 - [x] รวม RCA กับ Medication import main ล่าสุด ทดสอบ build ทั้งสองแอปและ backend 231 tests พร้อมตรวจ backup/SHA-256 ก่อน release 4 ต.ค. 2569
 - [ ] หลัง poller รับ RCA release ตรวจ migration, running commit, health, login และ incident/RCA list แบบอ่านอย่างเดียว; ยืนยันสิทธิ์ RM/PCT กับทีมจริงและการนัดหมายครั้งแรกโดยผู้ใช้งาน
+
+## 4 ตุลาคม 2569 — Timeline / RCA assistant
+
+- [x] Timeline จากต้นฉบับใน browser, preview/edit, หลักฐาน, missing/conflicting dates/times, append/explicit replace/guarded undo
+- [x] ลบ fabricated AI fallback; จำกัดชนิด/ขนาด input, request concurrency, client/provider timeout, stale response และ sensitive error logging
+- [x] Mini import เคารพ selected sections, เพิ่มข้อมูลเดิม, normalize Swiss Cheese keys, ยืนยันก่อนนำเข้า
+- [x] frontend/backend build; backend 244 tests; Timeline/Excel 10 tests; synthetic browser append/replace/undo
+- [ ] Review และ deploy ตาม poller flow เมื่อผู้ใช้สั่ง release; backup + SHA-256 ก่อน production update และตรวจ health/auth/read-only list/Timeline
+- [ ] ทดสอบ Mini ด้วย provider mock: เลือกเฉพาะ CMP/Swiss/NRLS, ยกเลิกทั้งหมด, ปิดขณะ pending และ reopen; ไม่ใช้ข้อมูลจริงกับ external AI
+- [x] AI endpoint ตรวจ incident_id, สิทธิ์ผู้ทบทวน, ขอบเขตหน่วยงานและสถานะ ก่อนประมวลผล (มี regression tests)
+- [ ] ประเมิน quota ต่อผู้ใช้เพิ่มเติม หากจำนวนผู้ใช้ AI พร้อมกันเพิ่มขึ้น
+- [ ] รองรับเดือนภาษาไทย/ปีสองหลักและสัมภาษณ์หลายเหตุการณ์ในบรรทัดเดียว จากตัวอย่าง synthetic โดยไม่เดาข้อมูล
+- [ ] ประเมินความจำเป็นของ provenance ถาวรสำหรับ Timeline; รอบนี้เก็บหลักฐานเฉพาะ preview ไม่มี migration

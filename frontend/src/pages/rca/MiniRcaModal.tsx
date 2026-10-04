@@ -296,24 +296,25 @@ export const MiniRcaModal: React.FC<MiniRcaModalProps> = ({ isOpen, onClose, inc
     </div>
 
       <AiRcaAssistantModal
+        incidentId={incident.id}
         isOpen={isAiAssistantOpen}
         onClose={() => setIsAiAssistantOpen(false)}
         topic={topic}
         whatHappened={incidentDetail}
         severity={incident.level_id || 'C'}
         rcaType="mini"
-        onApply={(aiData) => {
-          if (aiData.cmps && aiData.cmps.length > 0) {
-            setCmpProblem(aiData.cmps[0].observation || '');
-            setCorrectiveAction(aiData.cmps[0].comment || '');
+        onApply={(aiData, selectedKeys) => {
+          if (selectedKeys.includes('cmps') && aiData.cmps && aiData.cmps.length > 0) {
+            setCmpProblem(current => [current, ...aiData.cmps!.map(cmp => cmp.observation)].filter(Boolean).join('\n'));
+            setCorrectiveAction(current => [current, ...aiData.cmps!.map(cmp => cmp.comment)].filter(Boolean).join('\n'));
           }
-          if (aiData.swiss_cheeses && aiData.swiss_cheeses.length > 0) {
-            setHoles(aiData.swiss_cheeses);
+          if (selectedKeys.includes('swiss_cheese') && aiData.swiss_cheeses && aiData.swiss_cheeses.length > 0) {
+            setHoles(current => [...current, ...aiData.swiss_cheeses!.filter(hole => SWISS_CHEESE_LAYERS.some(layer => layer.key === hole.layer))]);
           }
-          if ((aiData.contributing_factors && aiData.contributing_factors.length > 0) || (aiData.fishbones && aiData.fishbones.length > 0)) {
+          if (selectedKeys.includes('fishbone') && ((aiData.contributing_factors && aiData.contributing_factors.length > 0) || (aiData.fishbones && aiData.fishbones.length > 0))) {
             const suggested = normalizeContributingFactorSelections(aiData.contributing_factors);
             const migratedSuggestion = contributingFactorSelectionsFromLegacy(aiData.fishbones || []).selections;
-            setContributingFactors(suggested.length ? suggested : migratedSuggestion);
+            setContributingFactors(current => normalizeContributingFactorSelections([...current, ...(suggested.length ? suggested : migratedSuggestion)]));
           }
         }}
       />
