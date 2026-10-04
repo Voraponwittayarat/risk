@@ -15,6 +15,12 @@ describe('Risk reports use stored records and selected scope', () => {
     service = new RiskAnalysisService(prisma);
   });
 
+  it('includes hospital profiles but rejects other departments in the register list', async () => {
+    await service.findAll({}, { role: 'staff', departmentId: 1 });
+    expect(prisma.riskanalysis.findMany.mock.calls[0][0].where).toEqual({ AND: [{ OR: [{ department_id: { in: ['1'] } }, { scope_level: 'hospital' }] }] });
+    await expect(service.findAll({ department_id: '9' }, { role: 'staff', departmentId: 1 })).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('keeps the selected department in KPI queries for multi-department users', async () => {
     await service.getStats({ department_id: '2', scope_level: 'department' }, { role: 'staff', departmentId: 1, departmentId2: 2 });
     expect(prisma.riskanalysis.findMany).toHaveBeenCalledWith({ where: { department_id: '2', scope_level: 'department' } });

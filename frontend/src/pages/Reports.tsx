@@ -12,7 +12,7 @@ import {
   ShieldCheck, Flame, Layers, Sparkles,
   Info, Check, BookmarkCheck, FileText, Lock
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getRiskMatrixLevel } from '../utils/riskMatrix';
 import { OfficialPrintFooter, OfficialPrintHeader } from '../components/OfficialPrintLayout';
@@ -108,8 +108,9 @@ const RISK_PRESET_TEMPLATES = [
 
 export default function Reports() {
   const { user } = useAuth();
+  const [routeParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'hospital' | 'department' | 'matrix' | 'due' | 'standards'>(user?.role === 'admin' || user?.rmScope === 'hospital' ? 'hospital' : 'department');
-  const [workspaceView, setWorkspaceView] = useState<'insights' | 'register'>('insights');
+  const [workspaceView, setWorkspaceView] = useState<'insights' | 'register'>(routeParams.get('view') === 'insights' ? 'insights' : 'register');
   const [registerView, setRegisterView] = useState<'overview' | 'full'>('overview');
   const [reviewProcess, setReviewProcess] = useState('');
   const [reviewResults, setReviewResults] = useState('');
@@ -459,6 +460,16 @@ export default function Reports() {
         setLoading(false);
       });
   };
+
+  useEffect(() => {
+    const scope = routeParams.get('scope');
+    if (scope === 'hospital' || scope === 'department') {
+      setActiveTab(scope);
+      setSelectedDept(scope === 'department' && user?.department_id ? String(user.department_id) : 'all');
+    }
+    const id = Number(routeParams.get('risk'));
+    if (Number.isInteger(id) && id > 0) handleOpenDetailModal({ id });
+  }, [routeParams, user?.department_id]);
 
   // Submit Create Risk
   const handleSubmitCreate = async (e: React.FormEvent) => {

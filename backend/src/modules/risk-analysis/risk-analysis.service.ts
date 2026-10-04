@@ -110,7 +110,7 @@ export class RiskAnalysisService {
   }, user?: any) {
     const where: any = {};
     const allowed = await this.scopeDepartments(user);
-    if (allowed) where.department_id = { in: allowed };
+    if (allowed) where.AND = [{ OR: [{ department_id: { in: allowed } }, { scope_level: 'hospital' }] }];
 
     if (query.scope_level && query.scope_level !== 'all') {
       where.scope_level = query.scope_level;
