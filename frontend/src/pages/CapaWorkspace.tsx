@@ -1,4 +1,5 @@
 import RiskWorkflowNav from '../components/RiskWorkflowNav';
+import { useSearchParams } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import {
@@ -102,11 +103,15 @@ function errorMessage(error: unknown): string {
 
 export default function CapaWorkspace() {
   const { user } = useAuth();
+  const [routeParams] = useSearchParams();
   const [rows, setRows] = useState<Capa[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
   const [due, setDue] = useState('');
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(() => {
+    const id = Number(routeParams.get('action'));
+    return Number.isInteger(id) && id > 0 ? id : null;
+  });
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState({
