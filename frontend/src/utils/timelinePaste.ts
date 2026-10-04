@@ -13,10 +13,14 @@ export function parseTimelinePaste(text: string) {
   if (quoted) throw new Error('เครื่องหมายคำพูดในตารางปิดไม่ครบ');
   row.push(cell.replace(/\r$/, '')); rows.push(row);
   const data = rows.filter(r => r.some(c => c.trim()));
-  if (/^(วันที่|date)$/i.test(data[0]?.[0]?.trim() || '')) data.shift();
+  if (/^(วันที่|date|เวลา|time|วันเวลา|วันที่และเวลา)$/i.test(data[0]?.[0]?.trim() || '') && /เหตุการณ์|event|รายละเอียด|description/i.test(data[0]?.join(' ') || '')) data.shift();
   if (!data.length || data.length > 200) throw new Error('วางตารางครั้งละ 1–200 แถว');
   return data.map((r, index) => {
-    if (r.length < 3 || r.length > 4) throw new Error(`แถว ${index + 1}: ต้องมี วันที่ เวลา เหตุการณ์ และอาจเพิ่มคอลัมน์จุดวิกฤต`);
+    if (r.length === 2) {
+      const combined = r[0].trim().match(/^(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})(?:[ T]+(.*))?$/);
+      r = combined ? [combined[1], combined[2] || '', r[1]] : ['', r[0], r[1]];
+    }
+    if (r.length < 3 || r.length > 4) throw new Error(`แถว ${index + 1}: ใช้ เวลา–เหตุการณ์ (2 คอลัมน์) หรือ วันที่–เวลา–เหตุการณ์ และจุดวิกฤต (3–4 คอลัมน์)`);
     let date = r[0].trim();
     if (date) {
       const thai = date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);

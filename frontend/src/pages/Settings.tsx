@@ -19,6 +19,7 @@ export default function Settings() {
 
   const [telegramToken, setTelegramToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
+  const [rcaAppointmentsEnabled, setRcaAppointmentsEnabled] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
@@ -31,6 +32,7 @@ export default function Settings() {
         .then((res) => {
           setTelegramToken(res.data.botToken || "");
           setTelegramChatId(res.data.chatId || "");
+          setRcaAppointmentsEnabled(res.data.rcaAppointmentsEnabled !== false);
         })
         .catch((err) => console.error("Failed to load telegram settings", err));
     }
@@ -44,6 +46,7 @@ export default function Settings() {
         {
           botToken: telegramToken,
           chatId: telegramChatId,
+          rcaAppointmentsEnabled,
         },
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
@@ -216,6 +219,10 @@ export default function Settings() {
               </div>
             </div>
 
+            <label className="mb-4 flex gap-2 text-sm text-slate-700 dark:text-slate-300">
+              <input type="checkbox" checked={rcaAppointmentsEnabled} onChange={event => setRcaAppointmentsEnabled(event.target.checked)} />
+              แจ้งนัดทบทวนศูนย์ RCA รพ. ด้วย Bot/กลุ่มเดียวกับแจ้งความเสี่ยง E/3 ขึ้นไป
+            </label>
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={handleSaveTelegramSettings}

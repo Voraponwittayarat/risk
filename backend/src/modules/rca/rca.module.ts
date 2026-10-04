@@ -1,3 +1,4 @@
+import { RcaAppointmentService } from './rca-appointment.service';
 import { Module } from '@nestjs/common';
 import { RcaController } from './rca.controller';
 import { RcaService } from './rca.service';
@@ -8,7 +9,7 @@ import { CapaModule } from '../capa/capa.module';
 @Module({
   imports: [PrismaModule, CapaModule],
   controllers: [RcaController],
-  providers: [RcaService, IncidentRcaPolicyService],
+  providers: [RcaAppointmentService, RcaService, IncidentRcaPolicyService],
   exports: [RcaService, IncidentRcaPolicyService],
 })
 export class RcaModule {}

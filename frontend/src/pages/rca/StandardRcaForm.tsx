@@ -1,3 +1,4 @@
+import RcaAppointmentPanel from '../../components/RcaAppointmentPanel';
 import RiskWorkflowNav from '../../components/RiskWorkflowNav';
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
@@ -6,13 +7,11 @@ import {
   ShieldAlert,
   ArrowLeft,
   Sparkles,
-  Printer,
   Save,
   AlertTriangle,
   Plus,
   Trash2,
   Layers,
-  HelpCircle,
   Search,
   ChevronDown,
   ChevronUp,
@@ -24,12 +23,12 @@ import {
   MessageSquareText,
 } from 'lucide-react';
 import type { TimelineItem } from '../../components/rca/EventTimeline';
-import { parseTimelinePaste } from '../../utils/timelinePaste';
+import TimelineEditor from '../../components/rca/TimelineEditor';
+import RcaReportExport from '../../components/rca/RcaReportExport';
 import { TierContributingFactorPicker } from '../../components/rca/TierContributingFactorPicker';
 import { AiRcaAssistantModal } from '../../components/rca/AiRcaAssistantModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { OfficialPrintFooter, OfficialPrintHeader } from '../../components/OfficialPrintLayout';
-import { printOfficialReport } from '../../utils/officialPrint';
 import {
   contributingFactorSelectionsFromLegacy,
   contributingFactorSelectionsToLegacy,
@@ -82,12 +81,6 @@ const CLINICAL_CARE_STEPS = [
   'จำหน่าย/ดูแลต่อเนื่อง (Discharge)',
   'อื่นๆ (ระบุเอง)',
 ];
-
-interface WhyItem {
-  level: number;
-  question?: string;
-  answer: string;
-}
 
 interface ProcessAnalysisItem {
   process_key: string;
@@ -207,10 +200,8 @@ export default function StandardRcaForm() {
   const [canEdit, setCanEdit] = useState(true);
   const [canComplete, setCanComplete] = useState(true);
   const [dischargeReason, setDischargeReason] = useState<string | null>(null);
-  const [timelinePaste, setTimelinePaste] = useState('');
-  const [timelinePreview, setTimelinePreview] = useState<TimelineItem[]>([]);
-  const [timelinePasteError, setTimelinePasteError] = useState('');
   const [canManageTeam, setCanManageTeam] = useState(true);
+  const [actualImpactNeedsReview, setActualImpactNeedsReview] = useState(false);
   const [canViewVoice, setCanViewVoice] = useState(true);
   const [saveError, setSaveError] = useState('');
 
@@ -280,15 +271,6 @@ export default function StandardRcaForm() {
   // NRLS fiscal-year 2569 Contributing Factors, scoped to the case or a clinical process
   const [contributingFactors, setContributingFactors] = useState<ContributingFactorSelection[]>([]);
   const [legacyFishbones, setLegacyFishbones] = useState<LegacyCauseFactor[]>([]);
-
-  // Section 6a: 5 Whys
-  const [whys, setWhys] = useState<WhyItem[]>([
-    { level: 1, question: 'ทำไมถึงเกิดเหตุการณ์นี้?', answer: '' },
-    { level: 2, question: 'ทำไมถึงเกิดสาเหตุในข้อ 1?', answer: '' },
-    { level: 3, question: 'ทำไมถึงเกิดสาเหตุในข้อ 2?', answer: '' },
-    { level: 4, question: 'ทำไมถึงเกิดสาเหตุในข้อ 3?', answer: '' },
-    { level: 5, question: 'ทำไม (สาเหตุรากเหง้าเชิงระบบ)?', answer: '' },
-  ]);
 
   // Section 6b: Swiss Cheese Model (4 Layers)
   const [swissCheeseOrg, setSwissCheeseOrg] = useState('');
@@ -461,6 +443,9 @@ export default function StandardRcaForm() {
   }, [sourceIncident?.department_id, sourceIncident?.nrls_code]);
 
   useEffect(() => {
+    // Existing cases must keep their saved team. Late collaboration options are
+    // reference data, not an edit that should trigger an automatic draft save.
+    if (id && id !== 'new') return;
     if (!sourceIncident?.department_id || !departments.length) return;
     const ownerDepartment = departments.find((item) => String(item.id) === String(sourceIncident.department_id));
     if (!ownerDepartment) return;
@@ -469,7 +454,7 @@ export default function StandardRcaForm() {
         ? { ...participant, display_name: ownerDepartment.depart_name, department_id: String(ownerDepartment.id) }
         : participant
     )));
-  }, [departments, sourceIncident?.department_id]);
+  }, [id, departments, sourceIncident?.department_id]);
 
   const loadCaseData = async (caseIdToLoad: string) => {
     try {
@@ -513,6 +498,7 @@ export default function StandardRcaForm() {
       setIsNotRisk(data.is_not_risk ?? false);
       setWhatHappened(data.what_happened || '');
       setActualImpact(data.actual_impact || '');
+      setActualImpactNeedsReview(data.actual_impact_needs_review === true);
       setPotentialImpact(data.potential_impact || '');
       setStatus(data.status || 'in_progress');
       const registerDraft = data.draft_register ? JSON.parse(data.draft_register) : {};
@@ -533,7 +519,6 @@ export default function StandardRcaForm() {
       setInfoInspection(data.info_inspection ?? true);
 
       if (data.timelines?.length) setTimelines(data.timelines);
-      if (data.whys?.length) setWhys(data.whys);
       const storedContributingFactors = normalizeContributingFactorSelections(data.contributing_factors);
       const migratedFishbones = contributingFactorSelectionsFromLegacy(data.fishbones || []);
       if (storedContributingFactors.length || migratedFishbones.selections.length) {
@@ -603,10 +588,6 @@ export default function StandardRcaForm() {
       setContributingFactors(suggested.length ? suggested : migratedSuggestion);
     }
 
-    if (selectedKeys.includes('whys') && aiData.whys?.length) {
-      setWhys(aiData.whys);
-    }
-
     if (selectedKeys.includes('cmps') && aiData.cmps?.length) {
       setCmps(aiData.cmps);
     }
@@ -646,24 +627,6 @@ export default function StandardRcaForm() {
     setTopic(`[${item.code}] ${item.name}`);
     setSeverity(item.defaultSeverity);
     setIsTriggerModalOpen(false);
-  };
-
-  // Timeline Step Handlers
-  const handleAddTimelineStep = () => {
-    setTimelines([
-      ...timelines,
-      { event_time: '', event_description: '', is_critical_point: false },
-    ]);
-  };
-
-  const handleRemoveTimelineStep = (idx: number) => {
-    setTimelines(timelines.filter((_, i) => i !== idx));
-  };
-
-  const handleTimelineChange = (idx: number, field: keyof TimelineItem, val: any) => {
-    const updated = [...timelines];
-    updated[idx] = { ...updated[idx], [field]: val };
-    setTimelines(updated);
   };
 
   // CMP Handlers
@@ -883,7 +846,6 @@ export default function StandardRcaForm() {
       status: markAsNotRisk ? 'closed' : status,
       created_by: user?.id || 1,
       timelines: timelines.filter((t) => t.event_description.trim() || t.event_time.trim()),
-      whys: whys.filter((w) => w.answer.trim()),
       contributing_factors: contributingFactors,
       fishbones: [
         ...legacyFishbones,
@@ -1072,7 +1034,7 @@ export default function StandardRcaForm() {
   const selectableIncidents = sourceIncident && !incidentCandidates.some((candidate) => candidate.id === sourceIncident.id)
     ? [sourceIncident, ...incidentCandidates]
     : incidentCandidates;
-  const hasAnalysis = contributingFactors.length > 0 || cmps.some((item) => item.observation.trim() || item.hypothesis.trim()) || whys.some((item) => item.answer.trim()) || processAnalyses.some((item) => item.problem.trim() || item.corrective_action.trim());
+  const hasAnalysis = contributingFactors.length > 0 || cmps.some((item) => item.observation.trim() || item.hypothesis.trim()) || processAnalyses.some((item) => item.problem.trim() || item.corrective_action.trim());
   const hasCompleteCapa = capas.some(item => item.action.trim()) && capas.every((item) => item.action.trim() && item.responsible.trim() && item.due_date && item.effectiveness_criteria?.trim() && item.baseline_value?.trim() && item.target_value?.trim() && item.effectiveness_due_date);
   const hasReviewTeam = participants.some((item) => item.is_owner && item.display_name.trim());
   const hasVoice = !canViewVoice || !infoInterview || voiceOfStaffEntries.some((item) => item.key_points.trim());
@@ -1161,17 +1123,18 @@ export default function StandardRcaForm() {
             <Sparkles className="w-4 h-4 text-purple-200" />
             <span>✨ ผู้ช่วย AI วิเคราะห์ RCA</span>
           </button>
-          <button
-            type="button"
-            onClick={printOfficialReport}
-            className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-medium border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 transition cursor-pointer"
-          >
-            <Printer className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-            <span>พิมพ์รายงาน HA</span>
-          </button>
-          {canComplete && ['admin', 'head', 'rm_committee'].includes(user?.role || '') && !['COMPLETED', 'CANCELLED'].includes(status.toUpperCase()) && <button type="button" disabled={saving || completing} onClick={() => setDischargeReason('')} className="rounded-xl border border-orange-300 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-800">
-            ทบทวนแล้วไม่ต้องทำ RCA/จำหน่ายเคส
-          </button>}
+          <RcaReportExport hasUnsavedChanges={hasUnsavedChanges} data={{
+            caseId, rmNo, topic, severity, incidentDate,
+            team: rcaTeam === 'other' ? customTeam : rcaTeam,
+            department: departments.find(d => String(d.id) === String(sourceIncident?.department_id))?.depart_name || '',
+            whatHappened, actualImpact, potentialImpact, timelines,
+            cmps: cmps.map(v => ({ ...v })), processes: processAnalyses.map(v => ({ ...v })),
+            capas: capas.map(v => ({ ...v })), sessions: reviewSessions.map(v => ({ ...v })),
+            participants: participants.map(v => ({ ...v })),
+            interviews: canViewVoice && infoInterview ? voiceOfStaffEntries.map(v => ({ ...v })) : [],
+            factors: contributingFactors, legacyFactors: legacyFishbones.map(v => ({ ...v })),
+            barriers: useSwissCheese ? [swissCheeseOrg, swissCheeseSupervision, swissCheesePreconditions, swissCheeseUnsafeActs] : [],
+          }} />
           {status.toUpperCase() !== 'COMPLETED' && <button
             type="button"
             onClick={() => handleSave()}
@@ -1244,6 +1207,7 @@ export default function StandardRcaForm() {
         </section>
       )}
 
+      {caseId && <div className="mb-4 print:hidden"><RcaAppointmentPanel caseId={caseId} onEditTeam={() => { setGuidedMode(true); setActiveStep('rca-team'); document.getElementById('rca-team')?.scrollIntoView({ behavior: 'smooth' }); }} /></div>}
       {/* Main 9 Sections Form Body (No nested <form> tags) */}
       <div className="space-y-8">
         {completionPercent < 100 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 print:hidden"><strong>ก่อนสรุป ยังต้องเติมข้อมูล</strong><div className="mt-2 flex flex-wrap gap-2">{stepKeys.filter(key => !sectionCompletion[key]).map(key => <button key={key} type="button" onClick={() => { setGuidedMode(true); setActiveStep(key); }} className="rounded-lg bg-white px-3 py-2 underline">{stepLabels[key]}</button>)}</div>{!hasCompleteCapa && <p className="mt-2">มาตรการทุกข้อที่ระบุต้องมีผู้รับผิดชอบ กำหนดเสร็จ เกณฑ์วัดผล Baseline เป้าหมาย และวันประเมิน</p>}</div>}
@@ -1494,10 +1458,12 @@ export default function StandardRcaForm() {
                 <textarea
                   rows={3}
                   value={actualImpact}
-                  onChange={(e) => setActualImpact(e.target.value)}
-                  placeholder="ผลกระทบต่อผู้ป่วย ญาติ เจ้าหน้าที่ หรือชื่อเสียงของโรงพยาบาล..."
+                  onChange={(e) => { setActualImpact(e.target.value); setActualImpactNeedsReview(false); }}
+                  placeholder="เช่น ผู้ป่วยได้รับบาดเจ็บ ต้องรักษาเพิ่ม บริการล่าช้า หรือไม่พบผลกระทบจริง (กรณีเกือบพลาด)"
                   className="w-full px-4 py-3 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-rose-500 focus:outline-none"
                 />
+                <p className="text-xs text-slate-500">ระบุผลที่เกิดจากเหตุการณ์จริง ไม่ใช่สิ่งที่ทำเพื่อแก้ไขหรือดูแลช่วยเหลือหลังเกิดเหตุ</p>
+                {actualImpactNeedsReview && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">โปรดตรวจสอบข้อความเดิม: ตรงกับข้อมูลรายงานหรือการแก้ไขเบื้องต้น อาจถูกดึงมาอัตโนมัติจากระบบเดิม กรุณาระบุผลกระทบที่เกิดขึ้นจริง</p>}
               </div>
 
               <div className="space-y-2">
@@ -1517,98 +1483,8 @@ export default function StandardRcaForm() {
         </section>
 
         {/* ================= SECTION 3: INCIDENT TIMELINE ================= */}
-        <section id="rca-timeline" className={`scroll-mt-24 bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 ${guidedMode && activeStep !== 'rca-timeline' ? 'hidden print:block' : ''}`}>
-          <details className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:bg-blue-950/20">
-            <summary className="cursor-pointer font-semibold">วางตารางจาก Excel</summary>
-            <p className="my-2 text-sm">เรียงคอลัมน์: วันที่ | เวลา | เหตุการณ์ | จุดวิกฤต (คอลัมน์สุดท้ายไม่บังคับ ใช้ ใช่/ไม่) รองรับ 2/10/2569 หรือ 2026-10-02 เว้นวันที่ได้หากไม่ทราบ</p>
-            <textarea aria-label="ตาราง Timeline จาก Excel" rows={4} value={timelinePaste} onChange={e => { setTimelinePaste(e.target.value); setTimelinePreview([]); setTimelinePasteError(''); }} placeholder="คัดลอกเซลล์ใน Excel แล้ววางที่นี่" className="w-full rounded-xl border p-3 dark:bg-slate-900" />
-            <button type="button" onClick={() => { try { setTimelinePreview(parseTimelinePaste(timelinePaste)); setTimelinePasteError(''); } catch (err) { setTimelinePasteError((err as Error).message); } }} className="mt-2 rounded-lg bg-blue-600 px-4 py-2 text-white">ตรวจและดูตัวอย่าง</button>
-            {timelinePasteError && <p role="alert" className="mt-2 text-red-700">{timelinePasteError}</p>}
-            {timelinePreview.length > 0 && <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-sm"><thead><tr><th>วันที่</th><th>เวลา</th><th>เหตุการณ์</th><th>จุดวิกฤต</th></tr></thead><tbody>{timelinePreview.map((t, i) => <tr key={i}><td>{t.event_date || 'ไม่ระบุ'}</td><td>{t.event_time}</td><td className="whitespace-pre-wrap">{t.event_description}</td><td>{t.is_critical_point ? 'ใช่' : 'ไม่'}</td></tr>)}</tbody></table>
-              <button type="button" onClick={() => { setTimelines([...timelines.filter(t => t.event_description.trim() || t.event_time.trim() || t.event_date), ...timelinePreview]); setTimelinePreview([]); setTimelinePaste(''); }} className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-white">เพิ่ม {timelinePreview.length} แถวลง Timeline (เก็บรายการเดิมไว้)</button>
-            </div>}
-          </details>
-          <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
-                3
-              </span>
-              <div>
-                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
-                  เส้นเวลาของลำดับเหตุการณ์ (Incident Timeline)
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  บันทึกลำดับเหตุการณ์ตามช่วงเวลา พร้อมระบุจุดวิกฤต (Critical Point)
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleAddTimelineStep}
-              className="px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold flex items-center gap-1.5 transition"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>เพิ่มช่วงเวลา</span>
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {timelines.map((t, idx) => (
-              <div
-                key={idx}
-                className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center gap-3 ${
-                  t.is_critical_point
-                    ? 'bg-rose-50/50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-900/50'
-                    : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'
-                }`}
-              >
-                <div className="w-full sm:w-36 shrink-0">
-                  <label className="block text-xs">วันที่<input type="date" aria-label={`วันที่เหตุการณ์ ${idx + 1}`} value={t.event_date?.slice(0, 10) || ''} onChange={e => handleTimelineChange(idx, 'event_date', e.target.value)} className="mb-2 w-full rounded-xl border p-2 dark:bg-slate-900" /></label>
-                  <input
-                    type="text"
-                    value={t.event_time}
-                    onChange={(e) => handleTimelineChange(idx, 'event_time', e.target.value)}
-                    placeholder="เช่น 10:30 น."
-                    className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-slate-100 text-center"
-                  />
-                </div>
-
-                <div className="flex-1 w-full">
-                  <textarea
-                    rows={2}
-                    value={t.event_description}
-                    onChange={(e) =>
-                      handleTimelineChange(idx, 'event_description', e.target.value)
-                    }
-                    placeholder="ระบุสิ่งที่เกิดขึ้นในช่วงเวลานี้..."
-                    className="w-full px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100"
-                  />
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
-                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-rose-600 dark:text-rose-400">
-                    <input
-                      type="checkbox"
-                      checked={t.is_critical_point || false}
-                      onChange={(e) =>
-                        handleTimelineChange(idx, 'is_critical_point', e.target.checked)
-                      }
-                      className="rounded text-rose-600 focus:ring-rose-500 w-4 h-4"
-                    />
-                    <span>จุดวิกฤต</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTimelineStep(idx)}
-                    className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+        <section id="rca-timeline" className={`scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-4 ${guidedMode && activeStep !== 'rca-timeline' ? 'hidden print:block' : ''}`}>
+          <TimelineEditor items={timelines} onChange={setTimelines} defaultDate={incidentDate} />
         </section>
 
         {/* ================= SECTION 4: QUICK STAKEHOLDER REVIEW & CMPS ================= */}
@@ -1825,8 +1701,8 @@ export default function StandardRcaForm() {
           )}
         </section></details>
 
-        {/* ================= SECTION 6: 5 WHYS & SWISS CHEESE MODEL ================= */}
-        <details className={`rounded-xl border border-slate-200 p-4 ${guidedMode && activeStep !== 'rca-analysis' ? 'hidden print:block' : ''}`}><summary className="cursor-pointer text-sm font-semibold text-blue-700">เครื่องมือเพิ่มเติม: ถามทำไมและวิเคราะห์แนวป้องกัน</summary><section className={`bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 `}>
+        {/* ================= SECTION 6: SWISS CHEESE MODEL ================= */}
+        <details className={`rounded-xl border border-slate-200 p-4 ${guidedMode && activeStep !== 'rca-analysis' ? 'hidden print:block' : ''}`}><summary className="cursor-pointer text-sm font-semibold text-blue-700">เครื่องมือเพิ่มเติม: วิเคราะห์แนวป้องกัน</summary><section className={`bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 `}>
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
@@ -1834,10 +1710,10 @@ export default function StandardRcaForm() {
               </span>
               <div>
                 <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
-                  การขุดค้นสาเหตุ 5 Whys และแบบจำลองชีสสวิส (Swiss Cheese Model)
+                  แบบจำลองชีสสวิส (Swiss Cheese Model)
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  ถามเจาะลึก 5 ระดับเพื่อค้นหารากเหง้าเชิงระบบ และวิเคราะห์ช่องโหว่ของแนวป้องกัน 4 ชั้น
+                  วิเคราะห์ช่องโหว่ของแนวป้องกัน 4 ชั้นเพื่อค้นหาสาเหตุเชิงระบบ
                 </p>
               </div>
             </div>
@@ -1854,40 +1730,6 @@ export default function StandardRcaForm() {
               <span>{useSwissCheese ? '✓ แสดงแบบจำลองชีสสวิส' : '+ เปิดใช้เครื่องมือชีสสวิส (Swiss Cheese)'}</span>
               {useSwissCheese ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
-          </div>
-
-          {/* 6a. 5 Whys Chain */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-              <HelpCircle className="w-4 h-4 text-amber-500" />
-              <span>ลำดับการวิเคราะห์ 5 Whys (Five Whys Root Cause Chain)</span>
-            </h4>
-
-            {whys.map((w, idx) => (
-              <div
-                key={idx}
-                className="p-3.5 rounded-2xl bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/30 flex flex-col sm:flex-row items-start sm:items-center gap-3"
-              >
-                <div className="w-full sm:w-48 shrink-0">
-                  <span className="font-bold text-xs text-amber-800 dark:text-amber-300">
-                    Why #{w.level}: {w.question}
-                  </span>
-                </div>
-                <div className="flex-1 w-full">
-                  <input
-                    type="text"
-                    value={w.answer}
-                    onChange={(e) => {
-                      const updated = [...whys];
-                      updated[idx].answer = e.target.value;
-                      setWhys(updated);
-                    }}
-                    placeholder={`ตอบสาเหตุระดับที่ ${w.level}...`}
-                    className="w-full px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/50 text-xs text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-            ))}
           </div>
 
           {/* 6b. Swiss Cheese Model (Collapsible) */}
@@ -2432,8 +2274,12 @@ export default function StandardRcaForm() {
           <button type="button" onClick={() => { setActiveStep(stepKeys[Math.min(stepKeys.length - 1, stepKeys.indexOf(activeStep) + 1)]); window.scrollTo({ top: 0, behavior: 'smooth' }); }} disabled={stepKeys.indexOf(activeStep) === stepKeys.length - 1} className="rounded-xl bg-blue-600 px-4 py-3 text-sm text-white disabled:opacity-40">ถัดไป</button>
         </div>}
         {/* ================= BOTTOM ACTION BAR & NOT A RISK TOGGLE ================= */}
-        <section className="p-6 rounded-3xl bg-slate-900 text-white shadow-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6 print:hidden">
-          <div className="flex items-center gap-4">
+        <section className="p-5 rounded-2xl bg-teal-50/60 text-slate-800 shadow-sm border border-teal-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 print:hidden">
+          <div className="flex flex-wrap items-center gap-3">
+          {canComplete && ['admin', 'head', 'rm_committee'].includes(user?.role || '') && !['COMPLETED', 'CANCELLED'].includes(status.toUpperCase()) && <button type="button" disabled={saving || completing} onClick={() => setDischargeReason('')} className="rounded-xl border border-orange-300 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-800">
+            ทบทวนแล้วไม่ต้องทำ RCA/จำหน่ายเคส
+          </button>}
+
             <button
               type="button"
               onClick={handleToggleNotRisk}
@@ -2441,24 +2287,24 @@ export default function StandardRcaForm() {
               className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all ${
                 isNotRisk
                   ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/40 ring-2 ring-rose-300'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                  : 'bg-white hover:bg-orange-50 text-orange-800 border border-orange-200'
               }`}
             >
-              <AlertTriangle className={`w-4 h-4 ${isNotRisk ? 'text-white' : 'text-amber-400'}`} />
+              <AlertTriangle className={`w-4 h-4 ${isNotRisk ? 'text-white' : 'text-orange-600'}`} />
               <span>{isNotRisk ? '✓ ทบทวนแล้ว: ไม่ใช่ความเสี่ยง (Not a Risk)' : 'ทบทวนแล้ว: ไม่ใช่ความเสี่ยง (Not a Risk)'}</span>
             </button>
             {isNotRisk && (
-              <span className="text-xs text-rose-300 font-medium">
+              <span className="text-xs text-rose-700 font-medium">
                 * เคสนี้จะถูกจัดเป็น Not a Risk และปิดสถานะการทบทวน
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <button
               type="button"
               onClick={() => { if (!hasUnsavedChanges || window.confirm('มีข้อมูลยังไม่บันทึก ต้องการออกจากหน้านี้หรือไม่?')) navigate('/rca/list'); }}
-              className="px-4 py-2.5 text-xs sm:text-sm font-medium text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition"
+              className="px-4 py-2.5 text-xs sm:text-sm font-medium text-slate-600 hover:text-teal-800 rounded-xl hover:bg-teal-100 transition"
             >
               ยกเลิก
             </button>
@@ -2468,7 +2314,7 @@ export default function StandardRcaForm() {
                   type="button"
                   onClick={() => handleSave()}
                   disabled={saving || completing || !canEdit}
-                  className="flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-700 disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-xl border border-teal-300 bg-white px-5 py-3 text-sm font-bold text-teal-800 transition hover:bg-teal-100 disabled:opacity-50"
                 >
                   <Save className="w-4 h-4" />
                   <span>{saving && !completing ? 'กำลังบันทึก...' : 'บันทึกร่าง'}</span>

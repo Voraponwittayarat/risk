@@ -1243,7 +1243,7 @@ export default function IncidentDetail() {
           <button type="button" disabled={submittingAction} aria-pressed={reviewAction !== 'CENTER'} onClick={() => setReviewAction('REVIEW')}
             className={`rounded-lg px-3 py-3 text-sm font-bold ${reviewAction !== 'CENTER' ? 'bg-white text-indigo-700 shadow-sm dark:bg-slate-800' : 'text-slate-500'}`}>ทบทวนในหน่วยงาน</button>
           <button type="button" disabled={!permissions.canForward || submittingAction} aria-pressed={reviewAction === 'CENTER'} onClick={() => setReviewAction('CENTER')}
-            className={`rounded-lg px-3 py-3 text-sm font-bold disabled:opacity-40 ${reviewAction === 'CENTER' ? 'bg-white text-indigo-700 shadow-sm dark:bg-slate-800' : 'text-slate-500'}`}>ส่งเข้าศูนย์ RCA</button>
+            className={`rounded-lg px-3 py-3 text-sm font-bold disabled:opacity-40 ${reviewAction === 'CENTER' ? 'bg-white text-indigo-700 shadow-sm dark:bg-slate-800' : 'text-slate-500'}`}>ส่งเข้า (ศูนย์) RCA รพ.</button>
         </div>
         {reviewAction === 'CENTER' ? <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-3 dark:bg-indigo-950/20">
           <p className="text-sm font-bold text-indigo-700 dark:text-indigo-300">Standard RCA — วิเคราะห์ต่อโดยศูนย์ RCA</p>
