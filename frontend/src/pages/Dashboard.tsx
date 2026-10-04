@@ -6,12 +6,25 @@ import { useAuth } from '../contexts/AuthContext';
 import DashboardTasks from '../components/DashboardTasks';
 import { reviewDue } from '../utils/riskReviewDue';
 
+const greetings = [
+  '🌱 ทุกความเสี่ยงที่เรามองเห็น คือโอกาสที่เราจะทำให้โรงพยาบาลปลอดภัยขึ้น',
+  '💚 ขอบคุณที่ช่วยกันมองเห็นความเสี่ยง เพราะการเห็นเร็ว ทำให้เราแก้ได้เร็ว',
+  '🛡️ เราไม่ได้มองหาความผิด เรากำลังมองหาวิธีทำให้ระบบดีขึ้น',
+  '🌱 ทุกการรายงาน คืออีกหนึ่งก้าวของการเรียนรู้และพัฒนา',
+  '🤝 ความปลอดภัยไม่ได้เป็นหน้าที่ของใครคนหนึ่ง แต่เกิดจากการช่วยกันของพวกเราทุกคน',
+  '💡 ความเสี่ยงที่ถูกรายงานวันนี้ อาจช่วยป้องกันเหตุการณ์ในวันพรุ่งนี้',
+  '❤️ ขอบคุณทุกคนที่กล้าบอกสิ่งที่อาจเกิดขึ้น เพราะการพูดออกมาคือการดูแลผู้ป่วย',
+  '🔎 มองเห็นความเสี่ยง ไม่ใช่เรื่องน่ากลัว แต่คือจุดเริ่มต้นของการพัฒนา',
+  '🌤️ วันนี้อาจยังไม่มีเหตุการณ์ แต่เราสามารถเตรียมระบบให้ปลอดภัยกว่าเดิมได้',
+];
+
 type Notice = { key: string; title: string; reason: string; relation: string; due?: string; to: string; priority: number };
 const day = (value: Date) => value.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
 const dueSoon = (value?: string) => !!value && Number.isFinite(Date.parse(value)) && new Date(value).getTime() <= Date.now() + 30 * 86400000;
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const [greeting] = useState(() => greetings[Math.floor(Math.random() * greetings.length)]);
   const [risks, setRisks] = useState<any[]>([]);
   const [actions, setActions] = useState<any[]>([]);
   const [personal, setPersonal] = useState<any>(null);
@@ -69,7 +82,11 @@ export default function Dashboard() {
   const nextReview = [...visibleRisks].filter(r => r.next_review_date).sort((a,b) => Date.parse(a.next_review_date) - Date.parse(b.next_review_date))[0];
   return <div className="space-y-5 pb-12">
     <header className="flex flex-wrap items-center justify-between gap-3">
-      <div><p className="text-xs font-semibold text-teal-700 dark:text-teal-300">Risk Register · ติดตามอย่างต่อเนื่อง</p><h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">ความเสี่ยงและงานติดตามของคุณ</h1><p className="mt-2 text-sm text-slate-500">{user?.name} · {user?.department_name || user?.departmentName || 'หน่วยงานตามสิทธิ์'}</p></div>
+      <div className="min-w-0">
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-white"><span className="h-3 w-3 shrink-0 rounded-full bg-blue-500"/>ร่วมดูแลความปลอดภัยในทุกวัน</h1>
+        <p className="mt-3 inline-block rounded-lg border border-blue-100 bg-blue-50 px-4 py-2 text-base font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300">{greeting}</p>
+        <p className="mt-3 text-sm text-slate-500">ผู้ใช้งาน: <span className="font-semibold text-slate-700 dark:text-slate-200">{user?.name}</span> · {user?.department_name || user?.departmentName || 'หน่วยงานตามสิทธิ์'}</p>
+      </div>
       <Link to="/incidents/new" className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-3 text-sm font-bold text-white"><Plus className="h-4 w-4"/>รายงานความเสี่ยง</Link>
     </header>
     <section className="rounded-2xl border border-teal-200 bg-white p-4 shadow-sm dark:border-teal-900 dark:bg-slate-900 sm:p-6" aria-labelledby="risk-followups">
