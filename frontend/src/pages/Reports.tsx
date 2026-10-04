@@ -1,5 +1,6 @@
 import RiskWorkflowNav from '../components/RiskWorkflowNav';
 import RiskRegisterOverview from '../components/RiskRegisterOverview';
+import LegacyRegisterImport from '../components/LegacyRegisterImport';
 import { reviewDue } from '../utils/riskReviewDue';
 import { reviewSummary, reviewEvidence, reviewPeriodStart } from '../utils/riskReviewGuide';
 import React, { useEffect, useRef, useState } from 'react';
@@ -108,6 +109,7 @@ const RISK_PRESET_TEMPLATES = [
 
 export default function Reports() {
   const { user } = useAuth();
+  const [showLegacyImport, setShowLegacyImport] = useState(false);
   const [routeParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'hospital' | 'department' | 'matrix' | 'due' | 'standards'>(user?.role === 'admin' || user?.rmScope === 'hospital' ? 'hospital' : 'department');
   const [workspaceView, setWorkspaceView] = useState<'insights' | 'register'>(routeParams.get('view') === 'insights' ? 'insights' : 'register');
@@ -425,6 +427,10 @@ export default function Reports() {
 
   // Open Review Modal
   const handleOpenReviewModal = (item: any) => {
+    if (!item.nrls_code && String(item.risk_code || '').startsWith('LEGACY-HOSP-')) {
+      handleOpenEditModal(item);
+      return;
+    }
     setReviewProcess('');
     setReviewResults('');
     setSelectedRiskItem(item);
@@ -813,6 +819,7 @@ export default function Reports() {
             <span className="text-lg leading-none">+</span>
             เพิ่มรายการใหม่
           </button>
+          {(user?.role === 'admin' || (user?.role === 'rm_committee' && user?.rmScope === 'hospital')) && <button type="button" onClick={() => setShowLegacyImport(true)} className="rounded-full border border-teal-300 bg-white px-3 py-2 text-xs font-semibold text-teal-800 sm:text-sm">นำเข้าทะเบียนเดิม</button>}
 
           <button
             onClick={exportToCSV}
@@ -842,6 +849,7 @@ export default function Reports() {
             className={`rounded-lg px-4 py-2 text-sm font-semibold ${workspaceView === view ? 'bg-indigo-600 text-white' : 'border border-slate-200 bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>{label}</button>)}
       </div>
       {workspaceView === 'insights' && <RiskDecisionSupport departments={departments} department={selectedDept} onDepartmentChange={setSelectedDept} refreshKey={dataRevision} onOpenRisk={id => handleOpenDetailModal({ id })} />}
+      {showLegacyImport && <LegacyRegisterImport onClose={() => setShowLegacyImport(false)} onImported={() => { setWorkspaceView('register'); setActiveTab('hospital'); setSelectedDept('all'); setDataRevision(value => value + 1); }} />}
       <div className={`${workspaceView === 'register' ? 'space-y-3' : 'hidden'} print:block`}>
       <h2 className="no-print text-xl font-bold text-slate-800 dark:text-white">ทะเบียนความเสี่ยงและเครื่องมือทบทวน</h2>
       <div className="no-print flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600 dark:text-slate-300">
