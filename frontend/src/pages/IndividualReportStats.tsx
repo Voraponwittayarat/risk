@@ -1171,7 +1171,7 @@ export default function IndividualReportStats() {
                       <th colSpan={5} className="px-3 py-2 text-center bg-emerald-100/60 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 border-r border-slate-300 dark:border-slate-700">
                         ความเสี่ยงทั่วไป (General Risk)
                       </th>
-                      <th colSpan={3} className="px-3 py-2 text-center bg-rose-100/60 dark:bg-rose-950/40 text-rose-950 dark:text-rose-200">
+                      <th colSpan={4} className="px-3 py-2 text-center bg-rose-100/60 dark:bg-rose-950/40 text-rose-950 dark:text-rose-200">
                         สรุปรวม & ผลทบทวน
                       </th>
                     </tr>
@@ -1199,6 +1199,10 @@ export default function IndividualReportStats() {
                       <th className="px-2.5 py-3 text-center w-[40px] border-r border-slate-200 dark:border-slate-700">4</th>
                       <th className="px-2.5 py-3 text-center w-[40px] border-r border-slate-200 dark:border-slate-700">5</th>
 
+                      <th className="px-3 py-3 text-center w-[90px] bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-300 font-extrabold border-r border-slate-200 dark:border-slate-700">
+                        รวมทั้งหมด
+                      </th>
+
                       <th className="px-3 py-3 text-center w-[75px] bg-rose-50 dark:bg-rose-950/40 text-rose-900 dark:text-rose-300 font-extrabold border-r border-slate-200 dark:border-slate-700">
                         รวม GHI
                       </th>
@@ -1208,7 +1212,7 @@ export default function IndividualReportStats() {
                       </th>
 
                       <th className="px-3 py-3 text-center w-[120px] bg-slate-200/80 dark:bg-slate-800 text-slate-950 dark:text-white font-black">
-                        {matrixGroupMode === 'risk_title' ? 'ผลการทบทวน' : 'รวมทั้งหมด'}
+                        ผลการทบทวน
                       </th>
                     </tr>
                   </thead>
@@ -1216,7 +1220,7 @@ export default function IndividualReportStats() {
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {(matrixGroupMode === 'risk_title' ? filteredRiskTitleMatrix : filteredMatrix).length === 0 ? (
                       <tr>
-                        <td colSpan={19} className="px-6 py-12 text-center text-slate-400 text-sm">
+                        <td colSpan={20} className="px-6 py-12 text-center text-slate-400 text-sm">
                           ไม่พบข้อมูลรายการในเงื่อนไขการค้นหานี้
                         </td>
                       </tr>
@@ -1283,6 +1287,10 @@ export default function IndividualReportStats() {
                               </td>
                             ))}
 
+                            <td className="px-3 py-3 text-center font-black border-r border-slate-100 dark:border-slate-800 bg-blue-50/60 dark:bg-blue-950/20 text-blue-900 dark:text-blue-200">
+                              {item.total_all}
+                            </td>
+
                             <td className="px-3 py-3 text-center font-black border-r border-slate-100 dark:border-slate-800 bg-rose-50/40 dark:bg-rose-950/20">
                               {hasGhi ? (
                                 <span className="inline-block px-2 py-0.5 rounded bg-rose-100 text-rose-900 dark:bg-rose-900 dark:text-rose-100 font-extrabold">
@@ -1312,12 +1320,10 @@ export default function IndividualReportStats() {
                                   className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold transition shadow-2xs flex items-center justify-center gap-1 cursor-pointer mx-auto"
                                 >
                                   <ShieldCheck className="w-3.5 h-3.5" />
-                                  <span>ผลทบทวน ({item.total_all})</span>
+                                  <span>ดูผลทบทวน</span>
                                 </button>
                               ) : (
-                                <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700">
-                                  {item.total_all}
-                                </span>
+                                <span className="text-slate-400 font-normal">-</span>
                               )}
                             </td>
                           </tr>
@@ -1351,6 +1357,10 @@ export default function IndividualReportStats() {
                           </td>
                         ))}
 
+                        <td className="px-3 py-3 text-center bg-blue-600 text-white font-black text-sm border-r border-slate-300 dark:border-slate-700">
+                          {(matrixGroupMode === 'risk_title' ? filteredRiskTitleMatrix : filteredMatrix).reduce((sum: number, m: any) => sum + (m.total_all || 0), 0)}
+                        </td>
+
                         <td className="px-3 py-3 text-center bg-rose-200 dark:bg-rose-900 text-rose-950 dark:text-white border-r border-slate-300 dark:border-slate-700 font-black">
                           {(matrixGroupMode === 'risk_title' ? filteredRiskTitleMatrix : filteredMatrix).reduce((sum: number, m: any) => sum + (m.total_ghi || 0), 0)}
                         </td>
@@ -1359,8 +1369,8 @@ export default function IndividualReportStats() {
                           -
                         </td>
 
-                        <td className="px-3 py-3 text-center bg-rose-600 text-white font-black text-sm">
-                          {(matrixGroupMode === 'risk_title' ? filteredRiskTitleMatrix : filteredMatrix).reduce((sum: number, m: any) => sum + (m.total_all || 0), 0)}
+                        <td className="px-3 py-3 text-center text-slate-500 font-normal">
+                          -
                         </td>
                       </tr>
                     </tfoot>
