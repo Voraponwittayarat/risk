@@ -180,3 +180,9 @@
 - ปล่อยผ่าน GitHub main ให้ poller เรียก update-hrms.sh ซึ่งสำรองซ้ำและ migrate deploy ตามขั้นตอน; ตรวจผลหลัง deploy โดยไม่แก้ clinical records/ไม่ส่ง Telegram ทดสอบเข้ากลุ่มจริง
 - ติดตามหลัง release: ตรวจรายงานยาว/การแบ่งหน้า Word และ Chrome PDF กับผู้ใช้งาน; ไม่มีฐานข้อมูลทดสอบ MariaDB ในเครื่อง development สำหรับทดลอง migration แยก
 - Validation ชุดรวม: frontend/backend npm run build ผ่าน; Prisma validate/generate ผ่าน; backend 28 suites / 231 tests ผ่าน; Timeline/report 11 tests ผ่าน; git diff check ผ่าน; production case id varchar(50)/utf8mb4_unicode_ci ตรงกับ foreign key migration
+
+### Post-deploy RCA autosave safeguard — 4 ต.ค. 2569
+- Release 4491b386 deploy/migration สำเร็จ; backup /var/backups/riskhrms/riskhrms-db-20261004T022942Z.sql SHA-256 d3f690f7c8e97f733c37f6f6cd5e33dedf2777c07a803a1561007e25c6c0c8fe; health ok/database connected
+- Smoke test พบ collaboration-options โหลดช้าทำให้เปลี่ยน owner placeholder ของเคสเดิม แล้วกระตุ้น autosave ทั้งที่ไม่ได้แก้ไข; จำกัดการเติมชื่อเจ้าของอัตโนมัติไว้เฉพาะเคสใหม่
+- Synthetic browser regression: delayed options 3s และรอเกินรอบ 20s ไม่เกิด PATCH/ไม่มี unsaved warning; แก้ Actual Impact แล้วเกิด PATCH 1 ครั้ง บันทึกสำเร็จและ warning หาย; build frontend/backend ผ่าน
+- ไม่ทดลองแก้ข้อมูล clinical เพื่อทดสอบ; ระหว่าง smoke test ก่อน patch มี autosave error จากการเปิดแบบฟอร์ม จึงปิดหน้าและทดสอบต่อด้วยเคสสมมติ

@@ -443,6 +443,9 @@ export default function StandardRcaForm() {
   }, [sourceIncident?.department_id, sourceIncident?.nrls_code]);
 
   useEffect(() => {
+    // Existing cases must keep their saved team. Late collaboration options are
+    // reference data, not an edit that should trigger an automatic draft save.
+    if (id && id !== 'new') return;
     if (!sourceIncident?.department_id || !departments.length) return;
     const ownerDepartment = departments.find((item) => String(item.id) === String(sourceIncident.department_id));
     if (!ownerDepartment) return;
@@ -451,7 +454,7 @@ export default function StandardRcaForm() {
         ? { ...participant, display_name: ownerDepartment.depart_name, department_id: String(ownerDepartment.id) }
         : participant
     )));
-  }, [departments, sourceIncident?.department_id]);
+  }, [id, departments, sourceIncident?.department_id]);
 
   const loadCaseData = async (caseIdToLoad: string) => {
     try {
