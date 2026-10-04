@@ -28,6 +28,8 @@ export default function MedicationImport() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('CPM');
   const [onlyIssues, setOnlyIssues] = useState(false);
+  const [overview, setOverview] = useState(true);
+  const [editingRow, setEditingRow] = useState<number>();
   const [bulk, setBulk] = useState(blankBulk);
   const [replaceFilled, setReplaceFilled] = useState(false);
   const [results, setResults] = useState<{ row: number; status: string; id?: number }[]>([]);
@@ -81,7 +83,9 @@ export default function MedicationImport() {
   };
   const topics = context?.topics.filter(t => `${t.nrls_code} ${t.name}`.toLowerCase().includes(search.toLowerCase())) || [];
   const topicOptions = (value: string) => context?.topics.filter(t => topics.includes(t) || t.nrls_code === value) || [];
-  const sourceHeaders = rows[0]?.source_columns || [];
+  const visibleSource = (r: PreviewRow) => r.source_columns.filter(col => !/^(คอลัมน์|column)\s*17$/i.test(col.header.trim()));
+  const sourceHeaders = rows[0] ? visibleSource(rows[0]) : [];
+  const nameOf = (items: { id: number; name: string }[], value: string) => items.find(i => String(i.id) === value)?.name || 'ต้องเติม';
   const field = (label: string, value: string, onChange: (value: string) => void, options: { id: string | number; name: string }[]) => <label className="block text-xs font-medium">{label}<select aria-label={label} className={inputClass} value={value} onChange={e => onChange(e.target.value)}><option value="">เลือก{label}</option>{options.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}</select></label>;
   return <div className="space-y-4">
     <h1 className="text-2xl font-bold">นำเข้าความเสี่ยงด้านยา</h1>
@@ -112,15 +116,41 @@ export default function MedicationImport() {
         <label className="flex gap-2"><input type="checkbox" checked={onlyIssues} onChange={e => setOnlyIssues(e.target.checked)} />แสดงเฉพาะแถวที่ต้องเติม</label>
         <label className="flex items-center gap-2">ค้น NRLS<input className={inputClass} value={search} onChange={e => setSearch(e.target.value)} placeholder="รหัสหรือชื่อหัวข้อ" /></label>
       </div>
-      <div className="max-h-[65vh] overflow-auto rounded-xl border bg-white">
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <button onClick={() => { setOverview(!overview); setEditingRow(undefined); }} className="rounded border bg-white px-3 py-2">{overview ? 'แสดงทุกคอลัมน์ CSV' : 'กลับภาพรวมรายเดือน'}</button>
+        <span className="text-xs">ภาพรวมหนึ่งบรรทัดต่อรายการ · กดดู / แก้ไขเพื่อเทียบ CSV · สีเหลืองคือข้อมูลต้นฉบับที่ใช้ประกอบการนำเข้า</span>
+      </div>
+      {overview && <div className="max-h-[70vh] overflow-auto rounded-xl border bg-white">
+        <table className="w-full text-xs whitespace-nowrap border-collapse">
+          <thead className="sticky top-0 z-20 bg-slate-100"><tr>{['เลือก / แถว', 'สถานะ', 'วันที่ / เวลา', 'ระดับ', 'หน่วยงาน', 'สถานที่ / เวร', 'ขั้นตอน CSV', 'NRLS', 'รายละเอียด'].map(h => <th key={h} className="p-2 border-b text-left">{h}</th>)}</tr></thead>
+          <tbody>{rows.map((r, index) => {
+            const c = choices[index]; const needs = missing(c); const result = results.find(v => v.row === r.row);
+            if (onlyIssues && (!c.selected || !needs.length)) return null;
+            return <tr key={r.row} className={r.duplicate ? 'border-b bg-slate-50 text-slate-500' : 'border-b'}>
+              <td className="p-2"><label className="flex items-center gap-2"><input aria-label={`เลือกภาพรวมแถว ${r.row}`} type="checkbox" disabled={busy || r.duplicate} checked={c.selected} onChange={e => update(r.row, { selected: e.target.checked })} />{r.row}</label></td>
+              <td className="p-2" title={needs.join(', ')}>{result?.status === 'created' ? 'นำเข้าแล้ว' : r.duplicate ? 'ข้ามซ้ำ' : result?.status === 'failed' ? 'ไม่สำเร็จ' : needs.length ? `ต้องเติม ${needs.length} ช่อง` : 'พร้อม'}</td>
+              <td className="p-2">{c.date_report || 'ต้องเติม'} / {c.time_report || 'ต้องเติมเวลา'}</td>
+              <td className="p-2">{c.level_id || 'ต้องเติม'}</td>
+              <td className="p-2 max-w-[180px] truncate">{nameOf(context.departments.map(d => ({ id: d.id, name: d.depart_name })), c.department_id)}</td>
+              <td className="p-2 max-w-[180px] truncate">{nameOf(context.locations, c.location_id)} / {nameOf(context.durations.map(d => ({ id: d.id, name: d.duration_name })), c.duration_id)}</td>
+              <td className="p-2 max-w-[180px] truncate bg-yellow-50" title={r.stages.join(', ')}>{r.stages.join(', ') || '—'}</td>
+              <td className="p-2" title={context.topics.find(t => t.nrls_code === c.nrls_code)?.name}>{c.nrls_code || 'ต้องเลือก'}</td>
+              <td className="p-2"><button className="text-indigo-700 underline" onClick={() => setEditingRow(editingRow === r.row ? undefined : r.row)}>{editingRow === r.row ? 'ปิดรายละเอียด' : 'ดู / แก้ไข'}</button></td>
+            </tr>;
+          })}</tbody>
+        </table>
+      </div>}
+      {overview && editingRow !== undefined && <p className="font-medium text-sm">เทียบข้อมูล CSV แถว {editingRow}</p>}
+      {(!overview || editingRow !== undefined) && <div className="max-h-[65vh] overflow-auto rounded-xl border bg-white">
         <table className="text-sm border-separate border-spacing-0 w-full">
           <thead className="sticky top-0 z-30"><tr><th className="sticky left-0 bg-slate-100 p-3 border-b" rowSpan={2}>แถว / เลือก</th><th colSpan={sourceHeaders.length} className="bg-slate-100 p-3 border-b text-left">ข้อมูลต้นฉบับ CSV</th><th className="lg:sticky lg:right-0 bg-indigo-100 p-3 border-b text-left w-[540px] min-w-[540px]" rowSpan={2}>ข้อมูลที่จะนำเข้า HRMS / NRLS</th></tr><tr>{sourceHeaders.map((col, i) => <th key={i} className="bg-slate-100 p-3 border-b border-r min-w-[180px] max-w-[240px] text-left align-top">{col.header}{col.excluded && <span className="block text-xs font-normal">ไม่นำเข้า</span>}</th>)}</tr></thead>
           <tbody>{rows.map((r, index) => {
             const c = choices[index]; const needs = missing(c); const result = results.find(v => v.row === r.row);
+            if (overview && editingRow !== r.row) return null;
             if (onlyIssues && (!c.selected || !needs.length)) return null;
             return <tr key={r.row} className={r.duplicate ? 'bg-slate-50' : ''}>
               <td className="sticky left-0 z-10 border-b border-r p-3 bg-white align-top"><label className="flex gap-2"><input aria-label={`เลือกแถว ${r.row}`} type="checkbox" disabled={busy || r.duplicate} checked={c.selected} onChange={e => update(r.row, { selected: e.target.checked })} />{r.row}</label><span className="block text-xs mt-2">{result?.status === 'created' ? 'นำเข้าแล้ว' : result?.status === 'duplicate' || r.duplicate ? 'ข้ามซ้ำ' : result?.status === 'failed' ? 'นำเข้าไม่สำเร็จ' : needs.length ? 'ต้องเติม' : 'พร้อม'}</span></td>
-              {r.source_columns.map((col, i) => <td key={i} className="p-3 border-b border-r align-top whitespace-pre-wrap min-w-[180px] max-w-[240px] break-words">{col.excluded ? <span className="text-slate-400">ไม่นำเข้า</span> : col.value || '—'}</td>)}
+              {visibleSource(r).map((col, i) => <td key={i} className={`p-3 border-b border-r align-top whitespace-pre-wrap min-w-[180px] max-w-[240px] break-words ${!col.excluded && col.value ? 'bg-yellow-100' : ''}`}>{col.excluded ? <span className="text-slate-400">ไม่นำเข้า</span> : col.value || '—'}</td>)}
               <td className="lg:sticky lg:right-0 z-10 bg-indigo-50 border-b border-l border-indigo-200 p-3 align-top min-w-[540px]">
                 <fieldset disabled={busy || r.duplicate} className="grid grid-cols-3 gap-2">
                   <label className="text-xs">วันที่เกิดเหตุ<input aria-label={`วันที่แถว ${r.row}`} type="date" className={inputClass} value={c.date_report} onChange={e => update(r.row, { date_report: e.target.value })} /></label>
@@ -139,7 +169,7 @@ export default function MedicationImport() {
             </tr>;
           })}</tbody>
         </table>
-      </div>
+      </div>}
       <div className="sticky bottom-0 z-40 rounded-xl border bg-white p-4 shadow flex flex-wrap items-center justify-between gap-3">
         <div><label className="flex items-center gap-2"><input aria-label="เลือกทั้งหมด" type="checkbox" disabled={busy || !availableRows.length} checked={!!availableRows.length && availableRows.every(c => c.selected)} onChange={e => setChoices(old => old.map(c => rows.find(r => r.row === c.row)?.duplicate ? c : { ...c, selected: e.target.checked }))} />เลือกทุกแถวที่ยังไม่นำเข้า</label><p className="text-xs mt-1">{incomplete.length ? `เหลือ ${incomplete.length} แถวที่ต้องเติม หรือยกเลิกเลือกแถวนั้น` : 'ข้อมูลครบ พร้อมนำเข้า'} · หนึ่งแถวสร้างหนึ่งเหตุการณ์และเข้าสถานะรอยืนยัน</p></div>
         <button onClick={commit} disabled={busy || !token || !selected.length || !!incomplete.length} className="rounded bg-emerald-700 px-5 py-3 text-white font-semibold disabled:opacity-50">ยืนยันนำเข้า {selected.length} รายการ</button>

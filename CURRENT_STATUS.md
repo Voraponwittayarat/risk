@@ -200,3 +200,6 @@
 
 ผลตรวจ: frontend/backend build ผ่าน; backend tests 28 suites / 232 tests ผ่าน; browser QA ด้วยข้อมูลจำลอง ตรวจเติมเวลา 2 แถว ข้ามแถวซ้ำ และ batch confirm ส่งคำขอครั้งเดียวสำเร็จ 2 แถว ไม่มีการเขียนฐานข้อมูลจริง ปรับ sticky panel ให้ใช้เฉพาะจอใหญ่เพื่อให้จอเล็กเลื่อนตารางได้ ผล diff --check ผ่าน
 เผยแพร่โค้ดใน branch codex/medication-import-table; ยังไม่ deploy production: backup / running commit / health production ไม่ได้ตรวจในรอบนี้
+
+ปรับภาพรวมรายเดือน: เปิดค่าเริ่มต้นเป็นตารางกระชับหนึ่งบรรทัดต่อรายการ มีปุ่มดู/แก้ไขเพื่อเปิดรายละเอียด CSV ของแถวเดียว สลับทุกคอลัมน์ได้ ไฮไลต์สีเหลืองช่อง CSV ที่มีค่าและใช้ประกอบการนำเข้า ซ่อนหัวข้อคอลัมน์ 17 ทั้งสองตำแหน่งโดยไม่แก้ CSV และไม่เปลี่ยน backend/ฐานข้อมูล ข้อจำกัดเดิม 500 รายการ/5 MB ต่อไฟล์ ยังไม่ deploy production
+ผลตรวจรอบภาพรวม: frontend build ผ่าน (มีคำเตือน bundle size เดิม), backend build ผ่าน, diff --check ผ่าน ยังไม่ได้ตรวจมุมมองใหม่ใน browser รอบนี้; ไม่มี database migration, backup/running commit/health production ไม่ได้ตรวจเพราะไม่ deploy
