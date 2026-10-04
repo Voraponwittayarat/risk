@@ -179,3 +179,4 @@
 - Production ก่อน release: commit 65e77feae1a7a3362cab2aaa3f8ffbad6697037b; service/timer active; health ok/database connected
 - ปล่อยผ่าน GitHub main ให้ poller เรียก update-hrms.sh ซึ่งสำรองซ้ำและ migrate deploy ตามขั้นตอน; ตรวจผลหลัง deploy โดยไม่แก้ clinical records/ไม่ส่ง Telegram ทดสอบเข้ากลุ่มจริง
 - ติดตามหลัง release: ตรวจรายงานยาว/การแบ่งหน้า Word และ Chrome PDF กับผู้ใช้งาน; ไม่มีฐานข้อมูลทดสอบ MariaDB ในเครื่อง development สำหรับทดลอง migration แยก
+- Validation ชุดรวม: frontend/backend npm run build ผ่าน; Prisma validate/generate ผ่าน; backend 28 suites / 231 tests ผ่าน; Timeline/report 11 tests ผ่าน; git diff check ผ่าน; production case id varchar(50)/utf8mb4_unicode_ci ตรงกับ foreign key migration
