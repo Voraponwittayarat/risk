@@ -24,6 +24,7 @@ import { twMerge } from "tailwind-merge";
 import { useAuth } from "../contexts/AuthContext";
 import { WangChaoHospitalLogo } from "./WangChaoLogo";
 import AccountMenu from './AccountMenu';
+import NotificationBell from './NotificationBell';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -422,6 +423,7 @@ export default function Layout() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <NotificationBell />
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
               <span className="text-slate-600 dark:text-slate-300 font-medium">

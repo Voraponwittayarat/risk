@@ -15,6 +15,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { CapaModule } from './modules/capa/capa.module';
 import { HealthController } from './health.controller';
 import { ManualsModule } from './modules/manuals/manuals.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { ManualsModule } from './modules/manuals/manuals.module';
     ProgramsModule,
     CapaModule,
     ManualsModule,
+    NotificationsModule,
   ],
   controllers: [HealthController],
   providers: [],
