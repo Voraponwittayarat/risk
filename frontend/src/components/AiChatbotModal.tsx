@@ -105,13 +105,16 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
 
   // Calculate completeness progress
   useEffect(() => {
-    let score = 0;
-    if (currentExtraction.date_report) score += 20;
-    if (currentExtraction.time_report) score += 20;
-    if (currentExtraction.location_id) score += 20;
-    if (currentExtraction.detail) score += 20;
-    if (selectedRiskCode) score += 20;
-    setProgress(score);
+    const fields = [
+      currentExtraction.date_report,
+      currentExtraction.time_report,
+      currentExtraction.duration_name,
+      currentExtraction.location_id,
+      currentExtraction.detail,
+      selectedRiskCode,
+      currentExtraction.level_id,
+    ];
+    setProgress(Math.round(fields.filter(Boolean).length * 100 / fields.length));
   }, [currentExtraction, selectedRiskCode]);
 
   if (!isOpen) return null;
@@ -143,9 +146,9 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
     };
 
     // Try digit-based time first (8.30, 08:30, 21.00)
-    const timeRegex = /(\d{1,2})[.:](\d{2})/g;
+    const timeRegex = /(?<![.\d])(\d{1,2})[.:](\d{2})(?![.:\d])/;
     const numMatch = timeRegex.exec(text);
-    if (numMatch) {
+    if (numMatch && Number(numMatch[1]) <= 23 && Number(numMatch[2]) <= 59) {
       const hours = numMatch[1].padStart(2, '0');
       const minutes = numMatch[2];
       updated.time_report = `${hours}:${minutes}`;
@@ -263,18 +266,7 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
       }];
     }
 
-    // 6. Severity Level ID
-    if (text.includes('เสียชีวิต') || text.includes('ตาย')) {
-      updated.level_id = 'I';
-    } else if (text.includes('cpr') || text.includes('กู้ชีพ') || text.includes('วิกฤต')) {
-      updated.level_id = 'H';
-    } else if (text.includes('พิการ') || text.includes('ถาวร')) {
-      updated.level_id = 'G';
-    } else if (text.includes('แผลถลอก') || text.includes('ฟกช้ำ') || text.includes('บาดเจ็บเล็กน้อย') || text.includes('ทำแผล')) {
-      updated.level_id = 'C';
-    } else if (text.includes('ไม่ได้รับบาดเจ็บ') || text.includes('ปลอดภัยดี') || text.includes('ไม่เกิดอันตราย')) {
-      updated.level_id = 'B';
-    }
+    // A keyword alone cannot establish the NRLS severity. Leave this for the reporter.
 
     // 7. Affected Persons
     const affectedList: string[] = [];
@@ -342,23 +334,32 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
         throw new Error(errorBody?.message || 'ไม่สามารถเชื่อมต่อผู้ช่วย AI ได้');
       }
       const aiData: ExtractedJSON = await res.json();
+      if (!aiData || typeof aiData !== 'object' || Array.isArray(aiData)) {
+        throw new Error('AI returned an invalid response');
+      }
 
       // Match location_id from master data using location_name returned by AI
-      if (aiData.location_name && !aiData.location_id) {
+      if (aiData.location_name) {
         const locMatch = locations.find(l =>
           l.name.toLowerCase().includes(aiData.location_name!.toLowerCase()) ||
           aiData.location_name!.toLowerCase().includes(l.name.toLowerCase())
         );
         if (locMatch) { aiData.location_id = String(locMatch.id); aiData.location_name = locMatch.name; }
       }
+      if (!locations.some(location => String(location.id) === String(aiData.location_id))) {
+        aiData.location_id = null;
+      }
 
       // Match risk_id from master data using riskstore_name returned by AI
-      if (aiData.riskstore_name && !aiData.risk_id && !aiData.risk_suggestions?.length) {
+      if (aiData.riskstore_name && !aiData.risk_suggestions?.length) {
         const riskMatch = risks.find(r =>
           r.risk_name.toLowerCase().includes(aiData.riskstore_name!.toLowerCase()) ||
           aiData.riskstore_name!.toLowerCase().includes(r.risk_name.toLowerCase())
         );
         if (riskMatch) { aiData.risk_id = String(riskMatch.id); aiData.riskstore_name = riskMatch.risk_name; }
+      }
+      if (!risks.some(risk => String(risk.id) === String(aiData.risk_id))) {
+        aiData.risk_id = null;
       }
 
       // Merge with current extraction (accumulate)
@@ -432,7 +433,8 @@ export const AiChatbotModal: React.FC<AiChatbotModalProps> = ({
         : 'ไม่สามารถเชื่อมต่อบริการ AI ได้ชั่วคราว';
       const fallbackText = nextExtraction.clarification_question
         ? `${unavailableReason} จึงใช้การช่วยกรอกแบบพื้นฐาน: ${nextExtraction.clarification_question}`
-        : `${unavailableReason} จึงใช้การช่วยกรอกแบบพื้นฐาน กรุณาตรวจทานข้อความและหัวข้อความเสี่ยงก่อนนำไปใช้ค่ะ`;
+        : `${unavailableReason} จึงใช้การช่วยกรอกแบบพื้นฐาน กรุณาตรวจทานข้อความ หัวข้อความเสี่ยง และเลือกระดับความรุนแรงเองก่อนส่งค่ะ`;
+      setChatHistory(prev => [...prev, { role: 'model', text: fallbackText }]);
       setMessages(prev => [...prev, { sender: 'bot', text: fallbackText, timestamp: new Date() }]);
     } finally {
       setIsTyping(false);
