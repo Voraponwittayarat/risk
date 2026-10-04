@@ -186,3 +186,20 @@
 - Smoke test พบ collaboration-options โหลดช้าทำให้เปลี่ยน owner placeholder ของเคสเดิม แล้วกระตุ้น autosave ทั้งที่ไม่ได้แก้ไข; จำกัดการเติมชื่อเจ้าของอัตโนมัติไว้เฉพาะเคสใหม่
 - Synthetic browser regression: delayed options 3s และรอเกินรอบ 20s ไม่เกิด PATCH/ไม่มี unsaved warning; แก้ Actual Impact แล้วเกิด PATCH 1 ครั้ง บันทึกสำเร็จและ warning หาย; build frontend/backend ผ่าน
 - ไม่ทดลองแก้ข้อมูล clinical เพื่อทดสอบ; ระหว่าง smoke test ก่อน patch มี autosave error จากการเปิดแบบฟอร์ม จึงปิดหน้าและทดสอบต่อด้วยเคสสมมติ
+
+
+## ปรับตารางนำเข้ายา — 4 ตุลาคม 2569
+
+- Branch: codex/medication-import-table จาก origin/main ล่าสุด โดยใช้ worktree release เดิม รักษางานค้างใน workspace หลัก
+- ย้ายเมนูไป ระบบ & กำหนดสิทธิ์; ตาราง CSV เดิมคู่ข้อมูลนำเข้าตรึงด้านขวา, อ่านทันทีหลังเลือกไฟล์, เติมค่าร่วม/เลือกทั้งหมด/กรองแถวที่ต้องเติม/ยืนยันชุดครั้งเดียว
+- Parser ส่ง source_columns แบบตัดค่าผู้ป่วย/รูป/คอลัมน์ไม่รู้ความหมาย พร้อมเสนอ NRLS เฉพาะขั้นตอนเดียวที่ชัดเจน
+- คงการตรวจสิทธิ์ Admin หรือ hospital RM, token ผูกผู้ใช้, ตรวจซ้ำ และ validation ก่อนสร้างจริง ไม่มี schema/migration
+- เวลา CSV ไม่มี ต้องกรอกเวลาเกิดเหตุจริง; ห้ามนำเวลาส่งฟอร์มหรือเดาเวลามาใช้
+- ไฟล์: Layout.tsx, MedicationImport.tsx, medication-import.utils.ts/.spec.ts, docs/MEDICATION-CSV-IMPORT-TH.md, CURRENT_STATUS.md
+- ไม่มี deploy รอบนี้: backup path/running commit/production health ไม่ได้ตรวจ
+
+ผลตรวจ: frontend/backend build ผ่าน; backend tests 28 suites / 232 tests ผ่าน; browser QA ด้วยข้อมูลจำลอง ตรวจเติมเวลา 2 แถว ข้ามแถวซ้ำ และ batch confirm ส่งคำขอครั้งเดียวสำเร็จ 2 แถว ไม่มีการเขียนฐานข้อมูลจริง ปรับ sticky panel ให้ใช้เฉพาะจอใหญ่เพื่อให้จอเล็กเลื่อนตารางได้ ผล diff --check ผ่าน
+เผยแพร่โค้ดใน branch codex/medication-import-table; ยังไม่ deploy production: backup / running commit / health production ไม่ได้ตรวจในรอบนี้
+
+ปรับภาพรวมรายเดือน: เปิดค่าเริ่มต้นเป็นตารางกระชับหนึ่งบรรทัดต่อรายการ มีปุ่มดู/แก้ไขเพื่อเปิดรายละเอียด CSV ของแถวเดียว สลับทุกคอลัมน์ได้ ไฮไลต์สีเหลืองช่อง CSV ที่มีค่าและใช้ประกอบการนำเข้า ซ่อนหัวข้อคอลัมน์ 17 ทั้งสองตำแหน่งโดยไม่แก้ CSV และไม่เปลี่ยน backend/ฐานข้อมูล ข้อจำกัดเดิม 500 รายการ/5 MB ต่อไฟล์ ยังไม่ deploy production
+ผลตรวจรอบภาพรวม: frontend build ผ่าน (มีคำเตือน bundle size เดิม), backend build ผ่าน, diff --check ผ่าน ยังไม่ได้ตรวจมุมมองใหม่ใน browser รอบนี้; ไม่มี database migration, backup/running commit/health production ไม่ได้ตรวจเพราะไม่ deploy
