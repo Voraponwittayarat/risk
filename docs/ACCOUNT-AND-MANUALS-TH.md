@@ -10,7 +10,7 @@
 - เก็บไฟล์ภายใต้ UPLOAD_DIR/manuals พร้อม metadata ฉบับใหม่แสดงแทนโดยเก็บฉบับเก่าไว้ เผยแพร่ metadata เมื่อ PDF เขียนเสร็จเท่านั้น ไม่เปลี่ยน schema ฐานข้อมูล
 - ต้องสำรอง uploads ด้วย --include-uploads ตามคู่มือ deploy เพื่อครอบคลุมไฟล์คู่มือด้วย
 - preview ใช้ข้อมูลสมมติแยกจาก production ไม่มีการส่งไฟล์ขึ้น server จริง
-- ยังไม่ push main หรือ deploy ก่อนผู้ใช้ตรวจ preview
+- ผู้ใช้ตรวจ preview และอนุญาต push วันที่ 4 ตุลาคม 2569 ใช้ flow GitHub main → server poll ทุก 5 นาที → updater เดิม
 
 ตรวจแล้ว: frontend/backend build ผ่าน; Jest 9 กรณีผ่าน ครอบคลุม JWT guard, สิทธิ์อัปโหลด, multipart upload/download, validation และการคงฉบับเก่าหลังรีสตาร์ต ตรวจลิงก์โปรไฟล์ หน้าตั้งค่าคู่มือ และ Escape ปิดเมนูใน preview แล้ว
 
