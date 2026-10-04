@@ -8,6 +8,10 @@ describe('Medication CSV parser', () => {
     expect(row.date).toBe('2026-10-01');
     expect(row.level).toBe('B');
     expect(row.stages).toHaveLength(1);
+    expect(row.suggested_nrls_code).toBe('CPM201');
+    expect(row.source_columns.map(c => c.header)).toEqual(headers);
+    expect(row.source_columns.filter(c => c.header === 'คอลัมน์ 17')).toHaveLength(2);
+    expect(row.source_columns[4]).toMatchObject({ excluded: true, value: '' });
     expect(row.detail).toContain('บรรทัดหนึ่ง, รายละเอียด\nบรรทัดสอง');
     expect(JSON.stringify(row)).not.toContain('TEST_PATIENT_IDENTIFIER');
   });
@@ -25,4 +29,15 @@ describe('Medication CSV parser', () => {
     expect(medicationDate('2026-02-29')).toBe('');
     expect(medicationDate('2024-02-29')).toBe('2024-02-29');
   });
+  it('does not pick a primary NRLS when several stages or pre-administration are present', () => {
+    const base = ['1/10/2026', '1/10/2026', 'เช้า', 'ทดสอบ', '', 'สั่งผิด', 'B', 'ตัวอย่าง', '', ''];
+    const extra = 'Administration Error (ให้ยา)';
+    const input = headers.concat(extra).join(',') + '\n' + base.concat('ให้ผิด').map(c => '"' + c + '"').join(',');
+    expect(parseMedicationCsv(input)[0].suggested_nrls_code).toBe('');
+    const pre = input.replace(extra, 'Pre-Administration Error (ก่อนให้ยา)');
+    expect(parseMedicationCsv(pre)[0].suggested_nrls_code).toBe('');
+    base[5] = 'ไม่มี';
+    expect(parseMedicationCsv(csv(base))[0].suggested_nrls_code).toBe('');
+  });
+
 });
