@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, AlertTriangle, ArrowRight, ClipboardPaste } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, ArrowRight, ClipboardPaste, Clock } from 'lucide-react';
 import type { TimelineItem } from './EventTimeline';
 import { parseTimelinePaste } from '../../utils/timelinePaste';
 
@@ -14,6 +14,7 @@ export default function TimelineEditor({ items, onChange, defaultDate }: { items
   const [preview, setPreview] = useState<TimelineItem[]>([]);
   const [error, setError] = useState('');
   const [showPaste, setShowPaste] = useState(false);
+  const [showTable, setShowTable] = useState(true);
   const events = items.filter(item => item.event_description.trim());
   function readPaste(value: string) {
     setPaste(value); setError(''); setPreview([]);
@@ -27,10 +28,10 @@ export default function TimelineEditor({ items, onChange, defaultDate }: { items
   const input = 'w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-900 focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100';
   return <div className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <div><h3 className="font-bold text-slate-900 dark:text-white">ลำดับเหตุการณ์ RCA</h3><p className="text-xs text-slate-500">กรอกในตาราง หรือวางเซลล์จาก Excel ลงช่องเหตุการณ์ได้โดยตรง</p></div>
-      <div className="flex gap-2 print:hidden">
+      <div className="min-w-0"><h3 className="flex items-center gap-2 font-bold text-slate-900 dark:text-white"><Clock size={19} className="shrink-0 text-indigo-500" />เส้นเวลาของลำดับเหตุการณ์ (Incident Timeline)</h3><p className="mt-1 text-xs text-slate-500">วันที่และเวลาอยู่ด้านซ้าย · กรอกเหตุการณ์ต่อเนื่อง หรือวางจาก Excel ได้</p></div>
+      <div className="flex flex-wrap gap-2 print:hidden"><button type="button" onClick={() => setShowTable(value => !value)} aria-expanded={showTable} aria-controls="rca-timeline-table" className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{showTable ? 'ซ่อนตาราง' : 'แสดงตาราง'}</button>
         <button type="button" onClick={() => setShowPaste(value => !value)} aria-expanded={showPaste} className="flex items-center gap-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs font-bold text-indigo-700"><ClipboardPaste size={15} /> วางตารางจาก Excel</button>
-        <button type="button" onClick={() => onChange([...items, { event_date: defaultDate, event_time: '', event_description: '', is_critical_point: false }])} className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white"><Plus size={15} /> เพิ่มแถว</button>
+        <button type="button" onClick={() => { setShowTable(true); onChange([...items, { event_date: defaultDate, event_time: '', event_description: '', is_critical_point: false }]); }} className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white"><Plus size={15} /> เพิ่มขั้นตอน</button>
       </div>
     </div>
     {showPaste && <div className="space-y-2 rounded-xl border border-indigo-200 bg-indigo-50/50 p-3 dark:bg-indigo-950/20 print:hidden">
@@ -44,18 +45,22 @@ export default function TimelineEditor({ items, onChange, defaultDate }: { items
       <button type="button" onClick={() => { onChange([...items.filter(item => item.event_description.trim() || item.event_time.trim() || item.event_date), ...preview]); setPreview([]); setPaste(''); setShowPaste(false); }} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white">เพิ่ม {preview.length} แถว (เก็บข้อมูลเดิม)</button>
       <button type="button" onClick={() => { setPreview([]); setPaste(''); setError(''); }} className="ml-2 text-sm text-slate-500">ยกเลิกการวาง</button>
     </div>}
-    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-      <table className="w-full min-w-[640px] table-fixed text-left text-sm print:min-w-0"><colgroup><col className="w-9" /><col className="w-36" /><col className="w-24" /><col /><col className="w-20" /><col className="w-9" /></colgroup>
-        <thead className="bg-slate-50 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300"><tr>{['#', 'วันที่', 'เวลา / ช่วงเวลา', 'เหตุการณ์ที่เกิดขึ้น', 'จุดวิกฤต', ''].map((label, index) => <th key={index} className="px-1.5 py-2">{label}</th>)}</tr></thead>
-        <tbody>{items.map((item, index) => <tr key={index} className={`border-t border-slate-200 align-top dark:border-slate-700 ${item.is_critical_point ? 'bg-rose-50/60 dark:bg-rose-950/20' : ''}`}>
-          <td className="px-1.5 py-2 text-center text-xs text-slate-400">{index + 1}</td>
-          <td className="p-1"><input type="date" aria-label={`วันที่เหตุการณ์ ${index + 1}`} value={item.event_date?.slice(0, 10) || ''} onChange={event => change(index, 'event_date', event.target.value)} className={input} /></td>
-          <td className="p-1"><input aria-label={`เวลาเหตุการณ์ ${index + 1}`} value={item.event_time} onChange={event => change(index, 'event_time', event.target.value)} placeholder="08:30" className={input} /></td>
-          <td className="p-1"><textarea aria-label={`เหตุการณ์ ${index + 1}`} rows={2} value={item.event_description} onChange={event => change(index, 'event_description', event.target.value)} onPaste={event => { const text = event.clipboardData.getData('text/plain'); if (text.includes('\t')) { event.preventDefault(); setShowPaste(true); readPaste(text); } }} placeholder="ระบุเหตุการณ์ หรือวางหลายเซลล์จาก Excel" className={`${input} min-h-14 resize-y`} /></td>
-          <td className="px-1 py-3 text-center"><input type="checkbox" aria-label={`จุดวิกฤต ${index + 1}`} checked={item.is_critical_point || false} onChange={event => change(index, 'is_critical_point', event.target.checked)} className="accent-rose-600" /></td>
-          <td className="px-1 py-2 print:hidden"><button type="button" aria-label={`ลบเหตุการณ์ ${index + 1}`} onClick={() => onChange(items.filter((_, i) => i !== index))} className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 size={15} /></button></td>
+    <div id="rca-timeline-table" className={`${showTable ? '' : 'hidden print:block'} overflow-hidden rounded-xl border border-indigo-100 bg-slate-50/40 dark:border-slate-700 dark:bg-slate-950/20`}>
+      <table className="w-full table-fixed text-left text-sm"><colgroup><col className="w-[122px] sm:w-[166px]" /><col /><col className="w-9 print:hidden" /></colgroup>
+        <thead className="border-b border-indigo-100 bg-indigo-50/60 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"><tr><th scope="col" className="px-3 py-3">วันที่ / เวลา</th><th scope="col" className="px-2 py-3">เหตุการณ์ที่เกิดขึ้น (Event Description)</th><th scope="col" className="print:hidden"><span className="sr-only">ลบ</span></th></tr></thead>
+        <tbody>{items.map((item, index) => <tr key={index} className={`border-b border-slate-200/70 align-top last:border-b-0 dark:border-slate-700 ${item.is_critical_point ? 'bg-rose-50/70 dark:bg-rose-950/20' : ''}`}>
+          <td className="p-1.5 sm:p-2.5">
+            <input type="date" aria-label={`วันที่เหตุการณ์ ${index + 1}`} value={item.event_date?.slice(0, 10) || ''} onChange={event => change(index, 'event_date', event.target.value)} className="w-full min-w-0 rounded-md border border-transparent bg-transparent px-1 py-2 text-xs text-slate-700 hover:bg-white focus:border-indigo-300 focus:bg-white focus:outline-none dark:text-slate-200 dark:hover:bg-slate-800 dark:focus:bg-slate-800 sm:text-sm" />
+            <input aria-label={`เวลาเหตุการณ์ ${index + 1}`} value={item.event_time} onChange={event => change(index, 'event_time', event.target.value)} placeholder="ระบุเวลา" className="w-full rounded-md border border-transparent bg-transparent px-1 py-2 text-sm text-slate-700 placeholder:text-slate-400 hover:bg-white focus:border-indigo-300 focus:bg-white focus:outline-none dark:text-slate-200 dark:hover:bg-slate-800 dark:focus:bg-slate-800" />
+          </td>
+          <td className="py-2 pr-1 sm:py-3">
+            <textarea aria-label={`เหตุการณ์ ${index + 1}`} rows={2} value={item.event_description} ref={node => { if (node) { node.style.height = 'auto'; node.style.height = `${Math.max(64, node.scrollHeight)}px`; } }} onChange={event => change(index, 'event_description', event.target.value)} onPaste={event => { const text = event.clipboardData.getData('text/plain'); if (text.includes('\t')) { event.preventDefault(); setShowPaste(true); readPaste(text); } }} placeholder="รายละเอียดเหตุการณ์" className="block min-h-16 w-full resize-y rounded-md border border-transparent bg-transparent px-2 py-2 text-sm leading-relaxed text-slate-900 placeholder:text-slate-400 hover:bg-white focus:border-indigo-300 focus:bg-white focus:outline-none dark:text-slate-100 dark:hover:bg-slate-800 dark:focus:bg-slate-800" />
+            <label className="ml-2 flex w-fit items-center gap-1.5 text-[11px] text-slate-400 print:hidden"><input type="checkbox" aria-label={`จุดวิกฤต ${index + 1}`} checked={item.is_critical_point || false} onChange={event => change(index, 'is_critical_point', event.target.checked)} className="accent-rose-600" /><span className={item.is_critical_point ? 'font-semibold text-rose-600' : ''}>จุดวิกฤต</span></label>
+          </td>
+          <td className="pt-4 text-center print:hidden"><button type="button" aria-label={`ลบเหตุการณ์ ${index + 1}`} onClick={() => onChange(items.filter((_, i) => i !== index))} className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 size={15} /></button></td>
         </tr>)}</tbody>
       </table>
+      {!items.length && <p className="py-6 text-center text-sm text-slate-400">กดเพิ่มขั้นตอน หรือวางข้อมูลจาก Excel เพื่อเริ่มกรอก</p>}
     </div>
     <style>{`@media print { .rca-event-strip { grid-template-rows: auto !important; gap: 8px; } .rca-event-step { grid-column: auto !important; grid-row: auto !important; break-inside: avoid; } }`}</style>
     <section aria-label="ภาพสรุปลำดับเหตุการณ์" className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/60 via-white to-teal-50/60 p-3 dark:border-indigo-900 dark:from-slate-900 dark:via-slate-900 dark:to-teal-950/20">

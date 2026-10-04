@@ -198,3 +198,11 @@
 - Validation: frontend/backend build ผ่าน; backend 29 suites / 244 tests; Timeline extraction/Excel 10 tests ผ่าน; synthetic browser ตรวจ append 5→6, replace 5→1, undo กลับ 5 และปิด import จนกดยืนยัน
 - ไม่มี migration หรือแก้ clinical records, secrets, production services รอบนี้ยังไม่ deploy; production commit ล่าสุดที่ตรวจยืนยันก่อนรอบนี้คือ 539f00a6 ไม่ได้ตรวจ health ซ้ำในรอบพัฒนา
 - ข้อจำกัด: ข้อความยาวหลายเหตุการณ์/หลายเวลาในบรรทัดเดียวต้องตรวจและแยกเอง; ยังไม่เรียก AI ภายนอกทดสอบด้วยข้อมูลจริง; API AI เดิมตรวจ incident_id บทบาทผู้ทบทวน ขอบเขตหน่วยงาน และสถานะยืนยันแล้ว/ยังเปิดก่อนประมวลผล
+
+## 4 ตุลาคม 2569 — Timeline ตารางเรียบตามหน้าตัวอย่าง localhost:3001
+
+- ปรับ `frontend/src/components/rca/TimelineEditor.tsx`: วันที่/เวลาอยู่คอลัมน์ซ้าย รายละเอียดเหตุการณ์ใช้พื้นที่หลัก ตัดคอลัมน์ลำดับและคอลัมน์จุดวิกฤตแยก โดยย้าย checkbox ไปใต้ข้อความ ใช้สีอ่อนและเส้นแบ่งแถว ช่องกรอกแสดงกรอบเฉพาะเมื่อ focus และ textarea ขยายตามข้อความ
+- เพิ่มซ่อน/แสดงตารางโดยไม่ล้างข้อมูล ปุ่มเพิ่มขั้นตอนเปิดตารางกลับให้อัตโนมัติ คงตัวช่วย Timeline, Excel paste, preview และแผนภูมิสีเดิม
+- Validation: frontend/backend build ผ่าน; synthetic UI ตรวจกรอกข้อมูลเดิม, hide→add ไม่ทำข้อมูลหาย, Excel preview/import 5→7 และวันที่แถวใหม่ถูกต้อง; responsive 543×676 ตาราง clientWidth = scrollWidth = 462px ไม่มี horizontal overflow
+- ไม่มี architecture/schema/API/migration ใหม่ ไม่เปลี่ยน production data หรือ deploy รอบนี้; ไม่ได้ตรวจ production health ซ้ำ Backup ไม่เกี่ยวข้องเพราะยังไม่ update production
+- ภาพและหน้าทดลองใช้ข้อมูลสมมติ: tmp/rca-preview/timeline-simple-mobile-20261004.png และ timeline-simple-desktop-20261004.png; localhost:3001 เป็น reference เท่านั้น ไม่ได้แก้ application ที่อยู่พอร์ตนั้น
