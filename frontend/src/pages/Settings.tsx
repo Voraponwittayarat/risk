@@ -15,7 +15,8 @@ import axios from "axios";
 import Swal from "sweetalert2";
 
 export default function Settings() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const canManageManuals = isAdmin || (user?.role === 'rm_committee' && user?.rmScope === 'hospital');
 
   const [telegramToken, setTelegramToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
@@ -103,6 +104,11 @@ export default function Settings() {
         </p>
       </div>
 
+      <section className="rounded-2xl border border-teal-200 bg-white p-6 dark:bg-slate-900">
+        <h2 className="flex items-center gap-2 text-lg font-bold"><BookOpen size={22}/>คู่มือการใช้งาน</h2>
+        <p className="my-3 text-sm text-slate-500">คู่มือ PDF สำหรับผู้ปฏิบัติงานทั่วไปและผู้บริหารความเสี่ยง</p>
+        <div className="flex flex-wrap gap-3"><Link to="/manuals" className="rounded-xl border px-4 py-2">เปิดอ่านคู่มือ</Link>{canManageManuals && <Link to="/settings/manuals" className="rounded-xl bg-teal-600 px-4 py-2 text-white">อัปโหลด / อัปเดตคู่มือ PDF</Link>}</div>
+      </section>
       <div className="grid gap-4 md:grid-cols-3">
         {[
           {

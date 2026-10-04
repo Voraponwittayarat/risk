@@ -23,6 +23,7 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { useAuth } from "../contexts/AuthContext";
 import { WangChaoHospitalLogo } from "./WangChaoLogo";
+import AccountMenu from './AccountMenu';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -154,13 +155,6 @@ export default function Layout() {
           icon: ShieldAlert,
           badge: "RCA",
           badgeColor: "bg-rose-500/20 text-rose-300 border border-rose-500/30",
-        },
-        {
-          name: "ติดตามความเสี่ยง Risk register",
-          path: "/reports",
-          icon: BarChart3,
-          badge: "5x5 Matrix",
-          badgeColor: "bg-blue-500/20 text-blue-300 border border-blue-500/30",
         },
         ...[{
           name: "ติดตามมาตรการแก้ไข",
@@ -299,6 +293,10 @@ export default function Layout() {
 
         {/* Navigation Sections */}
         <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto overflow-x-hidden scrollbar-hide">
+          <NavLink to="/reports?view=register" title="ทะเบียนความเสี่ยง Risk Register" onClick={()=>setIsMobileMenuOpen(false)} className="flex items-center gap-3 rounded-xl border border-teal-700 bg-teal-950 px-2 py-3 font-bold text-teal-100 hover:bg-teal-800">
+            <span className="flex w-7 shrink-0 flex-col items-center gap-1"><ShieldAlert size={20}/><span className="text-[8px]">RR</span></span>
+            <span className="whitespace-nowrap text-sm opacity-100 lg:opacity-0 lg:group-hover/sidebar:opacity-100">ทะเบียนความเสี่ยง<br/><span className="text-xs text-teal-300">Risk Register</span></span>
+          </NavLink>
           {navSections.map((section, sIdx) => (
             <div key={sIdx} className="space-y-1">
               <div className="px-3 h-5 min-w-0 text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap overflow-hidden text-ellipsis opacity-100 lg:opacity-0 lg:group-hover/sidebar:opacity-100 transition-opacity duration-300 flex items-center">
@@ -445,9 +443,7 @@ export default function Layout() {
               </span>
             </div>
 
-            <div className="hidden min-[340px]:flex w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-tr from-emerald-600 to-teal-600 rounded-xl text-white items-center justify-center font-bold text-sm shadow-sm uppercase">
-              {user?.name ? user.name.charAt(0) : "A"}
-            </div>
+            <AccountMenu />
           </div>
         </header>
 
