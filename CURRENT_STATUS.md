@@ -102,3 +102,80 @@
 - รอข้อมูล SSH production เพื่อรัน backup-hrms.sh และตรวจ dump/SHA-256 ก่อน push main; ยังไม่ deploy ไม่ทราบ running commit/health และยังไม่มี backup path ของรอบนี้
 - หลัง deploy ต้องตรวจ health, login, incident list แบบอ่านอย่างเดียว และหน้า/API นำเข้าตามบทบาท
 - Validation: frontend/backend builds passed; backend tests 27 suites / 223 tests passed; frontend bundle-size warning only.
+- Release workspace deploy สำเร็จ: 18496b08df4ee29776bce5144e8c2067176e8ba6; health ok/database connected; production frontend/backend build ผ่าน
+- Updater backup /var/backups/riskhrms/riskhrms-db-20261002T113618Z.sql SHA-256 0d835cf994e9f71950ff80f065cffc3dfcb4a05d72cf13d2ff2fbeabf03e07ae ตรวจแล้ว; ตรวจหน้า Reports และ incident list แบบอ่านอย่างเดียวผ่าน
+
+### ศูนย์ RCA รพ. และนัดหมาย (งานใหม่ ยังไม่ deploy)
+
+- เรื่องส่งเข้าศูนย์ระบุ hospital_center; ทีม RM/PCT เห็นและจัดทีม/นัดได้ ไม่เพิ่มสิทธิ์อนุมัติสรุปหรือข้อมูลสัมภาษณ์
+- นัดเลือกผู้ร่วมทบทวนที่บันทึกแล้ว พร้อม snapshot รายชื่อ วันเวลา สถานที่ และสถานะส่ง Telegram
+- ใช้ Bot/กลุ่มเดียวกับ E/3 และเพิ่ม toggle ในตั้งค่าแจ้งเตือน ส่งเฉพาะข้อมูลนัดกับลิงก์ ไม่ส่งรายละเอียดเหตุการณ์/รายชื่อ
+- ทดสอบ backend ทั้งหมดผ่าน 28 suites / 228 tests; มี migration ใหม่ 20261002120000_rca_center_appointments ยังไม่ได้รันกับฐานข้อมูลจริง
+
+- ชุดนัด RCA build frontend/backend ผ่าน; แก้ routing ของ preview แล้ว ตรวจและแคปรายการศูนย์ RCA/ช่องผู้ร่วม วันเวลา สถานที่ ด้วยข้อมูลสมมติแล้ว (ไม่มีการส่ง Telegram จริง)
+
+### Actual Impact ใน RCA — 2 ตุลาคม 2569
+
+- หยุดนำ problem_basic ไปเติม actual_impact เมื่อส่งเข้าศูนย์ RCA ทั้งสองเส้นทาง ให้ผู้ทบทวนระบุผลกระทบจริง
+- อธิบายผลกระทบจริงแยกจากการจัดการแก้ไข; เอกสารเก่าที่ข้อความตรงกับข้อมูลรายงาน/การแก้ไขเบื้องต้นแสดงคำเตือน โดยคงข้อความเดิมไว้ให้ตรวจ
+- ไม่มี schema/migration เพิ่มจากการแก้นี้ และไม่แก้ข้อมูลจริง; ยังไม่ได้ deploy ชุดแก้ Actual Impact
+
+- ตรวจผ่าน: frontend/backend npm run build และ regression 2 suites / 110 tests; git diff --check ผ่าน
+
+### Timeline RCA: กรอกตารางและภาพสรุป — 2 ตุลาคม 2569
+
+- เปลี่ยนช่องกรอกเป็นตารางแถวติดกัน ลด padding และรวมคอลัมน์วันที่/เวลา/เหตุการณ์/จุดวิกฤต
+- วางหลายเซลล์จาก Excel ลงช่องเหตุการณ์หรือช่องนำเข้า เห็น preview ทันทีและเพิ่มแถวโดยเก็บข้อมูลเดิม รองรับ 2–4 คอลัมน์ วันที่ พ.ศ./ค.ศ. และข้อความหลายบรรทัด
+- ภาพสรุปแบบเส้นแนวนอน สลับเหตุการณ์บน/ล่าง แสดงวันเวลาและจำนวนจุดวิกฤต สีแดงใช้เฉพาะจุดวิกฤต ระยะห่างสื่อเฉพาะลำดับแถว ไม่ใช่ระยะเวลาจริง
+- ไม่มี schema/migration ใหม่ ไม่แก้ข้อมูลจริง และยังไม่ deploy ชุดนี้
+
+- ตรวจผ่าน: frontend/backend build, parser tests 4 ข้อ, วางแบบ 2 คอลัมน์และวางลงเซลล์โดยตรงใน browser; แถวเดิม 5 แถวเพิ่มเป็น 7 โดยไม่ทับข้อมูล ภาพสรุปอัปเดต 7 เหตุการณ์/1 จุดวิกฤต
+
+### ยกเลิกช่อง 5 Whys — 2 ตุลาคม 2569
+
+- เอาช่อง 5 Whys และตัวเลือกนำเข้า 5 Whys จากผู้ช่วย AI ออกจากหน้า RCA เปลี่ยนชื่อเครื่องมือเพิ่มเติมให้เหลือวิเคราะห์แนวป้องกัน Swiss Cheese
+- ไม่ส่ง whys ใน payload ใหม่ จึงไม่ลบข้อมูลเก่าตอนบันทึก; ไม่มี schema/migration และไม่แก้ข้อมูลจริง ชุดนี้ยังไม่ deploy
+
+- ตรวจผ่าน: frontend/backend `npm run build` และ `git diff --check`; frontend มีคำเตือน bundle ใหญ่เดิม
+
+### ส่งออกรายงาน RCA — 2 ตุลาคม 2569
+
+- เพิ่ม RcaReportExport และ rcaReport: แบบฟอร์มรายงานแยกจาก UI ตามโครงสร้างตัวอย่างขั้นต่ำปี 2569 รองรับ Timeline, CMP, ตารางกระบวนการ/ปัจจัย 5 ระดับ, มาตรการ, ผู้ร่วมทบทวน และสัมภาษณ์เมื่อมีข้อมูล/มีสิทธิ์
+- เลือกส่วนรายงานได้จาก preview; ซ่อนส่วน/แถว/คอลัมน์ว่าง รวมถึง CAPA ที่มีเพียงวันตั้งต้น ไม่มีลูกศร details ปุ่มหรือกรอบแอปในเนื้อหารายงาน; escape ข้อความทั้งหมด
+- Word เป็น .doc แบบ HTML ที่เปิดแก้ไขใน Word ได้; PDF ผ่าน browser print เลือก Save as PDF (ไม่ได้ดาวน์โหลด PDF อัตโนมัติ) ใช้ข้อมูลในฟอร์มปัจจุบันและเตือนเมื่อยังไม่บันทึก
+- ตรวจ frontend/backend build ผ่าน, unit tests รายงาน 4 ข้อ, browser preview และการตัดส่วนที่ไม่เลือกผ่าน; IAB ไม่ส่ง download event และไม่สามารถตรวจหน้าพิมพ์ระบบได้ จึงยังต้องตรวจเปิด .doc ใน Word และบันทึก PDF ด้วย Chrome/Edge จริงก่อน release
+- ไม่มี schema/migration ไม่แก้ข้อมูลจริงและยังไม่ deploy; ไม่มี backup/health-check รอบนี้
+
+### รูปแบบรายงาน RCA ทางการ — 2 ตุลาคม 2569
+
+- ใช้โลโก้เดียวกับรายงาน HA พร้อมชื่อโรงพยาบาล รหัส RM-RCA-FM-01 และเลขอ้างอิง; เนื้อหาและตารางใช้ TH SarabunPSK 14pt บรรจุฟอนต์ regular/bold พร้อม license จากต้นฉบับ ไม่แก้ไฟล์ฟอนต์
+- โหลดฟอนต์/โลโก้เมื่อเปิดรายงานเท่านั้น เพื่อลดภาระการโหลดหน้าอื่น; รอ fonts.ready ก่อนพิมพ์ PDF
+- Timeline รวมวันที่ซ้ำเฉพาะแถวต่อเนื่องด้วย rowspan ไม่เรียงเหตุการณ์ใหม่ ไม่รวมข้ามแถวไม่ทราบวันที่
+- Word .doc ใช้ MHTML บรรจุโลโก้ไว้ภายในเพื่อเปิดแบบออฟไลน์; Word ใช้ TH SarabunPSK ที่ติดตั้งในเครื่อง ส่วน PDF ฝัง web font ในรายงาน
+- Unit tests รายงาน 6 ข้อผ่าน; ไม่มี schema/migration/ข้อมูลจริง และยังไม่ deploy
+
+- ตรวจ frontend/backend build ผ่าน, browser ยืนยัน TH SarabunPSK 18.6667px (=14pt), fonts loaded และวันที่กลุ่ม 4/1 แถวถูกต้อง; ยังไม่ตรวจไฟล์จริงใน Word/Chrome print dialog (ข้อจำกัดเดิม)
+
+### หัวรายงานและแผนภูมิ Timeline RCA — 2 ตุลาคม 2569
+
+- เน้นหัวกลางกระดาษ “แบบบันทึกการวิเคราะห์ RCA” 18pt ตัวหนา และชื่อโรงพยาบาลวังเจ้า 14pt ใต้หัวข้อ คงโลโก้/รหัสเอกสารเดิม
+- เพิ่มส่วนเลือกส่งออกแผนภูมิ Timeline จากเหตุการณ์ที่กรอก แสดงซ้าย–ขวาตามลำดับ วันที่ต่อเนื่องแสดงครั้งเดียว จุดวิกฤตสีแดง ไม่สร้างข้อสรุปสาเหตุอัตโนมัติ ใช้ HTML ตารางให้ Word/PDF ใช้ข้อมูลเดียวกัน
+- ตรวจ frontend/backend build, unit tests รายงาน 7 ข้อ และ browser preview 5 เหตุการณ์/2 วัน/1 จุดวิกฤตผ่าน; ยังต้องตรวจไฟล์ Word และการแบ่งหน้า PDF ใน browser จริงตามข้อจำกัดเดิม
+- ไม่มี migration/ผลกระทบฐานข้อมูล ไม่ deploy จึงไม่มี backup/running commit/health check รอบนี้
+
+### แถบปุ่มด้านล่าง Standard RCA — 3 ตุลาคม 2569
+
+- ย้ายปุ่มทบทวนแล้วไม่ต้องทำ RCA/จำหน่ายเคสจากหัวหน้าไปแถบด้านล่าง คงสิทธิ์ เงื่อนไขสถานะ และ handler เดิม
+- เปลี่ยนแถบล่างจากสีดำเป็นเขียวอมฟ้าอ่อน ปรับสีปุ่ม/ข้อความให้ชัด และให้กลุ่มปุ่มตัดบรรทัดเมื่อพื้นที่ไม่พอ
+- ตรวจ frontend/backend build และ git diff check ผ่าน; browser ยืนยันปุ่มอยู่ใน section แถบล่างสีอ่อน ไม่กดจำหน่ายหรือแก้ข้อมูลจริง
+- ไม่มี migration/ผลกระทบฐานข้อมูล และยังไม่ deploy จึงไม่มี backup/running commit/health check รอบนี้
+
+## Release RCA — 4 ตุลาคม 2569
+
+- ผู้ดูแลอนุมัติ deploy รวมงาน RCA กับ origin/main ซึ่งมี Medication import release 65e77fea แล้ว โดยรักษางานยาไว้
+- ชุดงาน: ศูนย์ RCA รพ./สิทธิ์ RM-PCT/นัด Telegram ส่วนกลาง, แยก Actual Impact, Timeline รับ Excel และภาพสรุป, ถอด 5 Whys, รายงาน Word/PDF แบบเลือกข้อมูลพร้อมโลโก้ TH Sarabun และแผนภูมิ Timeline, ย้ายปุ่มจำหน่ายลงแถบล่างสีอ่อน
+- Review migration 20261002120000_rca_center_appointments: เพิ่ม hospital_center และตารางนัดหมาย; ไม่ลบ incident หรือผล RCA เดิม
+- Backup ก่อน release: /var/backups/riskhrms/riskhrms-db-20261004T020403Z.sql; SHA-256 a51134ec3bf95dfb324492dd4d4752e7c5705c3a5d2e23e023f685c4248d414f ตรวจไฟล์และ checksum แล้ว
+- Production ก่อน release: commit 65e77feae1a7a3362cab2aaa3f8ffbad6697037b; service/timer active; health ok/database connected
+- ปล่อยผ่าน GitHub main ให้ poller เรียก update-hrms.sh ซึ่งสำรองซ้ำและ migrate deploy ตามขั้นตอน; ตรวจผลหลัง deploy โดยไม่แก้ clinical records/ไม่ส่ง Telegram ทดสอบเข้ากลุ่มจริง
+- ติดตามหลัง release: ตรวจรายงานยาว/การแบ่งหน้า Word และ Chrome PDF กับผู้ใช้งาน; ไม่มีฐานข้อมูลทดสอบ MariaDB ในเครื่อง development สำหรับทดลอง migration แยก

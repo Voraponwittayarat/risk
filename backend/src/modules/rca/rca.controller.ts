@@ -1,3 +1,4 @@
+import { RcaAppointmentService } from './rca-appointment.service';
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Request, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { RcaService, EvaluateCriteriaDto, CreateRcaCaseDto, CreateStandardRcaDto, CompleteStandardRcaDto, AiAssistDto } from './rca.service';
@@ -7,7 +8,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 @Controller('rca')
 @UseGuards(JwtAuthGuard)
 export class RcaController {
-  constructor(private readonly rcaService: RcaService) {}
+  constructor(private readonly rcaService: RcaService, private readonly appointments: RcaAppointmentService) {}
 
   @Post('ai-assist')
   @ApiOperation({ summary: 'Generate comprehensive AI RCA recommendations for hospital incidents' })
@@ -112,6 +113,15 @@ export class RcaController {
   updateStandard(@Param('id') id: string, @Body() data: Partial<CreateStandardRcaDto>, @Request() req: any) {
     return this.rcaService.updateStandard(id, data, req.user);
   }
+
+  @Get('standard/:id/appointments')
+  listAppointments(@Param('id') id: string, @Request() req: any) { return this.appointments.list(id, req.user); }
+
+  @Post('standard/:id/appointments')
+  createAppointment(@Param('id') id: string, @Body() data: { starts_at: string; location: string; participant_ids: number[] }, @Request() req: any) { return this.appointments.create(id, data, req.user); }
+
+  @Post('standard/:id/appointments/:appointmentId/notify')
+  notifyAppointment(@Param('id') id: string, @Param('appointmentId') appointmentId: string, @Request() req: any) { return this.appointments.notify(id, appointmentId, req.user); }
 
   @Post('standard/:id/complete')
   @ApiOperation({ summary: 'Complete Standard RCA and create or link its Risk Register profile' })

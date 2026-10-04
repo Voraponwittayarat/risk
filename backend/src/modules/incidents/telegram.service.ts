@@ -158,10 +158,11 @@ export class TelegramService {
     return {
       botToken: process.env.TELEGRAM_BOT_TOKEN || '',
       chatId: process.env.TELEGRAM_CHAT_ID || '',
+      rcaAppointmentsEnabled: process.env.RCA_TELEGRAM_APPOINTMENTS_ENABLED !== 'false',
     };
   }
 
-  async updateTelegramSettings(botToken: string, chatId: string) {
+  async updateTelegramSettings(botToken: string, chatId: string, rcaAppointmentsEnabled?: boolean) {
     // Write to .env file safely
     const fs = require('fs');
     const path = require('path');
@@ -186,6 +187,13 @@ export class TelegramService {
       envContent += `\nTELEGRAM_CHAT_ID=${chatId}`;
     }
 
+    if (typeof rcaAppointmentsEnabled === 'boolean') {
+      const value = String(rcaAppointmentsEnabled);
+      envContent = envContent.includes('RCA_TELEGRAM_APPOINTMENTS_ENABLED=')
+        ? envContent.replace(/^RCA_TELEGRAM_APPOINTMENTS_ENABLED=.*$/gm, `RCA_TELEGRAM_APPOINTMENTS_ENABLED=${value}`)
+        : `${envContent}\nRCA_TELEGRAM_APPOINTMENTS_ENABLED=${value}\n`;
+      process.env.RCA_TELEGRAM_APPOINTMENTS_ENABLED = value;
+    }
     fs.writeFileSync(envPath, envContent);
 
     // Update process.env in memory for immediate effect

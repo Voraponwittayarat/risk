@@ -142,8 +142,8 @@ export class IncidentsController {
   @Post('telegram/settings')
   @Roles('admin')
   @ApiOperation({ summary: 'Update telegram settings' })
-  updateTelegramSettings(@Body() body: { botToken: string; chatId: string }) {
-    return this.telegramService.updateTelegramSettings(body.botToken, body.chatId);
+  updateTelegramSettings(@Body() body: { botToken: string; chatId: string; rcaAppointmentsEnabled?: boolean }) {
+    return this.telegramService.updateTelegramSettings(body.botToken, body.chatId, body.rcaAppointmentsEnabled);
   }
 
   @Post('telegram/trigger-summary')

@@ -803,6 +803,8 @@ model rca_reviewer {
 }
 
 model standard_rca_case {
+  hospital_center Boolean @default(false)
+  appointments standard_rca_appointment[]
   draft_register           String?                         @db.LongText
   version                  Int                             @default(0)
   id                       String                          @id @db.VarChar(50)
@@ -1202,4 +1204,18 @@ model NRLS_riskstore {
   riskregisters riskregister[]
 
   @@map("nrls_riskstore")
+}
+
+model standard_rca_appointment {
+  id String @id @db.VarChar(50)
+  case_id String @db.VarChar(50)
+  starts_at DateTime @db.DateTime(0)
+  location String @db.VarChar(255)
+  participant_ids String @db.Text
+  participant_names String @db.Text
+  created_by Int
+  notification_status String @default("NOT_SENT") @db.VarChar(20)
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  standard_case standard_rca_case @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  @@index([case_id, starts_at])
 }

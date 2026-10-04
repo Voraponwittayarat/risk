@@ -395,3 +395,16 @@ describe('Standard RCA safe draft persistence', () => {
     await expect((service as any).assertStandardWriter({ ...draft, participants: [{ user_id: 9, role: 'INFORMANT' }] }, { id: 9, role: 'staff', departmentId: 99 })).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
+
+describe('Standard RCA actual impact source', () => {
+  it.each([['การแก้ไขเบื้องต้น', true], ['บริการล่าช้า 30 นาที', false]])('preserves saved impact %s and marks source text for review', async (impact, needsReview) => {
+    const prisma: any = {
+      standard_rca_case: { findUnique: jest.fn().mockResolvedValue({ id: 'R1', incident_id: 10, department_id: '1', actual_impact: impact, status: 'DRAFT', participants: [], voice_of_staff_entries: [] }) },
+      riskregister: { findFirst: jest.fn().mockResolvedValue({ detail: 'เหตุการณ์สมมติ', problem_basic: 'การแก้ไขเบื้องต้น', edit: 'ดูแลช่วยเหลือแล้ว' }) },
+    };
+    const service = new RcaService(prisma, {} as any, {} as any);
+    const result = await service.getStandardById('R1', { id: 1, role: 'admin' });
+    expect(result.actual_impact).toBe(impact);
+    expect(result.actual_impact_needs_review).toBe(needsReview);
+  });
+});
