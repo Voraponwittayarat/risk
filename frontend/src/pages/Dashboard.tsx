@@ -89,8 +89,9 @@ export default function Dashboard() {
       </div>
       <Link to="/incidents/new" className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-3 text-sm font-bold text-white"><Plus className="h-4 w-4"/>รายงานความเสี่ยง</Link>
     </header>
+    <DashboardTasks personal={{ returned: personal?.returnedForEdit, fiscalYear: String(personal?.selectedFiscalYear || ''), failed: errors.includes('รายงานของฉัน'), retry: () => setAttempt(a=>a+1) }}/>
     <section className="rounded-2xl border border-teal-200 bg-white p-4 shadow-sm dark:border-teal-900 dark:bg-slate-900 sm:p-6" aria-labelledby="risk-followups">
-      <div className="flex items-start justify-between gap-3"><div><h2 id="risk-followups" className="flex items-center gap-2 text-lg font-bold dark:text-white"><Bell className="h-5 w-5 text-teal-600"/>เรื่องที่ต้องติดตาม</h2><p className="mt-1 text-xs text-slate-500">ติดตามตามวันนัดและผลมาตรการ แม้ไม่มีอุบัติการณ์ใหม่</p></div><button aria-label="โหลดงานติดตามใหม่" disabled={loading} onClick={() => setAttempt(a => a+1)} className="rounded-lg border p-2 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}/></button></div>
+      <div className="flex items-start justify-between gap-3"><div><h2 id="risk-followups" className="flex items-center gap-2 text-lg font-bold dark:text-white"><Bell className="h-5 w-5 text-teal-600"/>ติดตามความเสี่ยง Risk Register</h2><p className="mt-1 text-xs text-slate-500">ติดตามตามวันนัดและผลมาตรการ แม้ไม่มีอุบัติการณ์ใหม่</p></div><button aria-label="โหลดงานติดตามใหม่" disabled={loading} onClick={() => setAttempt(a => a+1)} className="rounded-lg border p-2 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}/></button></div>
       <div role="group" aria-label="มุมมองงานติดตาม" className="mt-4 flex flex-wrap gap-2">{([['mine','งานของฉัน'],['department','หน่วยงานฉัน'],['hospital','โรงพยาบาล']] as const).map(([key,label]) => <button key={key} aria-pressed={view===key} onClick={() => setView(key)} className={`rounded-xl px-4 py-2 text-sm font-semibold ${view===key ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'}`}>{label}</button>)}</div>
       {loading ? <p role="status" className="py-8 text-sm text-slate-500">กำลังตรวจสอบงานติดตาม…</p> : <>
         {!!errors.length && <div role="alert" className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">โหลด {errors.join(', ')} ไม่สำเร็จ กรุณากดโหลดใหม่ จำนวนงานอาจยังไม่ครบ</div>}
@@ -101,9 +102,8 @@ export default function Dashboard() {
     <div className="grid gap-3 sm:grid-cols-3">{[
       {to:'/reports?view=register&scope=department', title:'ทะเบียนหน่วยงานฉัน', detail:'มาตรการและผลติดตามของหน่วยงาน', icon:Building2},
       {to:'/reports?view=register&scope=hospital', title:'ทะเบียนโรงพยาบาล', detail:'ความเสี่ยงสำคัญที่ติดตามร่วมกัน', icon:ShieldCheck},
-      {to:'/capa', title:'ติดตามมาตรการ', detail:'ความคืบหน้า หลักฐาน และประสิทธิผล', icon:ClipboardList},
+      {to:'/reports?view=insights', title:'ติดตามมาตรการ', detail:'ความคืบหน้า หลักฐาน และประสิทธิผล', icon:ClipboardList},
     ].map(x => <Link key={x.to} to={x.to} className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"><x.icon className="h-5 w-5 text-teal-600"/><h2 className="mt-2 font-bold dark:text-white">{x.title}</h2><p className="mt-1 text-xs text-slate-500">{x.detail}</p></Link>)}</div>
-    <details className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"><summary className="cursor-pointer font-semibold dark:text-white">งานรายงานและทบทวนอุบัติการณ์</summary><div className="mt-4"><DashboardTasks personal={{ returned: personal?.returnedForEdit, fiscalYear: String(personal?.selectedFiscalYear || ''), failed: errors.includes('รายงานของฉัน'), retry: () => setAttempt(a=>a+1) }}/></div></details>
     <nav aria-label="รายงานและข้อมูลเพิ่มเติม" className="flex flex-wrap gap-3 text-sm text-teal-700 dark:text-teal-300"><Link to="/my-reported">รายงานที่ฉันส่ง</Link><Link to="/reports?view=insights">วิเคราะห์แนวโน้มความเสี่ยง</Link><Link to="/reporting-stats">สถิติและตัวชี้วัดการรายงาน</Link></nav>
   </div>;
 }
