@@ -8,8 +8,10 @@ import {
 import { format } from 'date-fns';
 import { OfficialPrintFooter, OfficialPrintHeader } from '../components/OfficialPrintLayout';
 import { printOfficialReport } from '../utils/officialPrint';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function IndividualReportStats() {
+  const { isAdmin } = useAuth();
   // Main Tab State: staff_report | program_matrix | dept_kpi | individual
   const [activeTab, setActiveTab] = useState<'staff_report' | 'program_matrix' | 'dept_kpi' | 'individual'>('program_matrix');
 
@@ -786,6 +788,13 @@ export default function IndividualReportStats() {
               <p className="text-xs text-slate-300 mt-0.5">
                 สรุปตามหน่วยงาน พร้อมการแสดงสถานะสี (แดง = ไม่มีรายงาน / เขียว = รายงานครบทุกคน)
               </p>
+              <p className="text-xs text-slate-300 mt-1">
+                {staffStatsData?.summary?.staffSource === 'latest_roster'
+                  ? `อ้างอิงรายชื่อปัจจุบัน ณ ${new Date(staffStatsData.summary.rosterAsOf).toLocaleDateString('th-TH')} • ยังไม่เชื่อมบัญชี ${staffStatsData.summary.rosterUnlinked || 0} คน`
+                  : 'อ้างอิงทะเบียนบุคลากรที่เปิดใช้งาน (ยังไม่ได้นำเข้ารายชื่อปัจจุบัน)'}
+                {isAdmin && <a href="/personnel" className="ml-2 underline text-blue-200 print:hidden">นำเข้า / อัปเดตรายชื่อปัจจุบัน</a>}
+              </p>
+              {staffStatsData?.summary?.staffSource === 'latest_roster' && <p className="text-xs text-slate-300 mt-1">ยอดเจ้าหน้าที่และผู้รายงานอ้างอิงคนในรายชื่อชุดล่าสุด สำหรับทุกเดือนของปีที่เลือก</p>}
             </div>
 
             <span className="text-xs font-bold px-3.5 py-1 bg-blue-500/20 text-blue-200 rounded-full backdrop-blur-xs border border-blue-400/30">

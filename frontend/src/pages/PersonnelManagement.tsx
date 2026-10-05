@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import PersonnelRosterImport from '../components/PersonnelRosterImport';
 import { Pencil, Plus, RefreshCw, Search, SlidersHorizontal, UsersRound, X } from 'lucide-react';
 
 interface Member {
@@ -204,6 +205,8 @@ export default function PersonnelManagement() {
           <Plus className="h-5 w-5" /> เพิ่มบุคลากร
         </button>
       </div>
+
+      <PersonnelRosterImport />
 
       {(error || success) && (
         <div className={`rounded-xl border px-4 py-3 text-sm ${error ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300'}`}>

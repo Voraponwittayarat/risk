@@ -174,6 +174,35 @@ model member {
   mapping_permission String? @db.VarChar(20)
 }
 
+model personnel_roster_batch {
+  id          Int @id @default(autoincrement())
+  source_name String @db.VarChar(255)
+  as_of       DateTime @db.Date
+  imported_at DateTime @default(now()) @db.DateTime(3)
+  imported_by Int
+  entries     personnel_roster_entry[]
+}
+
+model personnel_roster_entry {
+  id              Int @id @default(autoincrement())
+  batch_id        Int
+  source_row      Int
+  name            String @db.VarChar(150)
+  normalized_name String @db.VarChar(150)
+  position        String @db.VarChar(255)
+  source_group    String @db.VarChar(255)
+  source_unit     String @db.VarChar(255)
+  employment      String @db.VarChar(255)
+  department_id   Int
+  member_id       Int?
+  batch           personnel_roster_batch @relation(fields: [batch_id], references: [id], onDelete: Restrict)
+
+  @@unique([batch_id, normalized_name], map: "personnel_roster_batch_name")
+  @@unique([batch_id, source_row], map: "personnel_roster_batch_row")
+  @@unique([batch_id, member_id], map: "personnel_roster_batch_member")
+  @@index([batch_id, department_id], map: "personnel_roster_batch_department")
+}
+
 model migration {
   version    String @id @db.VarChar(180)
   apply_time Int?

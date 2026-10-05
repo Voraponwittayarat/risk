@@ -230,3 +230,14 @@
 - สำรองก่อน release: /var/backups/riskhrms/riskhrms-db-20261005T015229Z.sql; SHA-256 460b8b27065d4dbe744488ad577c4f1a0163a13edd459458da358dfe13a25f3d ยืนยันไฟล์ nonempty และ checksum แล้ว
 - ก่อน push production active ที่ ddbc50a3, health ok / database connected และ login ด้วยบัญชีทดลองผ่าน
 - ขั้นตอนถัดไป: push main ให้ poller deploy ผ่าน updater เดิม แล้วตรวจ running commit, updater backup, health, read-only incident list และ Timeline โดยไม่แก้ clinical records; ผลยืนยันหลัง deploy เก็บใน tmp/rca-preview/DEPLOY-20261005.md
+
+## 5 ตุลาคม 2569 — นำเข้ารายชื่อเจ้าหน้าที่ปัจจุบัน
+
+- Branch: `codex/personnel-roster-import`; isolated checkout `.worktrees/current-personnel-roster` preserves unrelated work in the primary workspace.
+- Source CSV inspected locally only: 171 personnel records, no malformed/duplicate normalized names, 21 distinct group/unit pairs; no citizen ID column. Actual names/HR file are not committed or sent externally.
+- Admin-only preview/commit under `/members/roster`: compares previous snapshot and existing member names; requires resolving ambiguous links and department mapping, supports unlinked people, lists absent prior names, one atomic full-roster confirmation with as-of date.
+- UI in PersonnelManagement; IndividualReportStats displays roster date, unlinked-to-login count, and update link for Admin. Staff-report denominator and monthly unique reporters refer to the latest roster; historical clinical data and account roles remain unchanged.
+- Files: new roster controller/service/parser and tests; new PersonnelRosterImport component; members.module.ts, incidents.service.ts and current-personnel-stats.spec.ts; PersonnelManagement.tsx, IndividualReportStats.tsx; Prisma schema/migration; docs/CURRENT-PERSONNEL-ROSTER-TH.md.
+- Database impact: two additive snapshot tables in migration `20261005100000_current_personnel_roster`; no execution against any actual database yet. Deploy must use reviewed migration via updater / `prisma migrate deploy` after verified backup.
+- Validation: both application builds passed (existing frontend bundle warning); schema validate passed using placeholder URL without DB access; 36 suites / 287 tests passed, including snapshot ownership/staleness/dedup and roster reporting. Synthetic browser QA: status comparison, unlinked filter, date/full-snapshot gate and one request for confirmation passed. Local real CSV parser returned 171 records / 0 errors / 0 duplicate names. Migration SQL reviewed against Prisma schema, not executed against a database.
+- No production deployment or real HR import in this task yet: backup path, running commit, production health not checked. Follow-up is release/migration and Admin mapping of units/people followed by real import; do not fabricate identifiers or mutate accounts to match the file.

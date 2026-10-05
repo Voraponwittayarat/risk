@@ -4241,6 +4241,10 @@ export class IncidentsService {
     year?: number;
     year_type?: string;
   }, user?: any) {
+    const currentRoster = await this.prisma.personnel_roster_batch.findFirst({
+      orderBy: { id: 'desc' },
+      include: { entries: { select: { id: true, department_id: true, member_id: true } } },
+    });
     const [latestRecord, earliestRecord] = await Promise.all([
       this.prisma.riskregister.findFirst({
         orderBy: { date_report: 'desc' },
@@ -4272,7 +4276,9 @@ export class IncidentsService {
       }),
       this.prisma.departmentgroup.findMany(),
       this.prisma.member.findMany({
-        where: { status: '1' },
+        where: currentRoster
+          ? { id: { in: currentRoster.entries.flatMap(e => e.member_id === null ? [] : [e.member_id]) } }
+          : { status: '1' },
         select: { id: true, cid: true, department_id1: true },
       }),
     ]);
@@ -4294,6 +4300,16 @@ export class IncidentsService {
     });
 
     const cidToUserIdMap = new Map(users.map((u) => [u.cid, u.id]));
+    const rosterByMemberId = new Map((currentRoster?.entries || []).flatMap(e => e.member_id === null ? [] : [[e.member_id, e] as const]));
+    const rosterByCid = new Map(members.flatMap(m => {
+      const entry = rosterByMemberId.get(m.id);
+      return entry ? [[m.cid, entry] as const] : [];
+    }));
+    const rosterByUserId = new Map(users.flatMap(u => {
+      const entry = u.cid ? rosterByCid.get(u.cid) : undefined;
+      return entry ? [[u.id, entry] as const] : [];
+    }));
+    const rosterWithUser = new Set([...rosterByUserId.values()].map(e => e.id));
     const userIdToDeptIdMap = new Map<number, number>();
     members.forEach((m) => {
       const uId = cidToUserIdMap.get(m.cid);
@@ -4406,9 +4422,12 @@ export class IncidentsService {
     });
 
     // Accumulate total active members for each standard unit
-    members.forEach((m) => {
-      if (m.department_id1 && deptIdToStandardIndexMap.has(m.department_id1)) {
-        const stdIdx = deptIdToStandardIndexMap.get(m.department_id1)!;
+    const currentStaffDepartments = currentRoster
+      ? currentRoster.entries.map(e => e.department_id)
+      : members.map(m => m.department_id1);
+    currentStaffDepartments.forEach((departmentId) => {
+      if (departmentId && deptIdToStandardIndexMap.has(departmentId)) {
+        const stdIdx = deptIdToStandardIndexMap.get(departmentId)!;
         standardUnitRows[stdIdx].total_staff += 1;
       }
     });
@@ -4420,6 +4439,15 @@ export class IncidentsService {
 
       let authorDeptId = 0;
       let authorId = inc.created_by || inc.user_ir || 0;
+
+      if (currentRoster) {
+        const entry = rosterByUserId.get(authorId);
+        // The denominator is the current roster; only its linked people can contribute to the numerator.
+        if (!entry || !deptIdToStandardIndexMap.has(entry.department_id)) return;
+        const stdIdx = deptIdToStandardIndexMap.get(entry.department_id)!;
+        standardUnitRows[stdIdx].monthSets[mNum]?.add(entry.id);
+        return;
+      }
 
       if (authorId && userIdToDeptIdMap.has(authorId)) {
         authorDeptId = userIdToDeptIdMap.get(authorId)!;
@@ -4479,6 +4507,10 @@ export class IncidentsService {
         totalHospitalStaff,
         year: targetYear,
         yearType,
+        staffSource: currentRoster ? 'latest_roster' : 'active_members',
+        rosterAsOf: currentRoster?.as_of || null,
+        rosterImportedAt: currentRoster?.imported_at || null,
+        rosterUnlinked: currentRoster?.entries.filter(e => deptIdToStandardIndexMap.has(e.department_id) && !rosterWithUser.has(e.id)).length || 0,
       },
       yearsList,
       monthsOrder,
