@@ -23,6 +23,8 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { useAuth } from "../contexts/AuthContext";
 import { WangChaoHospitalLogo } from "./WangChaoLogo";
+import AccountMenu from './AccountMenu';
+import NotificationBell from './NotificationBell';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -113,7 +115,6 @@ export default function Layout() {
     {
       groupTitle: "การบริหารจัดการ & RCA",
       items: [
-        ...((isAdmin || (user?.role === "rm_committee" && user?.rmScope === "hospital")) ? [{ name: "นำเข้าความเสี่ยงด้านยา", path: "/medication-import", icon: FileText, badge: null, badgeColor: "" }] : []),
         ...(canConfirmIncidents
           ? [
               {
@@ -155,13 +156,6 @@ export default function Layout() {
           badge: "RCA",
           badgeColor: "bg-rose-500/20 text-rose-300 border border-rose-500/30",
         },
-        {
-          name: "ติดตามความเสี่ยง Risk register",
-          path: "/reports",
-          icon: BarChart3,
-          badge: "5x5 Matrix",
-          badgeColor: "bg-blue-500/20 text-blue-300 border border-blue-500/30",
-        },
         ...[{
           name: "ติดตามมาตรการแก้ไข",
           path: "/capa",
@@ -188,6 +182,8 @@ export default function Layout() {
     {
       groupTitle: "ระบบ & กำหนดสิทธิ์",
       items: [
+        ...((isAdmin || (user?.role === "rm_committee" && user?.rmScope === "hospital")) ? [{ name: "นำเข้าความเสี่ยงด้านยา", path: "/medication-import", icon: FileText, badge: null, badgeColor: "" }] : []),
+
         ...(isAdmin
           ? [
               {
@@ -299,6 +295,10 @@ export default function Layout() {
 
         {/* Navigation Sections */}
         <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto overflow-x-hidden scrollbar-hide">
+          <NavLink to="/reports?view=register" title="ทะเบียนความเสี่ยง Risk Register" onClick={()=>setIsMobileMenuOpen(false)} className="flex items-center gap-3 rounded-xl border border-teal-700 bg-teal-950 px-2 py-3 font-bold text-teal-100 hover:bg-teal-800">
+            <span className="flex w-7 shrink-0 flex-col items-center gap-1"><ShieldAlert size={20}/><span className="text-[8px]">RR</span></span>
+            <span className="whitespace-nowrap text-sm opacity-100 lg:opacity-0 lg:group-hover/sidebar:opacity-100">ทะเบียนความเสี่ยง<br/><span className="text-xs text-teal-300">Risk Register</span></span>
+          </NavLink>
           {navSections.map((section, sIdx) => (
             <div key={sIdx} className="space-y-1">
               <div className="px-3 h-5 min-w-0 text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap overflow-hidden text-ellipsis opacity-100 lg:opacity-0 lg:group-hover/sidebar:opacity-100 transition-opacity duration-300 flex items-center">
@@ -348,23 +348,8 @@ export default function Layout() {
           ))}
         </nav>
 
-        {/* External Tool & User Profile Footer */}
+        {/* User Profile Footer */}
         <div className="p-3 border-t border-slate-800 bg-slate-900/60 space-y-2.5 overflow-hidden">
-          <NavLink
-            to="/rca/list"
-            title="โปรแกรม RCA"
-            className="flex items-center justify-between w-full px-3 py-2.5 text-xs font-semibold text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-800/50 rounded-xl transition-all shadow-sm group whitespace-nowrap overflow-hidden"
-          >
-            <div className="flex items-center gap-3">
-              <div className="shrink-0 w-5 flex items-center justify-center">
-                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse"></div>
-              </div>
-              <span className="opacity-100 lg:opacity-0 lg:group-hover/sidebar:opacity-100 transition-opacity duration-300">
-                โปรแกรม RCA (ภายใน)
-              </span>
-            </div>
-          </NavLink>
-
           {/* User Info Card */}
           <div className="p-2 bg-slate-800/60 rounded-xl border border-slate-750 flex items-center justify-between gap-3 overflow-hidden whitespace-nowrap">
             <div className="flex items-center gap-3 min-w-0">
@@ -438,6 +423,7 @@ export default function Layout() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <NotificationBell />
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
               <span className="text-slate-600 dark:text-slate-300 font-medium">
@@ -445,9 +431,7 @@ export default function Layout() {
               </span>
             </div>
 
-            <div className="hidden min-[340px]:flex w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-tr from-emerald-600 to-teal-600 rounded-xl text-white items-center justify-center font-bold text-sm shadow-sm uppercase">
-              {user?.name ? user.name.charAt(0) : "A"}
-            </div>
+            <AccountMenu />
           </div>
         </header>
 

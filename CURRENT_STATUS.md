@@ -206,3 +206,27 @@
 - Validation: frontend/backend build ผ่าน; synthetic UI ตรวจกรอกข้อมูลเดิม, hide→add ไม่ทำข้อมูลหาย, Excel preview/import 5→7 และวันที่แถวใหม่ถูกต้อง; responsive 543×676 ตาราง clientWidth = scrollWidth = 462px ไม่มี horizontal overflow
 - ไม่มี architecture/schema/API/migration ใหม่ ไม่เปลี่ยน production data หรือ deploy รอบนี้; ไม่ได้ตรวจ production health ซ้ำ Backup ไม่เกี่ยวข้องเพราะยังไม่ update production
 - ภาพและหน้าทดลองใช้ข้อมูลสมมติ: tmp/rca-preview/timeline-simple-mobile-20261004.png และ timeline-simple-desktop-20261004.png; localhost:3001 เป็น reference เท่านั้น ไม่ได้แก้ application ที่อยู่พอร์ตนั้น
+
+## ปรับตารางนำเข้ายา — 4 ตุลาคม 2569
+
+- Branch: codex/medication-import-table จาก origin/main ล่าสุด โดยใช้ worktree release เดิม รักษางานค้างใน workspace หลัก
+- ย้ายเมนูไป ระบบ & กำหนดสิทธิ์; ตาราง CSV เดิมคู่ข้อมูลนำเข้าตรึงด้านขวา, อ่านทันทีหลังเลือกไฟล์, เติมค่าร่วม/เลือกทั้งหมด/กรองแถวที่ต้องเติม/ยืนยันชุดครั้งเดียว
+- Parser ส่ง source_columns แบบตัดค่าผู้ป่วย/รูป/คอลัมน์ไม่รู้ความหมาย พร้อมเสนอ NRLS เฉพาะขั้นตอนเดียวที่ชัดเจน
+- คงการตรวจสิทธิ์ Admin หรือ hospital RM, token ผูกผู้ใช้, ตรวจซ้ำ และ validation ก่อนสร้างจริง ไม่มี schema/migration
+- เวลา CSV ไม่มี ต้องกรอกเวลาเกิดเหตุจริง; ห้ามนำเวลาส่งฟอร์มหรือเดาเวลามาใช้
+- ไฟล์: Layout.tsx, MedicationImport.tsx, medication-import.utils.ts/.spec.ts, docs/MEDICATION-CSV-IMPORT-TH.md, CURRENT_STATUS.md
+- ไม่มี deploy รอบนี้: backup path/running commit/production health ไม่ได้ตรวจ
+
+ผลตรวจ: frontend/backend build ผ่าน; backend tests 28 suites / 232 tests ผ่าน; browser QA ด้วยข้อมูลจำลอง ตรวจเติมเวลา 2 แถว ข้ามแถวซ้ำ และ batch confirm ส่งคำขอครั้งเดียวสำเร็จ 2 แถว ไม่มีการเขียนฐานข้อมูลจริง ปรับ sticky panel ให้ใช้เฉพาะจอใหญ่เพื่อให้จอเล็กเลื่อนตารางได้ ผล diff --check ผ่าน
+เผยแพร่โค้ดใน branch codex/medication-import-table; ยังไม่ deploy production: backup / running commit / health production ไม่ได้ตรวจในรอบนี้
+
+ปรับภาพรวมรายเดือน: เปิดค่าเริ่มต้นเป็นตารางกระชับหนึ่งบรรทัดต่อรายการ มีปุ่มดู/แก้ไขเพื่อเปิดรายละเอียด CSV ของแถวเดียว สลับทุกคอลัมน์ได้ ไฮไลต์สีเหลืองช่อง CSV ที่มีค่าและใช้ประกอบการนำเข้า ซ่อนหัวข้อคอลัมน์ 17 ทั้งสองตำแหน่งโดยไม่แก้ CSV และไม่เปลี่ยน backend/ฐานข้อมูล ข้อจำกัดเดิม 500 รายการ/5 MB ต่อไฟล์ ยังไม่ deploy production
+ผลตรวจรอบภาพรวม: frontend build ผ่าน (มีคำเตือน bundle size เดิม), backend build ผ่าน, diff --check ผ่าน ยังไม่ได้ตรวจมุมมองใหม่ใน browser รอบนี้; ไม่มี database migration, backup/running commit/health production ไม่ได้ตรวจเพราะไม่ deploy
+
+## 5 ตุลาคม 2569 — อนุมัติ release Timeline / RCA assistant ล่าสุด
+
+- ผู้ใช้สั่ง deploy: รวม f8a185f2 และ dd3c641a กับ origin/main ddbc50a3 โดยเก็บงานใหม่ของ main ครบ Conflict เฉพาะ CURRENT_STATUS.md แก้โดยรักษาบันทึกทั้งสองฝั่ง
+- frontend/backend build ผ่าน; backend 33 suites / 275 tests; Timeline extraction/Excel 10 tests ผ่าน; diff --check ผ่าน ไม่มี migration ใหม่เทียบ main ที่ production ใช้อยู่
+- สำรองก่อน release: /var/backups/riskhrms/riskhrms-db-20261005T015229Z.sql; SHA-256 460b8b27065d4dbe744488ad577c4f1a0163a13edd459458da358dfe13a25f3d ยืนยันไฟล์ nonempty และ checksum แล้ว
+- ก่อน push production active ที่ ddbc50a3, health ok / database connected และ login ด้วยบัญชีทดลองผ่าน
+- ขั้นตอนถัดไป: push main ให้ poller deploy ผ่าน updater เดิม แล้วตรวจ running commit, updater backup, health, read-only incident list และ Timeline โดยไม่แก้ clinical records; ผลยืนยันหลัง deploy เก็บใน tmp/rca-preview/DEPLOY-20261005.md

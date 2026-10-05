@@ -14,6 +14,8 @@ import IncidentDetail from "./pages/IncidentDetail";
 import MyReportedIncidents from "./pages/MyReportedIncidents";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import Profile from './pages/Profile';
+import Manuals from './pages/Manuals';
 import UserManagement from "./pages/UserManagement";
 import RiskTopicManagement from "./pages/RiskTopicManagement";
 import NrlsManagement from "./pages/NrlsManagement";
@@ -156,6 +158,9 @@ function App() {
               element={<Navigate to="/reporting-stats" replace />}
             />
             <Route path="settings" element={<Settings />} />
+            <Route path="profile" element={<Profile />} />
+            <Route path="manuals" element={<Manuals />} />
+            <Route path="settings/manuals" element={<Manuals manage />} />
             <Route
               path="users"
               element={

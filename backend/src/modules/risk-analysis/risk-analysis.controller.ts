@@ -18,11 +18,22 @@ import {
   CreateRiskReviewDto,
 } from './risk-analysis.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { LegacyRegisterImportService } from './legacy-register-import.service';
 
 @Controller('risk-analysis')
 @UseGuards(JwtAuthGuard)
 export class RiskAnalysisController {
-  constructor(private readonly riskAnalysisService: RiskAnalysisService) {}
+  constructor(private readonly riskAnalysisService: RiskAnalysisService, private readonly legacyImport: LegacyRegisterImportService) {}
+
+  @Post('import-legacy/preview')
+  previewLegacy(@Body() input: any, @Request() req: any) {
+    return this.legacyImport.preview(input, req.user);
+  }
+
+  @Post('import-legacy/commit')
+  importLegacy(@Body() input: any, @Request() req: any) {
+    return this.legacyImport.commit(input, req.user);
+  }
 
   @Get()
   findAll(

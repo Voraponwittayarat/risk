@@ -286,7 +286,8 @@ export default function IncidentForm() {
 
   const handleApplyAiData = (aiData: any) => {
     setFormData(prev => {
-      const selectedRisk = risks.find(r => r.id.toString() === aiData.risk_id);
+      const selectedRisk = risks.find(r => String(r.id) === String(aiData.risk_id));
+      const selectedLocation = locations.find(location => String(location.id) === String(aiData.location_id));
       const selectedNrlsCode = String(aiData.nrls_code || '').trim().toUpperCase();
       const selectedType = getNrlsTypeId(selectedNrlsCode)
         || selectedRisk?.type_id?.toString()
@@ -303,14 +304,32 @@ export default function IncidentForm() {
         : selectedNrlsCode
           ? `${selectedNrlsCode} : ${aiData.nrls_name || aiData.riskstore_name || 'หัวข้อความเสี่ยงตามมาตรฐาน NRLS'}`
           : prev.riskstore_text;
+      const suggestedShift = String(aiData.duration_name || '').trim();
+      const shiftPeriod = ['เช้า', 'บ่าย', 'ดึก'].find(period => suggestedShift.includes(`เวร${period}`) || suggestedShift === period);
+      const suggestedDate = String(aiData.date_report || prev.date_report);
+      const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(suggestedDate)
+        ? new Date(`${suggestedDate}T12:00:00`)
+        : null;
+      const dayGroup = suggestedShift.includes('วันหยุดพิเศษ')
+        ? 'วันหยุดพิเศษ/นักขัตฤกษ์'
+        : suggestedShift.includes('วันหยุดราชการ')
+          ? 'วันหยุดราชการ'
+          : suggestedShift.includes('วันราชการ')
+            ? 'วันราชการ'
+            : parsedDate && [0, 6].includes(parsedDate.getDay())
+              ? 'วันหยุดราชการ'
+              : 'วันราชการ';
+      const mappedShift = shiftPeriod
+        ? `${prev.shift.startsWith('วันหยุดพิเศษ/นักขัตฤกษ์-') ? 'วันหยุดพิเศษ/นักขัตฤกษ์' : dayGroup}-เวร${shiftPeriod}`
+        : prev.shift;
       return {
         ...prev,
         date_report: aiData.date_report || prev.date_report,
         time_report: aiData.time_report || prev.time_report,
-        shift: aiData.duration_name || prev.shift,
-        location_id: aiData.location_id || prev.location_id,
+        shift: mappedShift,
+        location_id: selectedLocation ? String(selectedLocation.id) : prev.location_id,
         nrls_code: selectedNrlsCode || prev.nrls_code,
-        risk_id: aiData.risk_id || (selectedNrlsCode ? '' : prev.risk_id),
+        risk_id: selectedRisk ? String(selectedRisk.id) : (selectedNrlsCode ? '' : prev.risk_id),
         riskstore_text: riskstoreText,
         group_id: selectedRisk ? selectedRisk.group_id?.toString() : prev.group_id,
         program_id: aiData.program_id

@@ -34,7 +34,24 @@ export function parseMedicationCsv(text: string) {
       `ตัวยาที่ผิด: ${get('ตัวยาที่ผิด (กรณีผิดขนาน/ชนิด/ตัวยา)')}`,
       get('เหตุการณ์/รายละเอียดเพิ่มเติม'),
     ].join('\n');
-    return { row: index + 2, key: 'medcsv:' + createHash('sha256').update(JSON.stringify(cells.map(c => c.trim()))).digest('hex'), date, level,
+    const safeHeaders = new Set([...required, 'ตัวยาที่ถูกต้อง (กรณีผิดขนาน/ชนิด/ตัวยา)', 'ตัวยาที่ผิด (กรณีผิดขนาน/ชนิด/ตัวยา)', 'การช่วยเหลือหรือแก้ไขเบื้องต้น', 'ชื่อผู้รายงาน']);
+    const source_columns = headers.map((header, i) => ({
+      header,
+      value: safeHeaders.has(header) || /Error\s*\(/i.test(header) ? (cells[i] || '') : '',
+      excluded: !safeHeaders.has(header) && !/Error\s*\(/i.test(header),
+    }));
+    const stageCodes = headers.flatMap((h, i) => {
+      if (!cells[i]?.trim() || /^(ไม่มี|ไม่พบ|ไม่เกิด|ไม่ได้เกิด|none|no|n\/a|-)$/i.test(cells[i].trim())) return [];
+      if (/^Prescribing Error\s*\(/i.test(h)) return ['CPM201'];
+      if (/^Transcribing Error\s*\(/i.test(h)) return ['CPM202'];
+      if (/^Pre-dispensing Error\s*\(/i.test(h)) return ['CPM203'];
+      if (/^Dispensing Error\s*\(/i.test(h)) return ['CPM204'];
+      if (/^Administration Error\s*\(/i.test(h)) return ['CPM205'];
+      return [];
+    });
+    const hasPreAdministration = headers.some((h, i) => /^Pre-Administration Error/i.test(h) && cells[i]?.trim());
+    const suggested_nrls_code = stageCodes.length === 1 && !hasPreAdministration ? stageCodes[0] : '';
+    return { source_columns, suggested_nrls_code, row: index + 2, key: 'medcsv:' + createHash('sha256').update(JSON.stringify(cells.map(c => c.trim()))).digest('hex'), date, level,
       shift: get('ช่วงเวรที่เกิดเหตุการณ์'), location: get('สถานที่เกิดเหตุการณ์'), stages,
       detail, problem_basic: get('การช่วยเหลือหรือแก้ไขเบื้องต้น'),
       reporter: get('ชื่อผู้รายงาน'), errors: [!date && 'วันที่ไม่ถูกต้อง', !level && 'กรุณาเลือกระดับ A–I'].filter(Boolean) };
