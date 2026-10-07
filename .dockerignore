@@ -1,0 +1,62 @@
+# Build context for deploy/docker/Dockerfile. Only the React frontend and the
+# NestJS backend are needed; everything sensitive or unused stays out.
+
+# Git and editor metadata
+.git
+.github
+.idea
+.vscode
+nbproject
+
+# Dependencies (installed inside the image build)
+**/node_modules
+
+# Build outputs (rebuilt inside the image)
+**/dist
+**/coverage
+
+# Secrets — never bake environment files into a build context or image
+**/.env
+
+# Database dumps and operational backups — sensitive, never enter an image
+*.sql
+*.sql.gz
+backend/backups
+deploy/backups
+deploy/runtime
+
+# Legacy Yii2 application (not part of the React/NestJS runtime)
+frontend_old
+vendor
+common
+console
+environments
+requirements.php
+init
+init.bat
+run.bat
+start_app.bat
+yii
+yii.bat
+yii_test
+yii_test.bat
+codeception.yml
+composer.json
+composer.lock
+index.php
+pass_reset.txt
+scripts
+
+# Virtualization
+vagrant
+Vagrantfile
+
+# Documentation and misc content not used by the build
+docs
+*.md
+!AGENTS.md
+
+# Junk and local tooling
+.DS_Store
+*.log
+tmp
