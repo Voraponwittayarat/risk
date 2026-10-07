@@ -76,11 +76,12 @@ validate_docker_env() {
 # Git commands run as the checkout owner so the worktree never gets root-owned
 # files; docker commands run as root.
 REPO_OWNER="$(stat -c %U "${PROJECT_ROOT}")"
+# git on CentOS 7 (1.8.x) lacks `git -C`, so run git from inside the checkout.
 run_git() {
   if [[ "$(id -un)" == "${REPO_OWNER}" ]]; then
-    git -C "${PROJECT_ROOT}" "$@"
+    (cd "${PROJECT_ROOT}" && git "$@")
   else
-    runuser -u "${REPO_OWNER}" -- git -C "${PROJECT_ROOT}" "$@"
+    runuser -u "${REPO_OWNER}" -- /bin/bash -c 'cd -- "$1"; shift; exec git "$@"' _ "${PROJECT_ROOT}" "$@"
   fi
 }
 
@@ -94,7 +95,8 @@ if [[ -n "$(run_git status --porcelain)" ]]; then
   echo 'Update cancelled: the production checkout contains uncommitted changes.' >&2
   exit 1
 fi
-CURRENT_BRANCH="$(run_git branch --show-current)"
+# `branch --show-current` needs git 2.22+; --abbrev-ref works everywhere.
+CURRENT_BRANCH="$(run_git rev-parse --abbrev-ref HEAD)"
 if [[ "${CURRENT_BRANCH}" != "${BRANCH}" ]]; then
   echo "Update cancelled: current branch is ${CURRENT_BRANCH}; expected ${BRANCH}." >&2
   exit 1

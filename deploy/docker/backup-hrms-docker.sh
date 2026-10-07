@@ -80,7 +80,7 @@ DUMP_BYTES="$(stat -c %s "${DUMP_PATH}")"
 (( DUMP_BYTES > 100 )) || { echo "Database dump is unexpectedly small: ${DUMP_PATH}" >&2; exit 1; }
 chmod 0600 "${DUMP_PATH}"
 SHA256="$(sha256sum "${DUMP_PATH}" | awk '{print $1}')"
-GIT_COMMIT="$(git -C "${PROJECT_ROOT}" rev-parse HEAD 2>/dev/null || echo unknown)"
+GIT_COMMIT="$(cd "${PROJECT_ROOT}" 2>/dev/null && git rev-parse HEAD 2>/dev/null || echo unknown)"
 
 UPLOAD_ARCHIVE=""
 UPLOAD_SHA256=""
