@@ -1,0 +1,64 @@
+name: riskhrms
+
+# RiskHRMS deployment with Docker Compose.
+# The app container serves both API and frontend on port 3000; the host Nginx
+# (unchanged) terminates TLS and proxies to 127.0.0.1:3000 as before.
+# All variable values come from deploy/docker/.env (copy .env.example first).
+
+services:
+  db:
+    image: mariadb:11.8
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?Set MARIADB_ROOT_PASSWORD in deploy/docker/.env}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-riskhospital}
+      MARIADB_USER: ${MARIADB_USER:-riskhrms}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?Set MARIADB_PASSWORD in deploy/docker/.env}
+      TZ: ${TZ:-Asia/Bangkok}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    # Port 3306 stays inside the compose network. Uncomment only when an
+    # administrator needs a host-side DB client, and keep it on loopback:
+    # ports:
+    #   - "127.0.0.1:3306:3306"
+
+  app:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    image: riskhrms:${APP_IMAGE_TAG:-local}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      FRONTEND_DIST_DIR: /app/frontend/dist
+      UPLOAD_DIR: /app/uploads
+      TZ: ${TZ:-Asia/Bangkok}
+    ports:
+      # Bind only to host loopback so the security posture matches the systemd
+      # deployment: users reach the system through Nginx, never port 3000.
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3000}:3000"
+    volumes:
+      - uploads_data:/app/uploads
+    healthcheck:
+      test: ["CMD", "node", "/usr/local/bin/container-healthcheck.cjs"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  db_data:
+  uploads_data:
