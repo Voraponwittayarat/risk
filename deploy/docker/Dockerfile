@@ -5,6 +5,9 @@
 # The entrypoint applies reviewed migrations with `prisma migrate deploy`
 # (never `prisma db push`) before starting the server.
 #
+# Kept BuildKit-free (no COPY --chmod, no syntax directive) so it also builds
+# on older Docker releases such as the last CentOS 7 packages.
+#
 # Build from the repository root:
 #   docker build -f deploy/docker/Dockerfile -t riskhrms:<commit-short> .
 
@@ -53,7 +56,8 @@ COPY backend/prisma ./prisma
 COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 COPY deploy/docker/wait-for-db.cjs ./
 COPY deploy/docker/container-healthcheck.cjs /usr/local/bin/container-healthcheck.cjs
-COPY --chmod=0755 deploy/docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY deploy/docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh
 
 # Pre-create the upload directory with the runtime user so the named volume
 # inherits node:node ownership on first use.
