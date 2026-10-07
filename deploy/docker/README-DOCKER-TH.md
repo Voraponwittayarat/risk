@@ -32,6 +32,8 @@ sudo -u riskhrms -H git -C /opt/riskhrms switch main
 
 กรณี repository เป็น private ให้ตั้ง read-only SSH deploy key ให้บัญชี `riskhrms` เหมือนโหมด systemd การแก้โค้ดทั้งหมดทำบนเครื่อง development แล้ว push เข้า `origin/main` เท่านั้น ห้ามแก้ source ใน `/opt/riskhrms`
 
+วาง checkout ไว้ที่อื่นแทน `/opt/riskhrms` ก็ได้ — สคริปต์ทั้งหมดอิงตำแหน่งสัมพัทธ์ของตัวเอง แค่เปลี่ยน path ในคำสั่งให้ตรง แต่**ห้ามวางใน web docroot ที่ Apache/Nginx serve เป็น static file อยู่** (เช่น `/var/www/html`) เพราะจะทำให้ `deploy/docker/db/*.sql` (dump ฐานข้อมูลจริง) และไฟล์ `.env` ถูกเปิดดูจากภายนอกได้ ใช้ path นอก docroot เช่น `/var/www/riskhrms` หรือปิดการเข้าถึงด้วย `Require all denied` ทุก vhost ที่ยัง serve docroot นั้น
+
 ## 3. เตรียม environment
 
 ```bash
