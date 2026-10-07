@@ -19,11 +19,12 @@ nbproject
 **/.env
 
 # Database dumps and operational backups — sensitive, never enter an image
-*.sql
-*.sql.gz
+**/*.sql
+**/*.sql.gz
 backend/backups
 deploy/backups
 deploy/runtime
+deploy/docker/db
 
 # Legacy Yii2 application (not part of the React/NestJS runtime)
 frontend_old

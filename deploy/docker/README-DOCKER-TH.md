@@ -82,8 +82,17 @@ sudo journalctl -u docker   # หรือดู log ด้วย compose logs �
 
 ### 4.1 ย้ายข้อมูลเดิมเข้าโหมด Docker
 
-- ฐานข้อมูล: ให้ DBA restore dump ที่ผ่านการอนุมัติเท่านั้น เช่น `zcat riskhrms-db-<stamp>.sql.gz | sudo docker compose --env-file deploy/docker/.env -f deploy/docker/docker-compose.yml exec -T db mariadb -u root -p"<root password>" riskhospital` — การ restore ต้องได้รับอนุมัติจาก DBA เพราะทับข้อมูลที่มีอยู่
-- ไฟล์แนบ (uploads): คัดลอกจากเครื่องเดิมเข้า volume `riskhrms_uploads_data` เช่น `sudo tar -C /var/lib/riskhrms -cf - uploads | sudo docker run --rm -i -v riskhrms_uploads_data:/target alpine sh -c 'cd /target && tar -xf -'`
+- ฐานข้อมูล: ให้ DBA restore เฉพาะ dump ที่ผ่านการอนุมัติ วางไฟล์ไว้ที่ `deploy/docker/db/` (ถูก ignore ไว้ ห้าม commit) แล้วรัน:
+
+```bash
+sudo bash /opt/riskhrms/deploy/docker/restore-hrms-docker.sh deploy/docker/db/riskhrms-db-<stamp>.sql
+```
+
+สคริปต์จะหยุด app → ลบ/สร้างฐานข้อมูลใหม่ → import dump (strip DEFINER ของ trigger/view ให้) → รัน migration ที่ค้าง → ตรวจ `/health` ให้ การ restore ต้องได้รับอนุมัติจาก DBA เพราะทับข้อมูลที่มีอยู่ทั้งหมด
+
+- ไฟล์แนบ (uploads): คัดลอกจากเครื่องเดิมเข้า volume `riskhrms_uploads_data` เช่น `sudo tar -C /var/lib/riskhrms -cf - uploads | sudo docker run --rm -i -v riskhrms_uploads_data:/target alpine sh -c 'cd /target && tar -xf -'` — ถ้าไม่คัดลอก ไฟล์แนบของรายการเก่าจะเปิดไม่ได้ใน stack นี้
+
+- เวอร์ชัน MariaDB ใน compose ตั้งเป็น `mariadb:11.8` ให้ตรงกับเซิร์ฟเวอร์ production (11.8.x) หาก DBA ใช้เวอร์ชันอื่น ให้แก้ image ใน `docker-compose.yml` ให้ตรง major version ก่อน restore
 
 ## 5. ตั้ง Nginx และ HTTPS
 

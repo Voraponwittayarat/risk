@@ -62,3 +62,5 @@ show_tables.js
 # Server deployment runtime data (never commit backups, logs, or state)
 deploy/runtime/
 deploy/backups/
+# Database dumps for the Docker deployment are sensitive and stay out of Git
+deploy/docker/db/
